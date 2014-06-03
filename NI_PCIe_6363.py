@@ -12,11 +12,18 @@
 #####################################################################
 
 from labscript_devices import RunviewerParser
-from labscript_devices import NI_generic
+from labscript_devices import NIBoard
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
 
+class NI_PCIe_6363(NIBoard):
+    description = 'NI-PCIe-6363'
+    n_analogs = 4
+    n_digitals = 32
+    n_analog_ins = 32
+    digital_dtype = uint32
+    
 @RunviewerParser
 class RunviewerClass(NI_generic.RunviewerClass):
     num_digitals = 32
