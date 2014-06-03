@@ -1,4 +1,4 @@
-from labscript import PseudoClock, DDS
+from labscript import PseudoClock, DDS, config
 
 class RFBlaster(PseudoClock):
     description = 'RF Blaster Rev1.1'

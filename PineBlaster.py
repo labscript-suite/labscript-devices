@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript import PseudoClock
+from labscript import PseudoClock, config
 from labscript_devices import RunviewerParser
 
 import numpy as np
@@ -38,8 +38,11 @@ class PineBlaster(PseudoClock):
         PseudoClock.generate_code(self, hdf5_file)
         group = hdf5_file['devices'].create_group(self.name)     
         # Store the clock tick times:
-        group.create_dataset('FAST_CLOCK',compression=config.compression, data=self.times[self.clock_type])
-        
+        try:
+            group.create_dataset('FAST_CLOCK',compression=config.compression, data=self.times[self.clock_type])
+        except:
+            import IPython
+            IPython.embed()
         # compress clock instructions with the same period: This will
         # halve the number of instructions roughly, since the PineBlaster
         # does not have a 'slow clock':
@@ -62,17 +65,14 @@ class PineBlaster(PseudoClock):
             raise LabscriptError("%s %s has too many instructions. It has %d and can only support %d"%(self.description, self.name, len(reduced_instructions), self.max_instructions))
         # Store these instructions to the h5 file:
         dtypes = [('period',int),('reps',int)]
-        pulse_program = zeros(len(reduced_instructions),dtype=dtypes)
+        pulse_program = np.zeros(len(reduced_instructions),dtype=dtypes)
         for i, instruction in enumerate(reduced_instructions):
             pulse_program[i]['period'] = instruction['period']
             pulse_program[i]['reps'] = instruction['reps']
         group.create_dataset('PULSE_PROGRAM', compression = config.compression, data=pulse_program)
         group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
         
-          
-
-
-    
+        
 @RunviewerParser
 class RunviewerClass(object):
     clock_resolution = 25e-9

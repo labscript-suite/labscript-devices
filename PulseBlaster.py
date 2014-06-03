@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import RunviewerParser
 
-from labscript import PseudoClock
+from labscript import PseudoClock, config
 
 import numpy as np
 
