@@ -23,7 +23,7 @@ def ClassRegister(object):
         
     def __getitem__(self, name):
         try:
-            return self.registered_classes[name]:
+            return self.registered_classes[name]
         except KeyError:
             pass
         # If we haven't seen that class, let's see if we can import it:
