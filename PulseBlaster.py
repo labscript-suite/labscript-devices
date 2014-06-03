@@ -257,14 +257,14 @@ class PulseBlaster(PseudoClock):
             phasedicts[num] = dict(zip(phases,phaseregs))
             
             # The zeros are the dummy instructions:
-            freq_table = array([0] + list(freqs), dtype = float64) / 1e6 # convert to MHz
-            amp_table = array([0] + list(amps), dtype = float32)
-            phase_table = array([0] + list(phases), dtype = float64)
+            freq_table = np.array([0] + list(freqs), dtype = np.float64) / 1e6 # convert to MHz
+            amp_table = np.array([0] + list(amps), dtype = np.float32)
+            phase_table = np.array([0] + list(phases), dtype = np.float64)
             
             subgroup = group.create_group('DDS%d'%num)
-            subgroup.create_dataset('FREQ_REGS', compression=config.compression,data = freq_table)
-            subgroup.create_dataset('AMP_REGS', compression=config.compression,data = amp_table)
-            subgroup.create_dataset('PHASE_REGS', compression=config.compression,data = phase_table)
+            subgroup.create_dataset('FREQ_REGS', compression=config.compression, data = freq_table)
+            subgroup.create_dataset('AMP_REGS', compression=config.compression, data = amp_table)
+            subgroup.create_dataset('PHASE_REGS', compression=config.compression, data = phase_table)
             
         return freqdicts, ampdicts, phasedicts
         
@@ -421,13 +421,13 @@ class PulseBlaster(PseudoClock):
         
     def write_pb_inst_to_h5(self, pb_inst, slow_clock_indices, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:
-        pb_dtype = [('freq0',int32), ('phase0',int32), ('amp0',int32), 
-                    ('dds_en0',int32), ('phase_reset0',int32),
-                    ('freq1',int32), ('phase1',int32), ('amp1',int32),
-                    ('dds_en1',int32), ('phase_reset1',int32),
-                    ('flags',int32), ('inst',int32),
-                    ('inst_data',int32), ('length',float64)]
-        pb_inst_table = empty(len(pb_inst),dtype = pb_dtype)
+        pb_dtype = [('freq0', np.int32), ('phase0', np.int32), ('amp0', np.int32), 
+                    ('dds_en0', np.int32), ('phase_reset0', np.int32),
+                    ('freq1', np.int32), ('phase1', np.int32), ('amp1', np.int32),
+                    ('dds_en1', np.int32), ('phase_reset1', np.int32),
+                    ('flags', np.int32), ('inst', np.int32),
+                    ('inst_data', np.int32), ('length', np.float64)]
+        pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
@@ -443,7 +443,7 @@ class PulseBlaster(PseudoClock):
             en1 = inst['enables'][1]
             pb_inst_table[i] = (freq0,phase0,amp0,en0,0,freq1,phase1,amp1,en1,0, flagint, 
                                 instructionint, dataint, delaydouble)
-        slow_clock_indices = array(slow_clock_indices, dtype = uint32)                  
+        slow_clock_indices = np.array(slow_clock_indices, dtype = np.uint32)                  
         # Okey now write it to the file: 
         group = hdf5_file['/devices/'+self.name]  
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
