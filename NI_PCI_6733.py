@@ -12,17 +12,17 @@
 #####################################################################
 
 from labscript_devices import RunviewerParser
-from labscript_devices import NIBoard
+import labscript_devices.NIBoard as parent
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
 
-class NI_PCI_6733(NIBoard):
+class NI_PCI_6733(parent.NIBoard):
     description = 'NI-PCI-6733'
     n_analogs = 8
     n_digitals = 0
     n_analog_ins = 0
-    digital_dtype = uint32
+    digital_dtype = np.uint32
     
     def generate_code(self, hdf5_file):
         NIBoard.generate_code(self, hdf5_file)
@@ -32,6 +32,6 @@ class NI_PCI_6733(NIBoard):
                              'Please add a dummy output device or remove an output you\'re not using, so that there are an even number of outputs. Sorry, this is annoying I know :).')
                              
 @RunviewerParser
-class RunviewerClass(NIBoard.RunviewerClass):
+class RunviewerClass(parent.RunviewerClass):
     num_digitals = 0
     
