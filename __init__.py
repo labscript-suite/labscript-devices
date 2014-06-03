@@ -33,19 +33,25 @@ def ClassRegister(object):
             raise ValueError('No class found in module %s, did you forget to decorate the class definition with @%s?'%(self.description))
 
 
-def LabscriptDevice(cls):
-    cls.labscript_device_name = cls.__module__.split('.')[-1]
-    return cls
+############################################
+# Temporary compat for current runviewer development until above code
+# is more general
 
-def BLACSTab(cls):
-    raise NotImplementedError
+__runviewer_classes__ = {}
 
-def BLACSWorker(cls):
-    raise NotImplementedError
+def import_device(device):
+    module = importlib.import_module('.%s'%device, 'labscript_devices')
+
+def RunviewerParser(the_class):
+    class_name = the_class.__module__.split('.')[-1]
+    __runviewer_classes__[class_name] = the_class
+    return the_class
     
-def RunviewerParser(cls):
-    raise NotImplementedError
+def get_runviewer_class(device_class_name):
+    return __runviewer_classes__[device_class_name]
     
+#############################################
+
 def get_labscript_device(name):
     raise NotImplementedError
     
