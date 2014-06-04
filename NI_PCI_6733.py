@@ -25,7 +25,7 @@ class NI_PCI_6733(parent.NIBoard):
     digital_dtype = np.uint32
     
     def generate_code(self, hdf5_file):
-        NIBoard.generate_code(self, hdf5_file)
+        parent.NIBoard.generate_code(self, hdf5_file)
         if len(self.child_devices) % 2:
             raise LabscriptError('%s %s must have an even numer of analog outputs '%(self.description, self.name) +
                              'in order to guarantee an even total number of samples, which is a limitation of the DAQmx library. ' +

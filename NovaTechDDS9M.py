@@ -1,5 +1,7 @@
-from labscript import IntermediateDevice, DDS, StaticDDS, Device
+from labscript import IntermediateDevice, DDS, StaticDDS, Device, config
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
+
+import numpy as np
 
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
@@ -11,7 +13,6 @@ class NovaTechDDS9M(IntermediateDevice):
         self.BLACS_connection = com_port
     
     def add_device(self, device):
-        print 'add device!'
         Device.add_device(self, device)
         # The Novatech doesn't support 0Hz output; set the default frequency of the DDS to 0.1 Hz:
         device.frequency.default_value = 0.1
@@ -35,7 +36,7 @@ class NovaTechDDS9M(IntermediateDevice):
                               'can only have frequencies between 0.1Hz and 171MHz, ' + 
                               'the limit imposed by %s.'%self.name)
         # It's faster to add 0.5 then typecast than to round to integers first:
-        data = array((10*data)+0.5,dtype=uint32)
+        data = np.array((10*data)+0.5,dtype=np.uint32)
         scale_factor = 10
         return data, scale_factor
         
@@ -43,7 +44,7 @@ class NovaTechDDS9M(IntermediateDevice):
         # ensure that phase wraps around:
         data %= 360
         # It's faster to add 0.5 then typecast than to round to integers first:
-        data = array((45.511111111111113*data)+0.5,dtype=uint16)
+        data = np.array((45.511111111111113*data)+0.5,dtype=np.uint16)
         scale_factor = 45.511111111111113
         return data, scale_factor
         
@@ -54,7 +55,7 @@ class NovaTechDDS9M(IntermediateDevice):
                               'can only have amplitudes between 0 and 1 (Volts peak to peak approx), ' + 
                               'the limit imposed by %s.'%self.name)
         # It's faster to add 0.5 then typecast than to round to integers first:
-        data = array((1023*data)+0.5,dtype=uint16)
+        data = np.array((1023*data)+0.5,dtype=np.uint16)
         scale_factor = 1023
         return data, scale_factor
         
@@ -83,23 +84,23 @@ class NovaTechDDS9M(IntermediateDevice):
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(dds.description,dds.name,str(dds.connection)) + 
                                      'Format must be \'channel n\' with n from 0 to 4.')
                                 
-        dtypes = [('freq%d'%i,uint32) for i in range(2)] + \
-                 [('phase%d'%i,uint16) for i in range(2)] + \
-                 [('amp%d'%i,uint16) for i in range(2)]
+        dtypes = [('freq%d'%i,np.uint32) for i in range(2)] + \
+                 [('phase%d'%i,np.uint16) for i in range(2)] + \
+                 [('amp%d'%i,np.uint16) for i in range(2)]
                  
-        static_dtypes = [('freq%d'%i,uint32) for i in range(2,4)] + \
-                        [('phase%d'%i,uint16) for i in range(2,4)] + \
-                        [('amp%d'%i,uint16) for i in range(2,4)]
+        static_dtypes = [('freq%d'%i,np.uint32) for i in range(2,4)] + \
+                        [('phase%d'%i,np.uint16) for i in range(2,4)] + \
+                        [('amp%d'%i,np.uint16) for i in range(2,4)]
                         
         if self.clock_type == 'slow clock':
             times = self.parent_device.change_times
         else:
             times = self.parent_device.times[self.clock_type]
-        out_table = zeros(len(times),dtype=dtypes)
+        out_table = np.zeros(len(times),dtype=dtypes)
         out_table['freq0'].fill(1)
         out_table['freq1'].fill(1)
         
-        static_table = zeros(1, dtype=static_dtypes)
+        static_table = np.zeros(1, dtype=static_dtypes)
         static_table['freq2'].fill(1)
         static_table['freq3'].fill(1)
         

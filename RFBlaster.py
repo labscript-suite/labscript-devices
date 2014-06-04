@@ -1,5 +1,6 @@
-from labscript import PseudoClock, DDS, config
-
+import os
+from labscript import PseudoClock, DDS, config, startupinfo
+import numpy as np
 class RFBlaster(PseudoClock):
     description = 'RF Blaster Rev1.1'
     clock_limit = 500e3
@@ -39,7 +40,7 @@ class RFBlaster(PseudoClock):
         # Generate clock and save raw instructions to the h5 file:
         PseudoClock.generate_code(self, hdf5_file)
         dtypes = [('time',float),('amp0',float),('freq0',float),('phase0',float),('amp1',float),('freq1',float),('phase1',float)]
-        data = zeros(len(self.times[self.clock_type]),dtype=dtypes)
+        data = np.zeros(len(self.times[self.clock_type]),dtype=dtypes)
         data['time'] = self.times[self.clock_type]
         for dds in self.child_devices:
             prefix, connection = dds.connection.split()
@@ -50,24 +51,26 @@ class RFBlaster(PseudoClock):
         group.create_dataset('TABLE_DATA',compression=config.compression, data=data)
         
         # Quantise the data and save it to the h5 file:
-        quantised_dtypes = [('time',int64),('amp0',int32),('freq0',int32),('phase0',int32),('amp1',int32),('freq1',int32),('phase1',int32)]
-        quantised_data = zeros(len(self.times[self.clock_type]),dtype=quantised_dtypes)
-        quantised_data['time'] = array(c.tT*1e6*data['time']+0.5)
+        quantised_dtypes = [('time',np.int64),
+                            ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
+                            ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)]
+        quantised_data = np.zeros(len(self.times[self.clock_type]),dtype=quantised_dtypes)
+        quantised_data['time'] = np.array(c.tT*1e6*data['time']+0.5)
         for dds in range(2):
             # TODO: bounds checking
             # Adding 0.5 to each so that casting to integer rounds:
-            quantised_data['freq%d'%dds] = array(c.fF*1e-6*data['freq%d'%dds] + 0.5)
-            quantised_data['amp%d'%dds]  = array((2**c.bitsA - 1)*data['amp%d'%dds] + 0.5)
-            quantised_data['phase%d'%dds] = array(c.pP*data['phase%d'%dds] + 0.5)
+            quantised_data['freq%d'%dds] = np.array(c.fF*1e-6*data['freq%d'%dds] + 0.5)
+            quantised_data['amp%d'%dds]  = np.array((2**c.bitsA - 1)*data['amp%d'%dds] + 0.5)
+            quantised_data['phase%d'%dds] = np.array(c.pP*data['phase%d'%dds] + 0.5)
         group.create_dataset('QUANTISED_DATA',compression=config.compression, data=quantised_data)
         # Generate some assembly code and compile it to machine code:
         assembly_group = group.create_group('ASSEMBLY_CODE')
         binary_group = group.create_group('BINARY_CODE')
         diff_group = group.create_group('DIFF_TABLES')
         # When should the RFBlaster wait for a trigger?
-        quantised_trigger_times = array([c.tT*1e6*t + 0.5 for t in self.trigger_times], dtype=int64)
+        quantised_trigger_times = np.array([c.tT*1e6*t + 0.5 for t in self.trigger_times], dtype=np.int64)
         for dds in range(2):
-            abs_table = zeros((len(self.times[self.clock_type]), 4),dtype=int64)
+            abs_table = np.zeros((len(self.times[self.clock_type]), 4),dtype=np.int64)
             abs_table[:,0] = quantised_data['time']
             abs_table[:,1] = quantised_data['amp%d'%dds]
             abs_table[:,2] = quantised_data['freq%d'%dds]
@@ -128,7 +131,7 @@ class RFBlaster(PseudoClock):
                 # contain embedded nulls'. Presumably our binary data
                 # must contain nulls sometimes. So this crashes if we
                 # don't convert to a numpy 'fixes length' string:
-                binary_group.create_dataset('DDS%d'%dds, data=string_(binary_data))
+                binary_group.create_dataset('DDS%d'%dds, data=np.string_(binary_data))
             finally:
                 # Delete the temporary files:
                 os.remove(temp_assembly_filepath)

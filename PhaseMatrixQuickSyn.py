@@ -1,4 +1,5 @@
-from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut
+from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config
+import numpy as np
 
 class QuickSynDDS(StaticDDS):
     """A StaticDDS that supports only frequency control, with no phase or amplitude control."""
@@ -45,7 +46,7 @@ class PhaseMatrixQuickSyn(Device):
                               'can only have frequencies between 0.5GHz and 10GHz, ' + 
                               'the limit imposed by %s.'%self.name)
         # It's faster to add 0.5 then typecast than to round to integers first (device is programmed in mHz):
-        data = array((1000*data)+0.5,dtype=uint64)
+        data = np.array((1000*data)+0.5, dtype=np.uint64)
         scale_factor = 1000
         return data, scale_factor
     
@@ -72,9 +73,9 @@ class PhaseMatrixQuickSyn(Device):
         dds.gate.expand_timeseries()
         
         dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-        static_dtypes = [('freq0',uint64)] + \
-                        [('gate0',uint16)]
-        static_table = zeros(1, dtype=static_dtypes)   
+        static_dtypes = [('freq0', np.uint64)] + \
+                        [('gate0', np.uint16)]
+        static_table = np.zeros(1, dtype=static_dtypes)   
         static_table['freq0'].fill(1)
         static_table['freq0'] = dds.frequency.raw_output[0]
         static_table['gate0'] = dds.gate.raw_output[0]

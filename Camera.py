@@ -1,5 +1,5 @@
 from labscript import DigitalOut
-
+import numpy as np
 class Camera(DigitalOut):
     description = 'Generic Camera'
     frame_types = ['atoms','flat','dark','fluoro','clean']
@@ -13,7 +13,7 @@ class Camera(DigitalOut):
         self.BLACS_connection = BIAS_port
         if isinstance(serial_number,str):
             serial_number = int(serial_number,16)
-        self.sn = uint64(serial_number)
+        self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
         
@@ -53,7 +53,7 @@ class Camera(DigitalOut):
            
     def generate_code(self, hdf5_file):
         table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposuretime',float)]
-        data = array(self.exposures,dtype=table_dtypes)
+        data = np.array(self.exposures,dtype=table_dtypes)
         group = hdf5_file['devices'].create_group(self.name)
         group.attrs['exposure_time'] = float(self.exposuretime) if self.exposuretime is not None else float('nan')
         group.attrs['orientation'] = self.orientation
