@@ -516,6 +516,7 @@ class MyRunviewerClass(object):
         # get the pulse program
         with h5py.File(self.path, 'r') as f:
             pulse_program = f['devices/%s/PULSE_PROGRAM'%self.name][:]
+            slow_clock_flag = eval(f['devices/%s'%self.name].attrs['slow_clock'])
             dds = {}
             for i in range(self.num_dds):
                 dds[i] = {}
@@ -599,6 +600,10 @@ class MyRunviewerClass(object):
         clock = np.array(clock, dtype=np.float64)
         for name, data in traces.items():
             to_return[name] = (clock, np.array(data))
+            
+        
+        if slow_clock_flag is not None:
+            to_return['slow clock'] = to_return['flag %d'%slow_clock_flag[0]]
             
         return to_return
     

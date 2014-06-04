@@ -37,6 +37,8 @@ def ClassRegister(object):
 # Temporary compat for current runviewer development until above code
 # is more general
 
+import importlib
+
 __runviewer_classes__ = {}
 
 def import_device(device):
