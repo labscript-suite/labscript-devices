@@ -1,6 +1,7 @@
 import numpy as np
 from labscript_devices import RunviewerParser
 from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield
+import labscript_utils.h5_lock, h5py
 
 class NIBoard(IntermediateDevice):
     allowed_children = [AnalogOut, DigitalOut, AnalogIn]
