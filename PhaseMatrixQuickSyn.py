@@ -1,5 +1,34 @@
-from labscript import Device, StaticDDS
+from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut
 
+class QuickSynDDS(StaticDDS):
+    """A StaticDDS that supports only frequency control, with no phase or amplitude control."""
+    description = 'PhaseMatrix QuickSyn DDS'
+    allowed_children = [StaticAnalogQuantity,StaticDigitalOut]
+    generation = 2
+    def __init__(self, name, parent_device, connection, freq_limits = None, freq_conv_class = None,freq_conv_params = {}):
+        self.clock_type = parent_device.clock_type
+        Device.__init__(self,name,parent_device,connection)
+        self.frequency = StaticAnalogQuantity(self.name+'_freq',self,'freq',freq_limits,freq_conv_class,freq_conv_params)
+        self.frequency.default_value = 0.5e9
+        self.gate = StaticDigitalOut(self.name+'_gate',self,'gate')
+            
+    def setamp(self,value,units=None):
+        raise LabscriptError('QuickSyn does not support amplitude control')
+        
+    def setphase(self,value,units=None):
+        raise LabscriptError('QuickSyn does not support phase control')
+            
+    def enable(self):       
+        """overridden from StaticDDS so as not to provide time resolution -
+        output can be enabled or disabled only at the start of the shot"""
+        self.gate.go_high()
+                            
+    def disable(self):
+        """overridden from StaticDDS so as not to provide time resolution -
+        output can be enabled or disabled only at the start of the shot"""
+        self.gate.go_low()
+        
+              
 class PhaseMatrixQuickSyn(Device):
     description = 'QuickSyn Frequency Synthesiser'
     allowed_children = [StaticDDS]

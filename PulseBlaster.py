@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import RunviewerParser
 
-from labscript import PseudoClock, config
+from labscript import Device, PseudoClock, DigitalQuantity, DDS, config
 
 import numpy as np
 
@@ -147,6 +147,18 @@ class PulseBlaster(PseudoClock):
         else:
             self.has_clocks = True
     
+    def add_device(self, device):
+        Device.add_device(self, device)
+        if isinstance(device, DDS):
+            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
+            # Then instantiate a DigitalQuantity to keep track of gating.
+            if device.gate is None:
+                device.gate = DigitalQuantity(device.name + '_gate', self, 'gate')
+            else:
+                raise LabscriptError('You cannot specify a digital gate ' +
+                                     'for a DDS connected to %s. '% (self.name) + 
+                                     'The digital gate is always internal to the Pulseblaster.')
+                
     def flag_valid(self, flag):
         if -1 < flag < self.n_flags:
             return True

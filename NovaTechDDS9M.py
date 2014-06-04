@@ -1,5 +1,5 @@
-from labscript import IntermediateDevice, DDS, StaticDDS
-
+from labscript import IntermediateDevice, DDS, StaticDDS, Device
+from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
 
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
@@ -10,6 +10,24 @@ class NovaTechDDS9M(IntermediateDevice):
         IntermediateDevice.__init__(self, name, parent_device,clock_type)
         self.BLACS_connection = com_port
     
+    def add_device(self, device):
+        print 'add device!'
+        Device.add_device(self, device)
+        # The Novatech doesn't support 0Hz output; set the default frequency of the DDS to 0.1 Hz:
+        device.frequency.default_value = 0.1
+            
+    def get_default_unit_conversion_classes(self, device):
+        """Child devices call this during their __init__ (with themselves
+        as the argument) to check if there are certain unit calibration
+        classes that they should apply to their outputs, if the user has
+        not otherwise specified a calibration class"""
+        if device.connection in ['channel 0', 'channel 1']:
+            # Default calibration classes for the non-static channels:
+            return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
+        else:
+            return None, None, None
+        
+        
     def quantise_freq(self,data, device):
         # Ensure that frequencies are within bounds:
         if any(data > 171e6 )  or any(data < 0.1 ):
