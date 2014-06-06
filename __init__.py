@@ -2,7 +2,7 @@ import os
 import sys
 import importlib
 
-__version__ = '0.1.0-dev'
+__version__ = '0.1.0-gated-clocks'
 
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a

@@ -11,14 +11,26 @@
 #                                                                   #
 #####################################################################
 
-from labscript import PseudoClock, config
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError
 from labscript_devices import runviewer_parser
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
 
-  
-class PineBlaster(PseudoClock):
+
+# Define a PineBlasterPseudoClock that only accepts one child clockline
+class PineBlasterPseudoclock(Pseudoclock):    
+    def add_device(self, device):
+        if isinstance(device, ClockLine):
+            # only allow one child
+            if self.child_list:
+                raise LabscriptError('The pseudoclock of the PineBlaster %s only supports 1 clockline, which is automatically created. Please use the clockline located at %s.clockline'%(self.parent_device.name, self.parent_device.name))
+            Pseudoclock.add_device(self, device)
+        else:
+            raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
+ 
+        
+class PineBlaster(PseudoclockDevice):
     description = 'PineBlaster'
     clock_limit = 10e6
     clock_resolution = 25e-9
@@ -27,27 +39,48 @@ class PineBlaster(PseudoClock):
     trigger_delay = 1e-6
     # Todo: find out what this actually is:
     wait_delay = 2.5e-6
+    allowed_children = [PineBlasterPseudoclock]
     
     max_instructions = 15000
     
     def __init__(self, name, trigger_device=None, trigger_connection=None, usbport='COM1'):
-        PseudoClock.__init__(self, name, trigger_device, trigger_connection)
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = usbport
+        
+        # create Pseudoclock and clockline
+        self._pseudoclock = PineBlasterPseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
+        # Create the internal direct output clock_line
+        self._clock_line = ClockLine('%s_clock_line'%name, self.pseudoclock, 'internal')
+    
+    @property
+    def pseudoclock(self):
+        return self._pseudoclock
+    
+    # Note, not to be confused with Device.parent_clock_line which returns the parent ClockLine
+    # This one gives the automatically created ClockLine object
+    @property
+    def clockline(self):
+        return self._clock_line
+    
+    def add_device(self, device):
+        if not self.child_list and isinstance(device, Pseudoclock):
+            PseudoclockDevice.add_device(self, device)            
+        elif isinstance(device, Pseudoclock):
+            raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
+                                 'Instead of instantiating your own Pseudoclock object, please use the internal' +
+                                 ' one stored in %s.pseudoclock'%self.name)
+        else:
+            raise LabscriptError('You have connected %s (class %s) to %s, but %s does not support children with that class.'%(device.name, device.__class__, self.name, self.name))
     
     def generate_code(self, hdf5_file):
-        PseudoClock.generate_code(self, hdf5_file)
-        group = hdf5_file['devices'].create_group(self.name)     
-        # Store the clock tick times:
-        try:
-            group.create_dataset('FAST_CLOCK',compression=config.compression, data=self.times[self.clock_type])
-        except:
-            import IPython
-            IPython.embed()
+        PseudoclockDevice.generate_code(self, hdf5_file)
+        group = hdf5_file['devices'].create_group(self.name)   
+        
         # compress clock instructions with the same period: This will
         # halve the number of instructions roughly, since the PineBlaster
         # does not have a 'slow clock':
         reduced_instructions = []
-        for instruction in self.clock:
+        for instruction in self.pseudoclock.clock:
             if instruction == 'WAIT':
                 # The following period and reps indicates a wait instruction
                 reduced_instructions.append({'period': 0, 'reps': 1})
@@ -70,9 +103,10 @@ class PineBlaster(PseudoClock):
             pulse_program[i]['period'] = instruction['period']
             pulse_program[i]['reps'] = instruction['reps']
         group.create_dataset('PULSE_PROGRAM', compression = config.compression, data=pulse_program)
+        # TODO: is this needed, the PulseBlasters don't save it... 
         group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
-        
-        
+ 
+
 @runviewer_parser
 class RunviewerClass(object):
     clock_resolution = 25e-9

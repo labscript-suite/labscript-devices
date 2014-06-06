@@ -1,4 +1,4 @@
-from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config
+from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config, LabscriptError
 import numpy as np
 
 class QuickSynDDS(StaticDDS):
@@ -7,7 +7,6 @@ class QuickSynDDS(StaticDDS):
     allowed_children = [StaticAnalogQuantity,StaticDigitalOut]
     generation = 2
     def __init__(self, name, parent_device, connection, freq_limits = None, freq_conv_class = None,freq_conv_params = {}):
-        self.clock_type = parent_device.clock_type
         Device.__init__(self,name,parent_device,connection)
         self.frequency = StaticAnalogQuantity(self.name+'_freq',self,'freq',freq_limits,freq_conv_class,freq_conv_params)
         self.frequency.default_value = 0.5e9
@@ -32,11 +31,10 @@ class QuickSynDDS(StaticDDS):
               
 class PhaseMatrixQuickSyn(Device):
     description = 'QuickSyn Frequency Synthesiser'
-    allowed_children = [StaticDDS]
+    allowed_children = [QuickSynDDS]
     generation = 0
     def __init__(self, name,com_port):
         Device.__init__(self, name, None, None)
-        self.clock_type = None
         self.BLACS_connection = com_port
         
     def quantise_freq(self,data, device):
@@ -49,7 +47,6 @@ class PhaseMatrixQuickSyn(Device):
         data = np.array((1000*data)+0.5, dtype=np.uint64)
         scale_factor = 1000
         return data, scale_factor
-    
     
     def generate_code(self, hdf5_file):
         for output in self.child_devices:

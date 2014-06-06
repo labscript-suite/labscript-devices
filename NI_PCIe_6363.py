@@ -11,6 +11,7 @@
 #                                                                   #
 #####################################################################
 
+from labscript import LabscriptError
 from labscript_devices import runviewer_parser
 import labscript_devices.NIBoard as parent
 

@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import runviewer_parser
 
-from labscript import IntermediateDevice, DDS, StaticDDS, Device, config
+from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
 
 import numpy as np
@@ -24,8 +24,8 @@ class NovaTechDDS9M(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
     clock_limit = 500e3 # TODO: find out what the actual max clock rate is.
     
-    def __init__(self, name, parent_device, clock_type, com_port):
-        IntermediateDevice.__init__(self, name, parent_device,clock_type)
+    def __init__(self, name, parent_device, com_port):
+        IntermediateDevice.__init__(self, name, parent_device)
         self.BLACS_connection = com_port
     
     def add_device(self, device):
@@ -107,11 +107,11 @@ class NovaTechDDS9M(IntermediateDevice):
         static_dtypes = [('freq%d'%i,np.uint32) for i in range(2,4)] + \
                         [('phase%d'%i,np.uint16) for i in range(2,4)] + \
                         [('amp%d'%i,np.uint16) for i in range(2,4)]
-                        
-        if self.clock_type == 'slow clock':
-            times = self.parent_device.change_times
-        else:
-            times = self.parent_device.times[self.clock_type]
+         
+        clockline = self.parent_device
+        pseudoclock = clockline.parent_device
+        times = pseudoclock.times[clockline]
+       
         out_table = np.zeros(len(times),dtype=dtypes)
         out_table['freq0'].fill(1)
         out_table['freq1'].fill(1)

@@ -1,6 +1,6 @@
 import numpy as np
 from labscript_devices import runviewer_parser
-from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config
+from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError
 import labscript_utils.h5_lock, h5py
 
 class NIBoard(IntermediateDevice):
@@ -11,8 +11,8 @@ class NIBoard(IntermediateDevice):
     clock_limit = 500e3 # underestimate I think.
     description = 'generic_NI_Board'
     
-    def __init__(self, name, parent_device, clock_type, clock_terminal, MAX_name=None, acquisition_rate=0):
-        IntermediateDevice.__init__(self, name, parent_device,clock_type)
+    def __init__(self, name, parent_device, clock_terminal, MAX_name=None, acquisition_rate=0):
+        IntermediateDevice.__init__(self, name, parent_device)
         self.acquisition_rate = acquisition_rate
         self.clock_terminal = clock_terminal
         self.MAX_name = name if MAX_name is None else MAX_name
@@ -50,7 +50,12 @@ class NIBoard(IntermediateDevice):
                 inputs[device.connection] = device
             else:
                 raise Exception('Got unexpected device.')
-        analog_out_table = np.empty((len(self.parent_device.times[self.clock_type]),len(analogs)), dtype=np.float32)
+        
+        clockline = self.parent_device
+        pseudoclock = clockline.parent_device
+        times = pseudoclock.times[clockline]
+                
+        analog_out_table = np.empty((len(times),len(analogs)), dtype=np.float32)
         analog_connections = analogs.keys()
         analog_connections.sort()
         analog_out_attrs = []

@@ -1,4 +1,4 @@
-from labscript import StaticAnalogQuantity, Device
+from labscript import StaticAnalogQuantity, Device, LabscriptError
 
 class ZaberStageTLSR150D(StaticAnalogQuantity):
     minval=0
@@ -20,7 +20,6 @@ class ZaberStageController(Device):
     generation = 0
     def __init__(self, name,com_port):
         Device.__init__(self, name, None, None)
-        self.clock_type = None
         self.BLACS_connection = com_port
         
     def generate_code(self, hdf5_file):

@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import runviewer_parser
 
-from labscript import Device, PseudoClock, DigitalQuantity, DigitalOut, DDS, config, LabscriptError
+from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError
 
 import numpy as np
 
@@ -65,7 +65,7 @@ def stop_profile(name):
     profiles[name]['average_time_per_call'] = profiles[name]['total_time']/profiles[name]['num_calls']
           
           
-class PulseBlaster(PseudoClock):
+class PulseBlaster(PseudoclockDevice):
     
     pb_instructions = {'CONTINUE':   0,
                        'STOP':       1, 
@@ -78,9 +78,7 @@ class PulseBlaster(PseudoClock):
     description = 'PB-DDSII-300'
     clock_limit = 8.3e6 # Slight underestimate I think.
     clock_resolution = 26.6666666666666666e-9
-    fast_clock_flag = 0
-    slow_clock_flag = 1
-    clock_type = 'slow clock'
+    # TODO: Add n_dds and generalise code
     n_flags = 12
     
     # This value is coupled to a value in the PulseBlaster worker process of BLACS
@@ -92,99 +90,69 @@ class PulseBlaster(PseudoClock):
     wait_delay = 100e-9
     trigger_edge_type = 'falling'
     
-    def __init__(self,name,trigger_device=None,trigger_connection=None,board_number=0,firmware = '', slow_clock_flag=1,fast_clock_flag=0):
-        PseudoClock.__init__(self,name,trigger_device,trigger_connection)
+    # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
+    allowed_children = [Pseudoclock]
+    
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = ''):
+        PseudoclockDevice.__init__(self,name,trigger_device,trigger_connection)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
         
-        # slow clock flag must be either the integer 0-11 to indicate a flag, or None to indicate not in use.
-        if type(slow_clock_flag) == int:
-            slow_clock_flag = [slow_clock_flag]
-        if slow_clock_flag is not None:
-            for flag in slow_clock_flag:
-                if not self.flag_valid(flag):
-                    raise LabscriptError('The slow clock flag(s) for Pulseblaster %s must either be an integer between 0-%d to indicate slow clock output'%(name, self.n_flags-1) +
-                                         ' on that flag or None to indicate the suppression of the slow clock')
-        self.slow_clock_flag = slow_clock_flag
-            
-            
-        # if -1 < slow_clock_flag < self.n_flags or slow_clock_flag == None:
-            # self.slow_clock_flag = slow_clock_flag
-        # else:
-            # raise LabscriptError('The slow clock flag for Pulseblaster %s must either be an integer between 0-11 to indicate slow clock output'%name +
-                                 # ' on that flag or None to indicate the suppression of the slow clock')
+        # Create the internal pseudoclock
+        self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
+        # Create the internal direct output clock_line
+        self._direct_output_clock_line = ClockLine('%s_direct_output_clock_line'%name, self.pseudoclock, 'internal', ramping_allowed = False)
+        # Create the internal intermediate device connected to the above clock line
+        # This will have the direct DigitalOuts of DDSs of the PulseBlaster connected to it
+        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device', self._direct_output_clock_line)
+    
+    @property
+    def pseudoclock(self):
+        return self._pseudoclock
         
-        # fast clock flag must be either the integer 0-11 to indicate a flag, or None to indicate not in use.
-        if type(fast_clock_flag) == int:
-            fast_clock_flag = [fast_clock_flag]
-            
-        self.extra_clocks = []
-        if fast_clock_flag is not None:
-            for flag in fast_clock_flag:
-                if not self.flag_valid(flag) or (type(self.slow_clock_flag) == list and flag in self.slow_clock_flag):
-                    raise LabscriptError('The fast clock flag for Pulseblaster %s must either be an integer between 0-%d to indicate fast clock output'%(name, self.n_flags-1) +
-                                         ' on that flag orNone to indicate the suppression of the fast clock')
-                self.extra_clocks.append('flag %d'%flag)
-        self.fast_clock_flag = fast_clock_flag
-            
-        
-        # if -1 < fast_clock_flag < self.n_flags or fast_clock_flag == None:
-            # # the fast clock flag should not be the same as the slow clock flag
-            # if fast_clock_flag == slow_clock_flag and fast_clock_flag != None:
-                # raise LabscriptError('The fast clock flag for Pulseblaster %s must not be the same as the slow clock flag')
-            # else:
-                # self.fast_clock_flag = fast_clock_flag
-        # else:
-            # raise LabscriptError('The fast clock flag for Pulseblaster %s must either be an integer between 0-11 to indicate fast clock output'%name +
-                                 # ' on that flag orNone to indicate the suppression of the fast clock')
-        
-        # Only allow directly connected devices if we don't have a fast clock or a slow clock
-        if slow_clock_flag == None and fast_clock_flag == None:
-            self.allowed_children = [DDS,DigitalOut]
-            self.description = 'PB-DDSII-300 [standalone]' #make the error messages make a little more sense
-            self.has_clocks = False
-        else:
-            self.has_clocks = True
+    @property
+    def direct_outputs(self):
+        return self._direct_output_device
     
     def add_device(self, device):
-        Device.add_device(self, device)
-        if isinstance(device, DDS):
-            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
-            # Then instantiate a DigitalQuantity to keep track of gating.
-            if device.gate is None:
-                device.gate = DigitalQuantity(device.name + '_gate', device, 'gate')
-            else:
-                raise LabscriptError('You cannot specify a digital gate ' +
-                                     'for a DDS connected to %s. '% (self.name) + 
-                                     'The digital gate is always internal to the Pulseblaster.')
+        if not self.child_list and isinstance(device, Pseudoclock):
+            PseudoclockDevice.add_device(self, device)
+            
+        elif isinstance(device, Pseudoclock):
+            raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
+                                 'Instead of instantiating your own Pseudoclock object, please use the internal' +
+                                 ' one stored in %s.pseudoclock'%self.name)
+        elif isinstance(device, DDS) or isinstance(device, DigitalOut):
+            #TODO: Defensive programming: device.name may not exist!
+            raise LabscriptError('You have connected %s directly to %s, which is not allowed. You should instead specify the parent_device of %s as %s.direct_outputs'%(device.name, self.name, device.name, self.name))
+        else:
+            raise LabscriptError('You have connected %s (class %s) to %s, but %s does not support children with that class.'%(device.name, device.__class__, self.name, self.name))
                 
     def flag_valid(self, flag):
         if -1 < flag < self.n_flags:
             return True
-        return False
+        return False     
         
     def flag_is_clock(self, flag):
-        if type(self.slow_clock_flag) == list and flag in self.slow_clock_flag:
-            return True
-        elif type(self.fast_clock_flag) == list and flag in self.fast_clock_flag:
-            return True
-        else:
-            return False        
+        for clock_line in self.child_devices:
+            if flag == self.get_flag_number(clock_line.connection):
+                return True
+        return False
+            
+    def get_flag_number(self, connection):
+        # TODO: Error checking
+        prefix, connection = connection.split()
+        return int(connection)
     
     def get_direct_outputs(self):
         """Finds out which outputs are directly attached to the PulseBlaster"""
         dig_outputs = []
         dds_outputs = []
-        for output in self.get_all_outputs():
-            # If the device's parent is a DDS (remembering that DDSs
-            # have three fake child devices for amp, freq and phase),
-            # then maybe that DDS is one of our direct outputs:
-            if isinstance(output.parent_device,DDS) and output.parent_device.parent_device is self:
-                # If this is the case, then we're interested in that DDS. But we don't want to count it three times:
-                if not output.parent_device in dds_outputs:
-                    output = output.parent_device
-            if output.parent_device is self:
+        for output in self.direct_outputs.get_all_outputs():
+            # only check DDS and DigitalOuts (so ignore the children of the DDS)
+            if isinstance(output,DDS) or isinstance(output, DigitalOut):
+                # get connection number and prefix
                 try:
                     prefix, connection = output.connection.split()
                     assert prefix == 'flag' or prefix == 'dds'
@@ -192,19 +160,25 @@ class PulseBlaster(PseudoClock):
                 except:
                     raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(output.description,output.name,str(output.connection)) + 
                                          'Format must be \'flag n\' with n an integer less than %d, or \'dds n\' with n less than 2.'%self.n_flags)
-                if not connection < self.n_flags:
-                    raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
-                                         'Output connection number must be a integer less than %d.'%self.n_flags)
+                # run checks on the connection string to make sure it is valid
+                # TODO: Most of this should be done in add_device() No?
+                if prefix == 'flag' and not self.flag_valid(connection):
+                    raise LabscriptError('%s is set as connected to flag %d of %s. '%(output.name, connection, self.name) +
+                                         'Output flag number must be a integer from 0 to %d.'%(self.n_flags-1))
+                if prefix == 'flag' and self.flag_is_clock(connection):
+                    raise LabscriptError('%s is set as connected to flag %d of %s.'%(output.name, connection, self.name) +
+                                         'This is one of the PulseBlaster\'s clock flags.')                         
                 if prefix == 'dds' and not connection < 2:
                     raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
                                          'DDS output connection number must be a integer less than 2.')
-                if prefix == 'flag' and self.flag_is_clock(connection):
-                    raise LabscriptError('%s is set as connected to flag %d of %s.'%(output.name, connection, self.name) +
-                                         'This is one of the PulseBlaster\'s clock flags.')
+                
+                # Check that the connection string doesn't conflict with another output
                 for other_output in dig_outputs + dds_outputs:
                     if output.connection == other_output.connection:
                         raise LabscriptError('%s and %s are both set as connected to %s of %s.'%(output.name, other_output.name, output.connection, self.name))
-                if isinstance(output,DigitalOut):
+                
+                # store a reference to the output
+                if isinstance(output, DigitalOut):
                 	dig_outputs.append(output)
                 elif isinstance(output, DDS):
                 	dds_outputs.append(output)
@@ -282,12 +256,12 @@ class PulseBlaster(PseudoClock):
         
     def convert_to_pb_inst(self, dig_outputs, dds_outputs, freqs, amps, phases):
         pb_inst = []
-        # An array for storing the line numbers of the instructions at
-        # which the slow clock ticks:
-        slow_clock_indices = []
+        
         # index to keep track of where in output.raw_output the
         # pulseblaster flags are coming from
-        i = 0
+        # starts at -1 because the internal flag should always tick on the first instruction and be 
+        # incremented (to 0) before it is used to index any arrays
+        i = -1 
         # index to record what line number of the pulseblaster hardware
         # instructions we're up to:
         j = 0
@@ -299,13 +273,6 @@ class PulseBlaster(PseudoClock):
         ampregs = [0]*2
         phaseregs = [0]*2
         dds_enables = [0]*2
-        
-        if self.fast_clock_flag is not None:
-            for fast_flag in self.fast_clock_flag:
-                flags[fast_flag] = 0
-        if self.slow_clock_flag is not None:
-            for slow_flag in self.slow_clock_flag:
-                flags[slow_flag] = 0
             
         pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                         'flags': ''.join([str(flag) for flag in flags]), 'instruction': 'STOP',
@@ -314,6 +281,7 @@ class PulseBlaster(PseudoClock):
                         'flags': ''.join([str(flag) for flag in flags]), 'instruction': 'STOP',
                         'data': 0, 'delay': 10.0/self.clock_limit*1e9})    
         j += 2
+        
         flagstring = '0'*self.n_flags # So that this variable is still defined if the for loop has no iterations
         for k, instruction in enumerate(self.clock):
             if instruction == 'WAIT':
@@ -325,6 +293,7 @@ class PulseBlaster(PseudoClock):
                 pb_inst.append(wait_instruction)
                 j += 1
                 continue
+                
             flags = [0]*self.n_flags
             # The registers below are ones, not zeros, so that we don't
             # use the BLACS-inserted initial instructions. Instead
@@ -334,6 +303,20 @@ class PulseBlaster(PseudoClock):
             ampregs = [1]*2
             phaseregs = [1]*2
             dds_enables = [0]*2
+            
+            # This flag indicates whether we need a full clock tick, or are just updating an internal output
+            only_internal = True
+            # find out which clock flags are ticking during this instruction
+            for clock_line in instruction['enabled_clocks']:
+                if clock_line == self._direct_output_clock_line: 
+                    # advance i (the index keeping track of internal clockline output)
+                    i += 1
+                else:
+                    flagindex = int(output.connection.split()[1])
+                    flags[flag_index] = 1
+                    # We are not just using the internal clock line
+                    only_internal = False
+            
             for output in dig_outputs:
                 flagindex = int(output.connection.split()[1])
                 flags[flagindex] = int(output.raw_output[i])
@@ -343,18 +326,22 @@ class PulseBlaster(PseudoClock):
                 ampregs[ddsnumber] = amps[ddsnumber][output.amplitude.raw_output[i]]
                 phaseregs[ddsnumber] = phases[ddsnumber][output.phase.raw_output[i]]
                 dds_enables[ddsnumber] = output.gate.raw_output[i]
-            if self.fast_clock_flag is not None:
-                for fast_flag in self.fast_clock_flag:
-                    if (type(instruction['fast_clock']) == list and 'flag %d'%fast_flag in instruction['fast_clock']) or instruction['fast_clock'] == 'all':
-                        flags[fast_flag] = 1
-                    else:
-                        flags[fast_flag] = 1 if instruction['slow_clock_tick'] else 0
-            if self.slow_clock_flag is not None:
-                for slow_flag in self.slow_clock_flag:
-                    flags[slow_flag] = 1 if instruction['slow_clock_tick'] else 0
-            if instruction['slow_clock_tick']:
-                slow_clock_indices.append(j)
+                
+            # if self.fast_clock_flag is not None:
+                # for fast_flag in self.fast_clock_flag:
+                    # if (type(instruction['fast_clock']) == list and 'flag %d'%fast_flag in instruction['fast_clock']) or instruction['fast_clock'] == 'all':
+                        # flags[fast_flag] = 1
+                    # else:
+                        # flags[fast_flag] = 1 if instruction['slow_clock_tick'] else 0
+            # if self.slow_clock_flag is not None:
+                # for slow_flag in self.slow_clock_flag:
+                    # flags[slow_flag] = 1 if instruction['slow_clock_tick'] else 0
+                    
+            # if instruction['slow_clock_tick']:
+                # slow_clock_indices.append(j)
+                
             flagstring = ''.join([str(flag) for flag in flags])
+            
             if instruction['reps'] > 1048576:
                 raise LabscriptError('Pulseblaster cannot support more than 1048576 loop iterations. ' +
                                       str(instruction['reps']) +' were requested at t = ' + str(instruction['start']) + '. '+
@@ -365,26 +352,28 @@ class PulseBlaster(PseudoClock):
             # Instruction delays > 55 secs will require a LONG_DELAY
             # to be inserted. How many times does the delay of the
             # loop/endloop instructions go into 55 secs?
-            if self.has_clocks:
+            if not only_internal:
                 quotient, remainder = divmod(instruction['step']/2.0,55.0)
             else:
                 quotient, remainder = divmod(instruction['step'],55.0)
+                
             if quotient and remainder < 100e-9:
                 # The remainder will be used for the total duration of the LOOP and END_LOOP instructions. 
                 # It must not be too short for this, if it is, take one LONG_DELAY iteration and give 
                 # its duration to the loop instructions:
                 quotient, remainder = quotient - 1, remainder + 55.0
-            if self.has_clocks:
+                
+            if not only_internal:
                 # The loop and endloop instructions will only use the remainder:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LOOP',
                                 'data': instruction['reps'], 'delay': remainder*1e9})
-                if self.fast_clock_flag is not None:
-                    for fast_flag in self.fast_clock_flag:
-                        flags[fast_flag] = 0
-                if self.slow_clock_flag is not None:
-                    for slow_flag in self.slow_clock_flag:
-                        flags[slow_flag] = 0
+                
+                for clock_line in instruction['enabled_clocks']:
+                    if clock_line != self._direct_output_clock_line:
+                        flagindex = int(output.connection.split()[1])
+                        flags[flag_index] = 0
+                        
                 flagstring = ''.join([str(flag) for flag in flags])
             
                 # If there was a nonzero quotient, let's wait twice that
@@ -404,6 +393,8 @@ class PulseBlaster(PseudoClock):
                 # to in the previous line still refers to the LOOP instruction.
                 j += 3 if quotient else 2
             else:
+                # We only need to update a direct output, so no need to tick the clocks
+                
                 # The loop and endloop instructions will only use the remainder:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'CONTINUE',
@@ -415,11 +406,7 @@ class PulseBlaster(PseudoClock):
                                 'data': int(quotient), 'delay': 55*1e9})
                 j += 2 if quotient else 1
                 
-            try:
-                if self.clock[k+1] == 'WAIT' or self.clock[k+1]['slow_clock_tick']:
-                    i += 1
-            except IndexError:
-                pass
+
         # This is how we stop the pulse program. We branch from the last
         # instruction to the zeroth, which BLACS has programmed in with
         # the same values and a WAIT instruction. The PulseBlaster then
@@ -429,9 +416,9 @@ class PulseBlaster(PseudoClock):
                         'flags': flagstring, 'instruction': 'BRANCH',
                         'data': 0, 'delay': 10.0/self.clock_limit*1e9})  
                         
-        return pb_inst, slow_clock_indices
+        return pb_inst
         
-    def write_pb_inst_to_h5(self, pb_inst, slow_clock_indices, hdf5_file):
+    def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:
         pb_dtype = [('freq0', np.int32), ('phase0', np.int32), ('amp0', np.int32), 
                     ('dds_en0', np.int32), ('phase_reset0', np.int32),
@@ -454,27 +441,40 @@ class PulseBlaster(PseudoClock):
             en0 = inst['enables'][0]
             en1 = inst['enables'][1]
             pb_inst_table[i] = (freq0,phase0,amp0,en0,0,freq1,phase1,amp1,en1,0, flagint, 
-                                instructionint, dataint, delaydouble)
-        slow_clock_indices = np.array(slow_clock_indices, dtype = np.uint32)                  
-        # Okey now write it to the file: 
+                                instructionint, dataint, delaydouble)     
+                                
+        # Okay now write it to the file: 
         group = hdf5_file['/devices/'+self.name]  
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
-        for clock_type, time_array in self.times.items():
-            group.create_dataset(clock_type, compression=config.compression,data = time_array)         
-        group.create_dataset('SLOW_CLOCK', compression=config.compression,data = self.change_times)   
-        group.create_dataset('CLOCK_INDICES', compression=config.compression,data = slow_clock_indices)  
         group.attrs['stop_time'] = self.stop_time       
     
     def generate_code(self, hdf5_file):
         # Generate the hardware instructions
         hdf5_file.create_group('/devices/'+self.name)
-        PseudoClock.generate_code(self, hdf5_file)
+        PseudoclockDevice.generate_code(self, hdf5_file)
         dig_outputs, dds_outputs = self.get_direct_outputs()
         freqs, amps, phases = self.generate_registers(hdf5_file, dds_outputs)
-        pb_inst, slow_clock_indices = self.convert_to_pb_inst(dig_outputs, dds_outputs, freqs, amps, phases)
-        self.write_pb_inst_to_h5(pb_inst, slow_clock_indices, hdf5_file)
+        pb_inst = self.convert_to_pb_inst(dig_outputs, dds_outputs, freqs, amps, phases)
+        self.write_pb_inst_to_h5(pb_inst, hdf5_file)
         
-        
+
+class PulseBlasterDirectOutputs(IntermediateDevice):
+    allowed_children = [DDS, DigitalOut]
+    clock_limit = PulseBlaster.clock_limit
+    description = 'PB-DDSII-300 Direct Outputs'
+  
+    def add_device(self, device):
+        IntermediateDevice.add_device(self, device)
+        if isinstance(device, DDS):
+            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
+            # Then instantiate a DigitalQuantity to keep track of gating.
+            if device.gate is None:
+                device.gate = DigitalQuantity(device.name + '_gate', device, 'gate')
+            else:
+                raise LabscriptError('You cannot specify a digital gate ' +
+                                     'for a DDS connected to %s. '% (self.name) + 
+                                     'The digital gate is always internal to the Pulseblaster.')
+            
             
 @runviewer_parser
 class MyRunviewerClass(object):

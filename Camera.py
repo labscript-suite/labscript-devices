@@ -1,5 +1,7 @@
-from labscript import DigitalOut
+from labscript import DigitalOut, LabscriptError
 import numpy as np
+
+
 class Camera(DigitalOut):
     description = 'Generic Camera'
     frame_types = ['atoms','flat','dark','fluoro','clean']

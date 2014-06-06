@@ -1,12 +1,46 @@
 import os
-from labscript import PseudoClock, DDS, config, startupinfo
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError
 import numpy as np
+
+# Define a RFBlasterPseudoclock that only accepts one child clockline
+class RFBlasterPseudoclock(Pseudoclock):    
+    def add_device(self, device):
+        if isinstance(device, ClockLine):
+            # only allow one child
+            if self.child_list:
+                raise LabscriptError('The pseudoclock of the RFBlaster %s only supports 1 clockline, which is automatically created. Please use the clockline located at %s.clockline'%(self.parent_device.name, self.parent_device.name))
+            Pseudoclock.add_device(self, device)
+        else:
+            raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
+
+
+class RFBlasterDirectOutputs(IntermediateDevice):
+    allowed_children = [DDS]
+    clock_limit = RFBlaster.clock_limit
+    description = 'RFBlaster Direct Outputs'
+  
+    def add_device(self, device):
+        try:
+            prefix, number = device.connection.split()
+            assert int(number) in range(2)
+            assert prefix == 'dds'
+        except Exception:
+            raise LabscriptError('invalid connection string. Please use the format \'dds n\' with n 0 or 1')
+       
+        if isinstance(device, DDS):
+            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
+            if device.gate is not None:
+                raise LabscriptError('You cannot specify a digital gate ' +
+                                     'for a DDS connected to %s. '% (self.name))
+                                     
+        IntermediateDevice.add_device(self, device)
+   
+            
 class RFBlaster(PseudoClock):
     description = 'RF Blaster Rev1.1'
     clock_limit = 500e3
     clock_resolution = 13.33333333333333333333e-9
-    clock_type = 'fast clock'
-    allowed_children = [DDS]
+    allowed_children = [RFBlasterPseudoclock]
     
     # TODO: find out what these actually are!
     trigger_delay = 873.75e-6
@@ -15,15 +49,36 @@ class RFBlaster(PseudoClock):
     def __init__(self, name, ip_address, trigger_device=None, trigger_connection=None):
         PseudoClock.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = ip_address
+        
+        # create Pseudoclock and clockline
+        self._pseudoclock = RFBlasterPseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
+        # Create the internal direct output clock_line
+        self._clock_line = ClockLine('%s_clock_line'%name, self.pseudoclock, 'internal')
+        # Create the internal intermediate device connected to the above clock line
+        # This will have the DDSs of the RFBlaster connected to it
+        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device', self._direct_output_clock_line)
+    
+    @property
+    def pseudoclock(self):
+        return self._pseudoclock
+    
+    @property
+    def direct_outputs(self):
+        return self._direct_output_device
     
     def add_device(self, device):
-        try:
-            prefix, number = device.connection.split()
-            assert int(number) in range(2)
-            assert prefix == 'dds'
-        except Exception:
-            raise LabscriptError('invalid connection string. Please use the format \'dds n\' with n 0 or 1')
-        PseudoClock.add_device(self, device)
+       if not self.child_list and isinstance(device, Pseudoclock):
+            PseudoclockDevice.add_device(self, device)
+        elif isinstance(device, Pseudoclock):
+            raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
+                                 'Instead of instantiating your own Pseudoclock object, please use the internal' +
+                                 ' one stored in %s.pseudoclock'%self.name)
+        elif isinstance(device, DDS):
+            #TODO: Defensive programming: device.name may not exist!
+            raise LabscriptError('You have connected %s directly to %s, which is not allowed. You should instead specify the parent_device of %s as %s.direct_outputs'%(device.name, self.name, device.name, self.name))
+        else:
+            raise LabscriptError('You have connected %s (class %s) to %s, but %s does not support children with that class.'%(device.name, device.__class__, self.name, self.name))
+        
         
     def generate_code(self, hdf5_file):
         from rfblaster import caspr
@@ -38,11 +93,14 @@ class RFBlaster(PseudoClock):
         from subprocess import Popen, PIPE
         
         # Generate clock and save raw instructions to the h5 file:
-        PseudoClock.generate_code(self, hdf5_file)
+        PseudoclockDevice.generate_code(self, hdf5_file)
         dtypes = [('time',float),('amp0',float),('freq0',float),('phase0',float),('amp1',float),('freq1',float),('phase1',float)]
-        data = np.zeros(len(self.times[self.clock_type]),dtype=dtypes)
-        data['time'] = self.times[self.clock_type]
-        for dds in self.child_devices:
+        
+        times = self.pseudoclock.times[self._clock_line]
+        
+        data = np.zeros(len(times),dtype=dtypes)
+        data['time'] = times
+        for dds in self.direct_outputs.child_devices:
             prefix, connection = dds.connection.split()
             data['freq%s'%connection] = dds.frequency.raw_output
             data['amp%s'%connection] = dds.amplitude.raw_output
@@ -54,7 +112,7 @@ class RFBlaster(PseudoClock):
         quantised_dtypes = [('time',np.int64),
                             ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
                             ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)]
-        quantised_data = np.zeros(len(self.times[self.clock_type]),dtype=quantised_dtypes)
+        quantised_data = np.zeros(len(times),dtype=quantised_dtypes)
         quantised_data['time'] = np.array(c.tT*1e6*data['time']+0.5)
         for dds in range(2):
             # TODO: bounds checking
@@ -70,7 +128,7 @@ class RFBlaster(PseudoClock):
         # When should the RFBlaster wait for a trigger?
         quantised_trigger_times = np.array([c.tT*1e6*t + 0.5 for t in self.trigger_times], dtype=np.int64)
         for dds in range(2):
-            abs_table = np.zeros((len(self.times[self.clock_type]), 4),dtype=np.int64)
+            abs_table = np.zeros((len(times), 4),dtype=np.int64)
             abs_table[:,0] = quantised_data['time']
             abs_table[:,1] = quantised_data['amp%d'%dds]
             abs_table[:,2] = quantised_data['freq%d'%dds]
