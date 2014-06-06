@@ -10,7 +10,7 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 
 from labscript import Device, PseudoClock, DigitalQuantity, DigitalOut, DDS, config, LabscriptError
 
@@ -476,7 +476,7 @@ class PulseBlaster(PseudoClock):
         
         
             
-@RunviewerParser
+@runviewer_parser
 class MyRunviewerClass(object):
     num_dds = 2
     num_flags = 12

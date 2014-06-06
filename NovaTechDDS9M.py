@@ -10,7 +10,7 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -145,7 +145,7 @@ class NovaTechDDS9M(IntermediateDevice):
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table) 
 
         
-@RunviewerParser
+@runviewer_parser
 class RunviewerClass(object):    
     def __init__(self, path, name):
         self.path = path

@@ -12,7 +12,7 @@
 #####################################################################
 
 from labscript import PseudoClock, config
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -73,7 +73,7 @@ class PineBlaster(PseudoClock):
         group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
         
         
-@RunviewerParser
+@runviewer_parser
 class RunviewerClass(object):
     clock_resolution = 25e-9
     clock_type = 'fast clock'

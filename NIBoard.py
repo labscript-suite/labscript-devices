@@ -1,5 +1,5 @@
 import numpy as np
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config
 import labscript_utils.h5_lock, h5py
 
@@ -97,7 +97,7 @@ class NIBoard(IntermediateDevice):
         grp.attrs['clock_terminal'] = self.clock_terminal
         
         
-@RunviewerParser
+@runviewer_parser
 class RunviewerClass(object):
     num_digitals = 32
     

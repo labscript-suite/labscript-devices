@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 import labscript_devices.NIBoard as parent
 
 import numpy as np
@@ -31,7 +31,7 @@ class NI_PCI_6733(parent.NIBoard):
                              'in order to guarantee an even total number of samples, which is a limitation of the DAQmx library. ' +
                              'Please add a dummy output device or remove an output you\'re not using, so that there are an even number of outputs. Sorry, this is annoying I know :).')
                              
-@RunviewerParser
+@runviewer_parser
 class RunviewerClass(parent.RunviewerClass):
     num_digitals = 0
     

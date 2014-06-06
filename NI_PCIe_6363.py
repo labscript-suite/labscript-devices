@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import RunviewerParser
+from labscript_devices import runviewer_parser
 import labscript_devices.NIBoard as parent
 
 import numpy as np
@@ -24,7 +24,7 @@ class NI_PCIe_6363(parent.NIBoard):
     n_analog_ins = 32
     digital_dtype = np.uint32
     
-@RunviewerParser
+@runviewer_parser
 class RunviewerClass(parent.RunviewerClass):
     num_digitals = 32
     
