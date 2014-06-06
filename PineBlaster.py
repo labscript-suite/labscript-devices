@@ -23,7 +23,7 @@ class PineBlasterPseudoclock(Pseudoclock):
     def add_device(self, device):
         if isinstance(device, ClockLine):
             # only allow one child
-            if self.child_list:
+            if self.child_devices:
                 raise LabscriptError('The pseudoclock of the PineBlaster %s only supports 1 clockline, which is automatically created. Please use the clockline located at %s.clockline'%(self.parent_device.name, self.parent_device.name))
             Pseudoclock.add_device(self, device)
         else:
@@ -63,7 +63,7 @@ class PineBlaster(PseudoclockDevice):
         return self._clock_line
     
     def add_device(self, device):
-        if not self.child_list and isinstance(device, Pseudoclock):
+        if not self.child_devices and isinstance(device, Pseudoclock):
             PseudoclockDevice.add_device(self, device)            
         elif isinstance(device, Pseudoclock):
             raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +

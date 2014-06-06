@@ -105,7 +105,7 @@ class PulseBlaster(PseudoclockDevice):
         self._direct_output_clock_line = ClockLine('%s_direct_output_clock_line'%name, self.pseudoclock, 'internal', ramping_allowed = False)
         # Create the internal intermediate device connected to the above clock line
         # This will have the direct DigitalOuts of DDSs of the PulseBlaster connected to it
-        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device', self._direct_output_clock_line)
+        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device'%name, self._direct_output_clock_line)
     
     @property
     def pseudoclock(self):
@@ -116,7 +116,7 @@ class PulseBlaster(PseudoclockDevice):
         return self._direct_output_device
     
     def add_device(self, device):
-        if not self.child_list and isinstance(device, Pseudoclock):
+        if not self.child_devices and isinstance(device, Pseudoclock):
             PseudoclockDevice.add_device(self, device)
             
         elif isinstance(device, Pseudoclock):
@@ -283,7 +283,7 @@ class PulseBlaster(PseudoclockDevice):
         j += 2
         
         flagstring = '0'*self.n_flags # So that this variable is still defined if the for loop has no iterations
-        for k, instruction in enumerate(self.clock):
+        for k, instruction in enumerate(self.pseudoclock.clock):
             if instruction == 'WAIT':
                 # This is a wait instruction. Repeat the last instruction but with a 100ns delay and a WAIT op code:
                 wait_instruction = pb_inst[-1].copy()
@@ -312,7 +312,7 @@ class PulseBlaster(PseudoclockDevice):
                     # advance i (the index keeping track of internal clockline output)
                     i += 1
                 else:
-                    flagindex = int(output.connection.split()[1])
+                    flag_index = int(clock_line.connection.split()[1])
                     flags[flag_index] = 1
                     # We are not just using the internal clock line
                     only_internal = False
@@ -371,7 +371,7 @@ class PulseBlaster(PseudoclockDevice):
                 
                 for clock_line in instruction['enabled_clocks']:
                     if clock_line != self._direct_output_clock_line:
-                        flagindex = int(output.connection.split()[1])
+                        flag_index = int(clock_line.connection.split()[1])
                         flags[flag_index] = 0
                         
                 flagstring = ''.join([str(flag) for flag in flags])

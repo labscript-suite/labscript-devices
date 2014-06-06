@@ -7,7 +7,7 @@ class RFBlasterPseudoclock(Pseudoclock):
     def add_device(self, device):
         if isinstance(device, ClockLine):
             # only allow one child
-            if self.child_list:
+            if self.child_devices:
                 raise LabscriptError('The pseudoclock of the RFBlaster %s only supports 1 clockline, which is automatically created. Please use the clockline located at %s.clockline'%(self.parent_device.name, self.parent_device.name))
             Pseudoclock.add_device(self, device)
         else:
@@ -56,7 +56,7 @@ class RFBlaster(PseudoClock):
         self._clock_line = ClockLine('%s_clock_line'%name, self.pseudoclock, 'internal')
         # Create the internal intermediate device connected to the above clock line
         # This will have the DDSs of the RFBlaster connected to it
-        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device', self._direct_output_clock_line)
+        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device'%name, self._direct_output_clock_line)
     
     @property
     def pseudoclock(self):
@@ -67,7 +67,7 @@ class RFBlaster(PseudoClock):
         return self._direct_output_device
     
     def add_device(self, device):
-       if not self.child_list and isinstance(device, Pseudoclock):
+       if not self.child_devices and isinstance(device, Pseudoclock):
             PseudoclockDevice.add_device(self, device)
         elif isinstance(device, Pseudoclock):
             raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
