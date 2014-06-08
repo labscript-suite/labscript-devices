@@ -135,7 +135,9 @@ class PulseBlaster(PseudoclockDevice):
         return False     
         
     def flag_is_clock(self, flag):
-        for clock_line in self.child_devices:
+        for clock_line in self.pseudoclock.child_devices:
+            if clock_line.connection == 'internal': #ignore internal clockline
+                continue
             if flag == self.get_flag_number(clock_line.connection):
                 return True
         return False
@@ -167,7 +169,7 @@ class PulseBlaster(PseudoclockDevice):
                                          'Output flag number must be a integer from 0 to %d.'%(self.n_flags-1))
                 if prefix == 'flag' and self.flag_is_clock(connection):
                     raise LabscriptError('%s is set as connected to flag %d of %s.'%(output.name, connection, self.name) +
-                                         'This is one of the PulseBlaster\'s clock flags.')                         
+                                         ' This flag is already in use as one of the PulseBlaster\'s clock flags.')                         
                 if prefix == 'dds' and not connection < 2:
                     raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
                                          'DDS output connection number must be a integer less than 2.')
