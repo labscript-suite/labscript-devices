@@ -106,9 +106,10 @@ class NIBoard(IntermediateDevice):
 class RunviewerClass(object):
     num_digitals = 32
     
-    def __init__(self, path, name):
+    def __init__(self, path, device):
         self.path = path
-        self.name = name
+        self.name = device.name
+        self.device = device
         
         # We create a lookup table for strings to be used later as dictionary keys.
         # This saves having to evaluate '%d'%i many many times, and makes the _add_pulse_program_row_to_traces method
@@ -117,7 +118,7 @@ class RunviewerClass(object):
         for i in range(self.num_digitals):
             self.port_strings[i] = 'port0/line%d'%i
             
-    def get_traces(self,clock=None):
+    def get_traces(self, add_trace, clock=None):
         if clock is None:
             # we're the master pseudoclock, software triggered. So we don't have to worry about trigger delays, etc
             raise Exception('No clock passed to %s. The NI PCIe 6363 must be clocked by another device.'%self.name)
@@ -158,6 +159,13 @@ class RunviewerClass(object):
         
         for i, channel in enumerate(analog_out_channels):
             traces[channel.split('/')[-1]] = (clock_ticks, analogs[:,i])
-         
-        return traces
+        
+        triggers = {}
+        for channel_name, channel in self.device.child_list.items():
+            if channel.parent_port in traces:
+                if channel.device_class == 'Trigger':
+                    triggers[channel_name] = traces[channel.parent_port]
+                add_trace(channel_name, traces[channel.parent_port], self.name, channel.parent_port)
+        
+        return triggers
     

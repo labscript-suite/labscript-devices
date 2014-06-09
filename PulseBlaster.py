@@ -483,9 +483,10 @@ class MyRunviewerClass(object):
     num_dds = 2
     num_flags = 12
     
-    def __init__(self, path, name):
+    def __init__(self, path, device):
         self.path = path
-        self.name = name
+        self.name = device.name
+        self.device = device
         
         # We create a lookup table for strings to be used later as dictionary keys.
         # This saves having to evaluate '%d'%i many many times, and makes the _add_pulse_program_row_to_traces method
@@ -510,7 +511,7 @@ class MyRunviewerClass(object):
         
             
         
-    def get_traces(self,parent=None):
+    def get_traces(self, add_trace, parent=None):
         if parent is None:
             # we're the master pseudoclock, software triggered. So we don't have to worry about trigger delays, etc
             pass
@@ -518,7 +519,7 @@ class MyRunviewerClass(object):
         # get the pulse program
         with h5py.File(self.path, 'r') as f:
             pulse_program = f['devices/%s/PULSE_PROGRAM'%self.name][:]
-            slow_clock_flag = eval(f['devices/%s'%self.name].attrs['slow_clock'])
+            # slow_clock_flag = eval(f['devices/%s'%self.name].attrs['slow_clock'])
             dds = {}
             for i in range(self.num_dds):
                 dds[i] = {}
@@ -604,10 +605,32 @@ class MyRunviewerClass(object):
             to_return[name] = (clock, np.array(data))
             
         
-        if slow_clock_flag is not None:
-            to_return['slow clock'] = to_return['flag %d'%slow_clock_flag[0]]
+        # if slow_clock_flag is not None:
+            # to_return['slow clock'] = to_return['flag %d'%slow_clock_flag[0]]
             
-        return to_return
+        clocklines_and_triggers = {}
+        for pseudoclock_name, pseudoclock in self.device.child_list.items():
+            for clock_line_name, clock_line in pseudoclock.child_list.items():
+                if clock_line.parent_port == 'internal':
+                    parent_device_name = '%s.direct_outputs'%self.name
+                    for internal_device_name, internal_device in clock_line.child_list.items():
+                        for channel_name, channel in internal_device.child_list.items():
+                            if channel.device_class == 'Trigger':
+                                clocklines_and_triggers[channel_name] = to_return[channel.parent_port]
+                                add_trace(channel_name, to_return[channel.parent_port], parent_device_name, channel.parent_port)
+                            else:
+                                if channel.device_class == 'DDS':
+                                    for subchnl_name, subchnl in channel.child_list.items():
+                                        connection = '%s_%s'%(channel.parent_port, subchnl.parent_port)
+                                        if connection in to_return:
+                                            add_trace(subchnl.name, to_return[connection], parent_device_name, connection)
+                                else:
+                                    add_trace(channel_name, to_return[channel.parent_port], parent_device_name, channel.parent_port)
+                else:
+                    clocklines_and_triggers[clock_line_name] = to_return[clock_line.parent_port]
+                    add_trace(clock_line_name, to_return[clock_line.parent_port], self.name, clock_line.parent_port)
+            
+        return clocklines_and_triggers
     
     @profile
     def _add_pulse_program_row_from_buffer(self, traces, index):

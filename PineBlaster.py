@@ -116,12 +116,13 @@ class RunviewerClass(object):
     # Todo: find out what this actually is:
     wait_delay = 2.5e-6
     
-    def __init__(self, path, name):
+    def __init__(self, path, device):
         self.path = path
-        self.name = name
+        self.name = device.name
+        self.device = device
         
             
-    def get_traces(self,clock=None):
+    def get_traces(self, add_trace, clock=None):
         if clock is not None:
             times, clock_value = clock[0], clock[1]
             clock_indices = np.where((clock_value[1:]-clock_value[:-1])==1)[0]+1
@@ -160,7 +161,16 @@ class RunviewerClass(object):
                         time.append(t)
                         states.append(j)
                         t += row['period']*clock_factor
-                        
-        traces = {'fast clock':(np.array(time), np.array(states))}
-        return traces
+        
+        clock = (np.array(time), np.array(states))
+        
+        clocklines_and_triggers = {}
+        for pseudoclock_name, pseudoclock in self.device.child_list.items():
+            for clock_line_name, clock_line in pseudoclock.child_list.items():
+                if clock_line.parent_port == 'internal':
+                    clocklines_and_triggers[clock_line_name] = clock
+                    add_trace(clock_line_name, clock, self.name, clock_line.parent_port)
+            
+        return clocklines_and_triggers
+
     
