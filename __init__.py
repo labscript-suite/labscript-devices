@@ -39,16 +39,18 @@ class ClassRegister(object):
         try:
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
+            print 'imported', name, 'ok!'
         except ImportError:
             sys.stderr.write('Error importing module %s.%s whilst looking for classes for device %s. '%(__name__, name, name) +
                              'Check that the module exists, is named correctly, and can be imported with no errors. ' +
                              'Full traceback follows:\n')
+            raise
         # Class definitions in that module have executed now, check to see if class is in our register:
         try:
             return self.registered_classes[name]
         except KeyError:
             # No? No such class is defined then, or maybe the user forgot to decorate it.
-            raise ValueError('No class decorated as a %s as found in module %s, '%(self.instancename, __name__ + '.' + name) + 
+            raise ValueError('No class decorated as a %s found in module %s, '%(self.instancename, __name__ + '.' + name) + 
                              'Did you forget to decorate the class definition with @%s?'%(self.instancename))
 
 class SameNameClassRegister(ClassRegister):
