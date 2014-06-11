@@ -12,31 +12,9 @@ class RFBlasterPseudoclock(Pseudoclock):
             Pseudoclock.add_device(self, device)
         else:
             raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
-
-
-class RFBlasterDirectOutputs(IntermediateDevice):
-    allowed_children = [DDS]
-    clock_limit = RFBlaster.clock_limit
-    description = 'RFBlaster Direct Outputs'
-  
-    def add_device(self, device):
-        try:
-            prefix, number = device.connection.split()
-            assert int(number) in range(2)
-            assert prefix == 'dds'
-        except Exception:
-            raise LabscriptError('invalid connection string. Please use the format \'dds n\' with n 0 or 1')
-       
-        if isinstance(device, DDS):
-            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
-            if device.gate is not None:
-                raise LabscriptError('You cannot specify a digital gate ' +
-                                     'for a DDS connected to %s. '% (self.name))
-                                     
-        IntermediateDevice.add_device(self, device)
-   
             
-class RFBlaster(PseudoClock):
+            
+class RFBlaster(PseudoclockDevice):
     description = 'RF Blaster Rev1.1'
     clock_limit = 500e3
     clock_resolution = 13.33333333333333333333e-9
@@ -47,7 +25,7 @@ class RFBlaster(PseudoClock):
     wait_day = trigger_delay
     
     def __init__(self, name, ip_address, trigger_device=None, trigger_connection=None):
-        PseudoClock.__init__(self, name, trigger_device, trigger_connection)
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = ip_address
         
         # create Pseudoclock and clockline
@@ -56,7 +34,7 @@ class RFBlaster(PseudoClock):
         self._clock_line = ClockLine('%s_clock_line'%name, self.pseudoclock, 'internal')
         # Create the internal intermediate device connected to the above clock line
         # This will have the DDSs of the RFBlaster connected to it
-        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device'%name, self._direct_output_clock_line)
+        self._direct_output_device = RFBlasterDirectOutputs('%s_direct_output_device'%name, self._clock_line)
     
     @property
     def pseudoclock(self):
@@ -67,7 +45,7 @@ class RFBlaster(PseudoClock):
         return self._direct_output_device
     
     def add_device(self, device):
-       if not self.child_devices and isinstance(device, Pseudoclock):
+        if not self.child_devices and isinstance(device, Pseudoclock):
             PseudoclockDevice.add_device(self, device)
         elif isinstance(device, Pseudoclock):
             raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
@@ -196,3 +174,26 @@ class RFBlaster(PseudoClock):
                 os.remove(temp_binary_filepath)
                 # print 'assembly:', temp_assembly_filepath
                 # print 'binary for dds %d on %s:'%(dds,self.name), temp_binary_filepath
+
+                
+class RFBlasterDirectOutputs(IntermediateDevice):
+    allowed_children = [DDS]
+    clock_limit = RFBlaster.clock_limit
+    description = 'RFBlaster Direct Outputs'
+  
+    def add_device(self, device):
+        try:
+            prefix, number = device.connection.split()
+            assert int(number) in range(2)
+            assert prefix == 'dds'
+        except Exception:
+            raise LabscriptError('invalid connection string. Please use the format \'dds n\' with n 0 or 1')
+       
+        if isinstance(device, DDS):
+            # Check that the user has not specified another digital line as the gate for this DDS, that doesn't make sense.
+            if device.gate is not None:
+                raise LabscriptError('You cannot specify a digital gate ' +
+                                     'for a DDS connected to %s. '% (self.name))
+                                     
+        IntermediateDevice.add_device(self, device)
+   
