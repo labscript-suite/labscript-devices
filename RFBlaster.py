@@ -29,7 +29,7 @@ class RFBlasterPseudoclock(Pseudoclock):
             raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
 
 @labscript_device
-class RFBlaster(Pseudoclock):
+class RFBlaster(PseudoclockDevice):
     description = 'RF Blaster Rev1.1'
     clock_limit = 500e3
     clock_resolution = 13.33333333333333333333e-9
@@ -40,7 +40,7 @@ class RFBlaster(Pseudoclock):
     wait_day = trigger_delay
     
     def __init__(self, name, ip_address, trigger_device=None, trigger_connection=None):
-        PseudoClock.__init__(self, name, trigger_device, trigger_connection)
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = ip_address
         
         # create Pseudoclock and clockline
@@ -49,7 +49,7 @@ class RFBlaster(Pseudoclock):
         self._clock_line = ClockLine('%s_clock_line'%name, self.pseudoclock, 'internal')
         # Create the internal intermediate device connected to the above clock line
         # This will have the DDSs of the RFBlaster connected to it
-        self._direct_output_device = PulseBlasterDirectOutputs('%s_direct_output_device'%name, self._direct_output_clock_line)
+        self._direct_output_device = RFBlasterDirectOutputs('%s_direct_output_device'%name, self._clock_line)
     
     @property
     def pseudoclock(self):
@@ -189,6 +189,7 @@ class RFBlaster(Pseudoclock):
                 os.remove(temp_binary_filepath)
                 # print 'assembly:', temp_assembly_filepath
                 # print 'binary for dds %d on %s:'%(dds,self.name), temp_binary_filepath
+
                 
 class RFBlasterDirectOutputs(IntermediateDevice):
     allowed_children = [DDS]

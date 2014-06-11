@@ -22,7 +22,8 @@ import labscript_utils.h5_lock, h5py
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
     allowed_children = [DDS, StaticDDS]
-    clock_limit = 500e3 # TODO: find out what the actual max clock rate is.
+    clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
+
     
     def __init__(self, name, parent_device, com_port):
         IntermediateDevice.__init__(self, name, parent_device)

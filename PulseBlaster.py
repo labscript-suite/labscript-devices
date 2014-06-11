@@ -152,6 +152,16 @@ class PulseBlaster(PseudoclockDevice):
         dig_outputs = []
         dds_outputs = []
         for output in self.direct_outputs.get_all_outputs():
+            # If we are a child of a DDS
+            if isinstance(output.parent_device, DDS):
+                # and that DDS has not been processed yet
+                if output.parent_device not in dds_outputs:
+                    # process the DDS instead of the child
+                    output = output.parent_device
+                else:
+                    # ignore the child
+                    continue
+            
             # only check DDS and DigitalOuts (so ignore the children of the DDS)
             if isinstance(output,DDS) or isinstance(output, DigitalOut):
                 # get connection number and prefix

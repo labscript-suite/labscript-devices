@@ -13,6 +13,7 @@
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
 from labscript import StaticAnalogQuantity, Device, LabscriptError
+import numpy as np
 
 class ZaberStageTLSR150D(StaticAnalogQuantity):
     minval=0
@@ -54,7 +55,7 @@ class ZaberStageController(Device):
                 raise LabscriptError('%s %s has invalid connection number: %s'%(stage.description,stage.name,str(stage.connection)))
             data_dict[str(stage.connection)] = value
         dtypes = [(conn, int) for conn in data_dict]
-        data_array = zeros(1, dtype=dtypes)
+        data_array = np.zeros(1, dtype=dtypes)
         for conn in data_dict:
             data_array[0][conn] = data_dict[conn] 
         grp = hdf5_file.create_group('/devices/'+self.name)
