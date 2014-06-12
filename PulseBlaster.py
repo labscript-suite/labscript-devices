@@ -567,8 +567,32 @@ class PulseBlasterTab(DeviceTab):
                                # 'waiting_no':self.builder.get_object('waiting_no')}
         
         
-
-   
+    def get_child_from_connection_table(self, parent_device_name, port):
+        # This is a direct output, let's search for it on the internal intermediate device called 
+        # PulseBlasterDirectOutputs
+        if parent_device_name == self.device_name:
+            device = self.connection_table.find_by_name(self.device_name)
+            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            clockline = None
+            for child_name, child in pseudoclock.child_list.items():
+                # store a reference to the internal clockline
+                if child.parent_port == 'internal':
+                    clockline = child
+                # if the port is in use by a clockline, return the clockline
+                elif child.parent_port == port:
+                    return child
+                
+            if clockline is not None:
+                # There should only be one child of this clock line, the direct outputs
+                direct_outputs = clockline.child_list[clockline.child_list.keys()[0]] 
+                # look to see if the port is used by a child of the direct outputs
+                return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
+            else:
+                return '-'
+        else:
+            # else it's a child of a DDS, so we can use the default behaviour to find the device
+            return DeviceTab.get_child_from_connection_table(self, parent_device_name, port)
+    
     
     # This function gets the status of the Pulseblaster from the spinapi,
     # and updates the front panel widgets!

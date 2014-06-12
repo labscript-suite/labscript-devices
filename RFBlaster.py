@@ -262,6 +262,20 @@ class RFBlasterTab(DeviceTab):
         self.supports_remote_value_check(True)
         self.supports_smart_programming(False) 
     
+    def get_child_from_connection_table(self, parent_device_name, port):
+        # This is a direct output, let's search for it on the internal intermediate device called 
+        # RFBlasterDirectOutputs
+        if parent_device_name == self.device_name:
+            device = self.connection_table.find_by_name(self.device_name)
+            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            clockline = pseudoclock.child_list[pseudoclock.child_list.keys()[0]] # there should always be one (and only one) child, the clockline
+            direct_outputs = clockline.child_list[clockline.child_list.keys()[0]] # There should only be one child of this clock line, the direct outputs
+            # look to see if the port is used by a child of the direct outputs
+            return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
+        else:
+            # else it's a child of a DDS, so we can use the default behaviour to find the device
+            return DeviceTab.get_child_from_connection_table(self, parent_device_name, port)
+    
     # We override this because the RFBlaster doesn't really support remote_value_checking properly
     # Here we specifically do not program the device (it's slow!) nor do we update the last programmed value to the current
     # front panel state. This is because the remote value returned from the RFBlaster is always the last *manual* values programmed.
