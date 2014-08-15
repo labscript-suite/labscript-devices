@@ -323,5 +323,7 @@ class PineblasterWorker(Worker):
     def abort(self):
         self.pineblaster.write('restart\r\n')
         time.sleep(5)
+        self.shutdown()
+        self.init()
         return True
 
