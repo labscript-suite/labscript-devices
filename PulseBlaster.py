@@ -493,6 +493,9 @@ from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MOD
 
 from blacs.device_base_class import DeviceTab
 
+from qtutils import UiLoader
+import os
+
 @BLACS_tab
 class PulseBlasterTab(DeviceTab):
     
@@ -547,25 +550,24 @@ class PulseBlasterTab(DeviceTab):
         # Set the capabilities of this device
         self.supports_smart_programming(True) 
         
-        ####
-        #### TODO: FIX
-        ####
-        # Status monitor timout
+        # Load status monitor (and start/stop/reset buttons) UI
+        ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'pulseblaster.ui'))        
+        self.get_tab_layout().addWidget(ui)
+        # Connect signals for buttons
+        ui.start_button.clicked.connect(self.start)
+        ui.stop_button.clicked.connect(self.stop)
+        ui.reset_button.clicked.connect(self.reset)
+        
+        # initialise dictionaries of data to display and get references to the QLabels
+        self.status_states = ['stopped', 'reset', 'running', 'waiting']
+        self.status = {}
+        self.status_widgets = {}
+        for state in self.status_states:
+            self.status[state] = False
+            self.status_widgets[state] = getattr(ui,'%s_label'%state)        
+        
+        # Create status monitor timout
         self.statemachine_timeout_add(2000, self.status_monitor)
-        
-        # Default values for status prior to the status monitor first running:
-        self.status = {'stopped':False,'reset':False,'running':False, 'waiting':False}
-        
-        # Get status widgets
-        # self.status_widgets = {'stopped_yes':self.builder.get_object('stopped_yes'),
-                               # 'stopped_no':self.builder.get_object('stopped_no'),
-                               # 'reset_yes':self.builder.get_object('reset_yes'),
-                               # 'reset_no':self.builder.get_object('reset_no'),
-                               # 'running_yes':self.builder.get_object('running_yes'),
-                               # 'running_no':self.builder.get_object('running_no'),
-                               # 'waiting_yes':self.builder.get_object('waiting_yes'),
-                               # 'waiting_no':self.builder.get_object('waiting_no')}
-        
         
     def get_child_from_connection_table(self, parent_device_name, port):
         # This is a direct output, let's search for it on the internal intermediate device called 
@@ -593,7 +595,6 @@ class PulseBlasterTab(DeviceTab):
             # else it's a child of a DDS, so we can use the default behaviour to find the device
             return DeviceTab.get_child_from_connection_table(self, parent_device_name, port)
     
-    
     # This function gets the status of the Pulseblaster from the spinapi,
     # and updates the front panel widgets!
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
@@ -611,17 +612,10 @@ class PulseBlasterTab(DeviceTab):
             self.statemachine_timeout_remove(self.status_monitor)
             self.statemachine_timeout_add(2000,self.status_monitor)
         
-        # TODO: Update widgets
-        # a = ['stopped','reset','running','waiting']
-        # for name in a:
-            # if self.status[name] == True:
-                # self.status_widgets[name+'_no'].hide()
-                # self.status_widgets[name+'_yes'].show()
-            # else:                
-                # self.status_widgets[name+'_no'].show()
-                # self.status_widgets[name+'_yes'].hide()
-        
-    
+        # Update widgets with new status
+        for state in self.status_states:
+            self.status_widgets[state].setText(str(self.status[state]))
+                        
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
         yield(self.queue_work(self._primary_worker,'pb_start'))
