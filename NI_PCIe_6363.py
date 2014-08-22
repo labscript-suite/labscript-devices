@@ -96,10 +96,10 @@ class NI_PCIe_6363Tab(DeviceTab):
         # Create and set the primary worker
         self.create_worker("main_worker",NiPCIe6363Worker,{'MAX_name':self.MAX_name, 'limits': [base_min['AO'],base_max['AO']], 'num':num})
         self.primary_worker = "main_worker"
-        self.create_worker("acquisition_worker",NiPCIe6363AcquisitionWorker,{'MAX_name':self.MAX_name})
-        self.add_secondary_worker("acquisition_worker")
         self.create_worker("wait_monitor_worker",NiPCIe6363WaitMonitorWorker,{'MAX_name':self.MAX_name})
         self.add_secondary_worker("wait_monitor_worker")
+        self.create_worker("acquisition_worker",NiPCIe6363AcquisitionWorker,{'MAX_name':self.MAX_name})
+        self.add_secondary_worker("acquisition_worker")
 
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
@@ -681,8 +681,8 @@ class NiPCIe6363WaitMonitorWorker(Worker):
         assert written.value == 1
         # Wait however long we observed the first pulse of the experiment to be:
         time.sleep(pulse_width)
-        # go low:
-        self.timeout_task.WriteDigitalLines(1,True,1,DAQmx_Val_GroupByChannel,numpy.zeros(1, dtype=numpy.uint8),byref(written),None)
+        # go high:
+        self.timeout_task.WriteDigitalLines(1,True,1,DAQmx_Val_GroupByChannel,numpy.ones(1, dtype=numpy.uint8),byref(written),None)
         assert written.value == 1
         
     def stop_task(self):
