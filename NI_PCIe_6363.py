@@ -332,7 +332,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
                     while not self.task_running:
                         logger.debug('Task isn\'t running. Releasing daqlock and waiting to reacquire it.')
                         self.daqlock.wait()
-                    logger.debug('Reading data from analogue inputs')
+                    #logger.debug('Reading data from analogue inputs')
                     if self.buffered:
                         chnl_list = self.buffered_channels
                     else:
@@ -341,7 +341,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
                         error = "Task did not return an error, but it should have"
                         acquisition_timeout = 5
                         error = self.task.ReadAnalogF64(self.samples_per_channel,acquisition_timeout,DAQmx_Val_GroupByChannel,self.ai_data,self.samples_per_channel*len(chnl_list),byref(self.ai_read),None)
-                        logger.debug('Reading complete')
+                        #logger.debug('Reading complete')
                         if error is not None and error != 0:
                             if error < 0:
                                 raise Exception(error)
