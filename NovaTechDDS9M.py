@@ -109,7 +109,7 @@ class NovaTechDDS9M(IntermediateDevice):
                         [('phase%d'%i,np.uint16) for i in range(2,4)] + \
                         [('amp%d'%i,np.uint16) for i in range(2,4)]
          
-        clockline = self.parent_device
+        clockline = self.parent_clock_line
         pseudoclock = clockline.parent_device
         times = pseudoclock.times[clockline]
        
