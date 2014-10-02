@@ -25,9 +25,9 @@ class NovaTechDDS9M(IntermediateDevice):
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     
-    def __init__(self, name, parent_device, com_port):
+    def __init__(self, name, parent_device, com_port, baud_rate=115200):
         IntermediateDevice.__init__(self, name, parent_device)
-        self.BLACS_connection = com_port
+        self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
     
     def add_device(self, device):
         Device.add_device(self, device)
@@ -184,10 +184,16 @@ class NovatechDDS9MTab(DeviceTab):
         self.auto_place_widgets(("DDS Outputs",dds_widgets))
         
         # Store the COM port to be used
-        self.com_port = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        blacs_connection =  str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        if ',' in blacs_connection:
+            self.com_port, baud_rate = blacs_connection.split(',')
+            self.baud_rate = int(baud_rate)
+        else:
+            self.com_port = blacs_connection
+            self.baud_rate = 115200
         
         # Create and set the primary worker
-        self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port, 'baud_rate': 115200})
+        self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port, 'baud_rate': self.baud_rate})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
