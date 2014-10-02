@@ -29,7 +29,7 @@ class pulseblasteresrpro500(Pulseblaster_No_DDS_Tab):
     num_DO = 21
     def __init__(self,*args,**kwargs):
         self.device_worker_class = PulseblasterESRPro500Worker 
-        pulseblaster_no_dds.__init__(self,*args,**kwargs)
+        Pulseblaster_No_DDS_Tab.__init__(self,*args,**kwargs)
     
     
 @BLACS_worker

@@ -13,7 +13,29 @@
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 from labscript_devices.PulseBlaster import PulseBlaster
+from labscript import PseudoclockDevice, config
 
+import numpy as np
+
+def check_version(module_name, at_least, less_than, version=None):
+
+    class VersionException(Exception):
+        pass
+
+    def get_version_tuple(version_string):
+        version_tuple = [int(v.replace('+', '-').split('-')[0]) for v in version_string.split('.')]
+        while len(version_tuple) < 3:
+            version_tuple += (0,)
+        return version_tuple
+
+    if version is None:
+        version = __import__(module_name).__version__
+    at_least_tuple, less_than_tuple, version_tuple = [get_version_tuple(v) for v in [at_least, less_than, version]]
+    if not at_least_tuple <= version_tuple < less_than_tuple:
+        raise VersionException(
+            '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
+            
+            
 @labscript_device
 class PulseBlaster_No_DDS(PulseBlaster):
 
@@ -24,9 +46,9 @@ class PulseBlaster_No_DDS(PulseBlaster):
     
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:
-        pb_dtype = [('flags',int32), ('inst',int32),
-                    ('inst_data',int32), ('length',float64)]
-        pb_inst_table = empty(len(pb_inst),dtype = pb_dtype)
+        pb_dtype = [('flags',np.int32), ('inst',np.int32),
+                    ('inst_data',np.int32), ('length',np.float64)]
+        pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
@@ -42,7 +64,7 @@ class PulseBlaster_No_DDS(PulseBlaster):
     def generate_code(self, hdf5_file):
         # Generate the hardware instructions
         hdf5_file.create_group('/devices/'+self.name)
-        PseudoClock.generate_code(self, hdf5_file)
+        PseudoclockDevice.generate_code(self, hdf5_file)
         dig_outputs, ignore = self.get_direct_outputs()
         pb_inst = self.convert_to_pb_inst(dig_outputs, [], {}, {}, {})
         self.write_pb_inst_to_h5(pb_inst, hdf5_file) 
@@ -170,15 +192,9 @@ class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):
         exec 'from spinapi import *' in globals()
+        
+        check_version('spinapi', '3.0.4', '4')
         import spinapi
-        version = [int(v) for v in spinapi.__version__.split('-')[0].split('.')]
-        requires_version = (3,0,4)
-        try:
-            assert version[0] == requires_version[0]
-            assert version[1] >= requires_version[1]
-            assert version[2] >= requires_version[2]
-        except AssertionError:
-            raise ImportError('This PulseBlaster requires at least Python spinapi v%d.%d.%d'%requires_version)
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
