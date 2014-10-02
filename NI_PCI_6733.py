@@ -22,8 +22,9 @@ import labscript_utils.h5_lock, h5py
 class NI_PCI_6733(parent.NIBoard):
     description = 'NI-PCI-6733'
     n_analogs = 8
-    n_digitals = 0
+    n_digitals = 8
     n_analog_ins = 0
+    clock_limit = 700e3
     digital_dtype = np.uint32
     
     def generate_code(self, hdf5_file):
@@ -44,6 +45,7 @@ class NI_PCI_6733Tab(DeviceTab):
     def initialise_GUI(self):
         # Capabilities
         self.num_AO = 8
+        self.num_DO = 8
         self.base_units = 'V'
         self.base_min = -10.0
         self.base_max = 10.0
@@ -59,19 +61,33 @@ class NI_PCI_6733Tab(DeviceTab):
                                  'step':self.base_step,
                                  'decimals':self.base_decimals
                                 }
-                                
+        
+        do_prop = {}
+        for i in range(self.num_DO):
+            do_prop['port0/line%d'%i] = {}
+            
         # Create the output objects    
         self.create_analog_outputs(ao_prop)        
-        # Create widgets for output objects
+        # Create widgets for analog outputs only
         dds_widgets,ao_widgets,do_widgets = self.auto_create_widgets()
+        
+        # now create the digital output objects
+        self.create_digital_outputs(do_prop)
+        do_widgets = self.create_digital_widgets(do_prop)
+        
+        def do_sort(channel):
+            flag = channel.replace('port0/line','')
+            flag = int(flag)
+            return '%02d'%(flag)
+            
         # and auto place the widgets in the UI
-        self.auto_place_widgets(("Analog Outputs",ao_widgets))
+        self.auto_place_widgets(("Analog Outputs",ao_widgets),("Digital Outputs",do_widgets,do_sort))
         
         # Store the Measurement and Automation Explorer (MAX) name
         self.MAX_name = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
         
         # Create and set the primary worker
-        self.create_worker("main_worker",NiPCI6733Worker,{'MAX_name':self.MAX_name, 'limits': [self.base_min,self.base_max], 'num_AO':self.num_AO})
+        self.create_worker("main_worker",NiPCI6733Worker,{'MAX_name':self.MAX_name, 'limits': [self.base_min,self.base_max], 'num_AO':self.num_AO, 'num_DO': self.num_DO})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
@@ -93,25 +109,39 @@ class NiPCI6733Worker(Worker):
         self.ao_task = Task()
         self.ao_read = int32()
         self.ao_data = numpy.zeros((self.num_AO,), dtype=numpy.float64)
-        self.setup_static_channels()            
+        
+        # Create DO task:
+        self.do_task = Task()
+        self.do_read = int32()
+        self.do_data = numpy.zeros(self.num_DO, dtype=numpy.uint8)
+        
+        self.setup_static_channels()
         
         #DAQmx Start Code        
         self.ao_task.StartTask()  
+        self.do_task.StartTask()  
         
     def setup_static_channels(self):
         #setup AO channels
         for i in range(self.num_AO): 
             self.ao_task.CreateAOVoltageChan(self.MAX_name+"/ao%d"%i,"",self.limits[0],self.limits[1],DAQmx_Val_Volts,None)
+        #setup DO ports
+        self.do_task.CreateDOChan(self.MAX_name+"/port0/line0:7","",DAQmx_Val_ChanForAllLines)
         
     def shutdown(self):        
         self.ao_task.StopTask()
         self.ao_task.ClearTask()
+        self.do_task.StopTask()
+        self.do_task.ClearTask()
         
     def program_manual(self,front_panel_values):
         for i in range(self.num_AO):
             self.ao_data[i] = front_panel_values['ao%d'%i]
         self.ao_task.WriteAnalogF64(1,True,1,DAQmx_Val_GroupByChannel,self.ao_data,byref(self.ao_read),None)
-          
+        
+        for i in range(self.num_DO):
+            self.do_data[i] = front_panel_values['port0/line%d'%i]
+        self.do_task.WriteDigitalLines(1,True,1,DAQmx_Val_GroupByChannel,self.do_data,byref(self.do_read),None)
         # TODO: Return coerced/quantised values
         return {}
         
@@ -125,13 +155,53 @@ class NiPCI6733Worker(Worker):
             clock_terminal = group.attrs['clock_terminal']
             h5_data = group.get('ANALOG_OUTS')
             if h5_data:
+                self.buffered_using_analog = True
                 ao_channels = group.attrs['analog_out_channels']
                 # We use all but the last sample (which is identical to the
                 # second last sample) in order to ensure there is one more
                 # clock tick than there are samples. The 6733 requires this
                 # to determine that the task has completed.
                 ao_data = pylab.array(h5_data,dtype=float64)[:-1,:]
+            else:
+                self.buffered_using_analog = False   
                 
+            h5_data = group.get('DIGITAL_OUTS')
+            if h5_data:
+                self.buffered_using_digital = True
+                do_channels = group.attrs['digital_lines']
+                do_bitfield = numpy.array(h5_data,dtype=numpy.uint32)
+            else:
+                self.buffered_using_digital = False
+                
+            final_values = {}
+            # We must do digital first, so as to make sure the manual mode task is stopped, or reprogrammed, by the time we setup the AO task
+            # this is because the clock_terminal PFI must be freed!
+            if self.buffered_using_digital:
+                # Expand each bitfield int into self.num['DO']
+                # (32) individual ones and zeros:
+                do_write_data = numpy.zeros((do_bitfield.shape[0],self.num['DO']),dtype=numpy.uint8)
+                for i in range(self.num['DO']):
+                    do_write_data[:,i] = (do_bitfield & (1 << i)) >> i
+                    
+                self.do_task.StopTask()
+                self.do_task.ClearTask()
+                self.do_task = Task()
+                self.do_read = int32()
+        
+                self.do_task.CreateDOChan(do_channels,"",DAQmx_Val_ChanPerLine)
+                self.do_task.CfgSampClkTiming(clock_terminal,1000000,DAQmx_Val_Rising,DAQmx_Val_FiniteSamps,do_bitfield.shape[0])
+                self.do_task.WriteDigitalLines(do_bitfield.shape[0],False,10.0,DAQmx_Val_GroupByScanNumber,do_write_data,self.do_read,None)
+                self.do_task.StartTask()
+                
+                for i in range(self.num['DO']):
+                    final_values['port0/line%d'%i] = do_write_data[-1,i]
+            else:
+                # We still have to stop the task to make the 
+                # clock flag available for buffered analog output, or the wait monitor:
+                self.do_task.StopTask()
+                self.do_task.ClearTask()
+                
+            if self.buffered_using_analog:
                 self.ao_task.StopTask()
                 self.ao_task.ClearTask()
                 self.ao_task = Task()
@@ -148,17 +218,27 @@ class NiPCI6733Worker(Worker):
                 final_values = {channel: value for channel, value in zip(channel_list, ao_data[-1,:])}
                 return final_values
             else:
-                return {}
-        
+                # we should probabaly still stop the task (this makes it easier to setup the task later)
+                self.ao_task.StopTask()
+                self.ao_task.ClearTask()
+            
     def transition_to_manual(self,abort=False):
-        if not abort:
-            # if aborting, don't call StopTask since this throws an
-            # error if the task hasn't actually finished!
-            self.ao_task.StopTask()
-        self.ao_task.ClearTask()
+        # if aborting, don't call StopTask since this throws an
+        # error if the task hasn't actually finished!
+        if self.buffered_using_analog:
+            if not abort:
+                self.ao_task.StopTask()
+            self.ao_task.ClearTask()
+        if self.buffered_using_digital:
+            if not abort:
+                self.do_task.StopTask()
+            self.do_task.ClearTask()
+                
         self.ao_task = Task()
+        self.do_task = Task()
         self.setup_static_channels()
         self.ao_task.StartTask()
+        self.do_task.StartTask()
         if abort:
             # Reprogram the initial states:
             self.program_manual(self.initial_values)
