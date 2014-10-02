@@ -590,7 +590,7 @@ class PulseBlasterTab(DeviceTab):
                 # look to see if the port is used by a child of the direct outputs
                 return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
             else:
-                return '-'
+                return ''
         else:
             # else it's a child of a DDS, so we can use the default behaviour to find the device
             return DeviceTab.get_child_from_connection_table(self, parent_device_name, port)
