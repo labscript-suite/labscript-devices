@@ -2,7 +2,7 @@ import os
 import sys
 import importlib
 
-__version__ = '0.1.0-dev'
+__version__ = '1.0.0'
 
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a
@@ -12,7 +12,7 @@ class ClassRegister(object):
         self.registered_classes = {}
         # The name given to the instance in this namespace, so we can use it in error messages:
         self.instancename = instancename
-        
+
     def __call__(self, cls):
         """Adds the class to the register so that it can be looked up later
         by module name"""
@@ -30,25 +30,27 @@ class ClassRegister(object):
                                    'If you are testing, please test from a more standard environment, such as ' +
                                    'executing a script from the command line, or if you are using an interactive session, ' +
                                    'writing your code in a separate module and importing it.')
-                
+
         # Add it to the register:
         self.registered_classes[cls.labscript_device_class_name] = cls
         return cls
-        
+
     def __getitem__(self, name):
         try:
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
+            print 'imported', name, 'ok!'
         except ImportError:
             sys.stderr.write('Error importing module %s.%s whilst looking for classes for device %s. '%(__name__, name, name) +
                              'Check that the module exists, is named correctly, and can be imported with no errors. ' +
                              'Full traceback follows:\n')
+            raise
         # Class definitions in that module have executed now, check to see if class is in our register:
         try:
             return self.registered_classes[name]
         except KeyError:
             # No? No such class is defined then, or maybe the user forgot to decorate it.
-            raise ValueError('No class decorated as a %s as found in module %s, '%(self.instancename, __name__ + '.' + name) + 
+            raise ValueError('No class decorated as a %s found in module %s, '%(self.instancename, __name__ + '.' + name) +
                              'Did you forget to decorate the class definition with @%s?'%(self.instancename))
 
 class SameNameClassRegister(ClassRegister):
@@ -61,7 +63,7 @@ class SameNameClassRegister(ClassRegister):
                              'For example NI_PCI_6733.py: class NI_PCI_6733(IntermediateDevice). ' +
                              'Otherwise labscript suite programs looking for it won\'t know what file to look in!')
         return cls
-        
+
 # The decorators the user should apply to their classes so that the
 # respective programs can look them up:
 labscript_device = SameNameClassRegister('labscript_device')
@@ -72,14 +74,14 @@ runviewer_parser = ClassRegister('runviewer_parser')
 # Wrapper functions to get devices out of the class registers.
 def get_labscript_device(name):
     return labscript_device[name]
-    
+
 def get_BLACS_tab(name):
     return BLACS_tab[name]
 
 def get_BLACS_worker(name):
     return BLACS_worker[name]
-        
+
 def get_runviewer_parser(name):
     return runviewer_parser[name]
-    
+
 

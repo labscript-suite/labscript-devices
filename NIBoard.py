@@ -1,6 +1,6 @@
 import numpy as np
 from labscript_devices import runviewer_parser
-from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config
+from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError
 import labscript_utils.h5_lock, h5py
 
 class NIBoard(IntermediateDevice):
@@ -11,8 +11,8 @@ class NIBoard(IntermediateDevice):
     clock_limit = 500e3 # underestimate I think.
     description = 'generic_NI_Board'
     
-    def __init__(self, name, parent_device, clock_type, clock_terminal, MAX_name=None, acquisition_rate=0):
-        IntermediateDevice.__init__(self, name, parent_device,clock_type)
+    def __init__(self, name, parent_device, clock_terminal, MAX_name=None, acquisition_rate=0):
+        IntermediateDevice.__init__(self, name, parent_device)
         self.acquisition_rate = acquisition_rate
         self.clock_terminal = clock_terminal
         self.MAX_name = name if MAX_name is None else MAX_name
@@ -50,7 +50,12 @@ class NIBoard(IntermediateDevice):
                 inputs[device.connection] = device
             else:
                 raise Exception('Got unexpected device.')
-        analog_out_table = np.empty((len(self.parent_device.times[self.clock_type]),len(analogs)), dtype=np.float32)
+        
+        clockline = self.parent_device
+        pseudoclock = clockline.parent_device
+        times = pseudoclock.times[clockline]
+                
+        analog_out_table = np.empty((len(times),len(analogs)), dtype=np.float32)
         analog_connections = analogs.keys()
         analog_connections.sort()
         analog_out_attrs = []
@@ -101,9 +106,10 @@ class NIBoard(IntermediateDevice):
 class RunviewerClass(object):
     num_digitals = 32
     
-    def __init__(self, path, name):
+    def __init__(self, path, device):
         self.path = path
-        self.name = name
+        self.name = device.name
+        self.device = device
         
         # We create a lookup table for strings to be used later as dictionary keys.
         # This saves having to evaluate '%d'%i many many times, and makes the _add_pulse_program_row_to_traces method
@@ -112,7 +118,7 @@ class RunviewerClass(object):
         for i in range(self.num_digitals):
             self.port_strings[i] = 'port0/line%d'%i
             
-    def get_traces(self,clock=None):
+    def get_traces(self, add_trace, clock=None):
         if clock is None:
             # we're the master pseudoclock, software triggered. So we don't have to worry about trigger delays, etc
             raise Exception('No clock passed to %s. The NI PCIe 6363 must be clocked by another device.'%self.name)
@@ -153,6 +159,13 @@ class RunviewerClass(object):
         
         for i, channel in enumerate(analog_out_channels):
             traces[channel.split('/')[-1]] = (clock_ticks, analogs[:,i])
-         
-        return traces
+        
+        triggers = {}
+        for channel_name, channel in self.device.child_list.items():
+            if channel.parent_port in traces:
+                if channel.device_class == 'Trigger':
+                    triggers[channel_name] = traces[channel.parent_port]
+                add_trace(channel_name, traces[channel.parent_port], self.name, channel.parent_port)
+        
+        return triggers
     

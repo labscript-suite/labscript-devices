@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /NI_PCIe_6363.py                                                  #
+# /NI_USB_6343.py                                                  #
 #                                                                   #
 # Copyright 2013, Monash University                                 #
 #                                                                   #
@@ -19,8 +19,9 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 
 @labscript_device
-class NI_PCIe_6363(parent.NIBoard):
-    description = 'NI-PCIe-6363'
+class NI_USB_6343(parent.NIBoard):
+    description = 'NI-USB-6343'
+    clock_limit = 700e3
     n_analogs = 4
     n_digitals = 32
     n_analog_ins = 32
@@ -34,9 +35,10 @@ from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MOD
 from blacs.device_base_class import DeviceTab
 
 @BLACS_tab
-class NI_PCIe_6363Tab(DeviceTab):
+class NI_USB_6343Tab(DeviceTab):
     def initialise_GUI(self):
         # Capabilities
+        num_AO = 4
         num = {'AO':4, 'DO':32, 'PFI':16}
         
         base_units = {'AO':'V'}
@@ -93,11 +95,11 @@ class NI_PCIe_6363Tab(DeviceTab):
         self.MAX_name = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
         
         # Create and set the primary worker
-        self.create_worker("main_worker",NiPCIe6363Worker,{'MAX_name':self.MAX_name, 'limits': [base_min['AO'],base_max['AO']], 'num':num})
+        self.create_worker("main_worker",NI_USB_6343Worker,{'MAX_name':self.MAX_name, 'limits': [base_min['AO'],base_max['AO']], 'num':num})
         self.primary_worker = "main_worker"
-        self.create_worker("wait_monitor_worker",NiPCIe6363WaitMonitorWorker,{'MAX_name':self.MAX_name})
+        self.create_worker("wait_monitor_worker",NI_USB_6343WaitMonitorWorker,{'MAX_name':self.MAX_name})
         self.add_secondary_worker("wait_monitor_worker")
-        self.create_worker("acquisition_worker",NiPCIe6363AcquisitionWorker,{'MAX_name':self.MAX_name})
+        self.create_worker("acquisition_worker",NI_USB_6343AcquisitionWorker,{'MAX_name':self.MAX_name})
         self.add_secondary_worker("acquisition_worker")
 
         # Set the capabilities of this device
@@ -105,7 +107,7 @@ class NI_PCIe_6363Tab(DeviceTab):
         self.supports_smart_programming(False) 
     
 @BLACS_worker
-class NiPCIe6363Worker(Worker):
+class NI_USB_6343Worker(Worker):
     def init(self):
         exec 'from PyDAQmx import Task' in globals()
         exec 'from PyDAQmx.DAQmxConstants import *' in globals()
@@ -278,7 +280,7 @@ class NiPCIe6363Worker(Worker):
         return self.transition_to_manual(True)    
 
         
-class NiPCIe6363AcquisitionWorker(Worker):
+class NI_USB_6343AcquisitionWorker(Worker):
     def init(self):
         #exec 'import traceback' in globals()
         exec 'from PyDAQmx import Task' in globals()
@@ -586,7 +588,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
     def program_manual(self,values):
         return {}
     
-class NiPCIe6363WaitMonitorWorker(Worker):
+class NI_USB_6343WaitMonitorWorker(Worker):
     def init(self):
         exec 'import ctypes' in globals()
         exec 'from PyDAQmx import Task' in globals()
@@ -718,7 +720,7 @@ class NiPCIe6363WaitMonitorWorker(Worker):
         # Only do anything if we are in fact the wait_monitor device:
         if timeout_device == device_name or acquisition_device == device_name:
             if not timeout_device == device_name and acquisition_device == device_name:
-                raise NotImplementedError("ni-PCIe-6363 worker must be both the wait monitor timeout device and acquisition device." +
+                raise NotImplementedError("NI-USB-6343 worker must be both the wait monitor timeout device and acquisition device." +
                                           "Being only one could be implemented if there's a need for it, but it isn't at the moment")
             
             # The counter acquisition task:
