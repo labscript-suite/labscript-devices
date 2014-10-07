@@ -24,8 +24,24 @@ class NewPortControllableMirror(Device):
     description = 'NewPort Mirror'
     allowed_children = [StaticAnalogQuantity]
     generation = 2
+    
+    MAX_X = 1
+    MAX_Y = 1
+    MIN_X = -1
+    MIN_Y = -1
     def __init__(self, name, parent_device, connection):
-        pass
+        Device.__init__(self, name, parent_device, connection)
+        self.xaxis = StaticAnalogQuantity(self.name + '_xaxis', self, 'xaxis', (MIN_X, MAX_X))
+        self.yaxis = StaticAnalogQuantity(self.name + '_yaxis', self, 'yaxis', (MIN_Y, MAX_Y))
+    
+    def set_x(self, value, units=None):
+        self.xaxis.constant(value, units)
+        
+    def set_y(self, value, units=None):
+        self.yaxis.constant(value, units)
+        
+
+    
 
 @labscript_device
 class NewPortMirrorController8742(IntermediateDevice):
