@@ -23,12 +23,12 @@ import labscript_utils.h5_lock, h5py
 class NewPortControllableMirror(Device):
     description = 'NewPort Mirror'
     allowed_children = [StaticAnalogQuantity]
-    generation = 2
     
     MAX_X = 1
     MAX_Y = 1
     MIN_X = -1
     MIN_Y = -1
+    
     def __init__(self, name, parent_device, connection):
         Device.__init__(self, name, parent_device, connection)
         self.xaxis = StaticAnalogQuantity(self.name + '_xaxis', self, 'xaxis', (MIN_X, MAX_X))
@@ -41,11 +41,37 @@ class NewPortControllableMirror(Device):
         self.yaxis.constant(value, units)
         
 
-    
-
 @labscript_device
 class NewPortMirrorController8742(IntermediateDevice):
     description = 'NewPort Mirror Controller 8742'
     allowed_children = [NewPortControllableMirror]
     
+    def __init__(self, name, parent_device, com_port):
+        IntermediateDevice.__init__(self, name, parent_device)
+        self.BLACS_connection = com_port
+        
+    def add_device(self, device):
+        IntermediateDevice.add_device(self, device)
+        if device.connection not in ['mirror 0', 'mirror 1']:
+            raise LabscriptError('Connection must be either "mirror 0" or "mirror 1"')
+        other_devices = [d for d in self.child_devices if d is not device]
+        for other_device in other_devices:
+            if other_device.connection == device.connection:
+                raise LabscriptError('Has same connection as %s' % other_device.name)
+     
+    def generate_code(self, hdf5_file):
+        IntermediateDevice.generate_code(self, hdf5_file)
+        dtypes = [('motor %d' %n, float) for n in range(1, 5)]
+        out_table = np.zeros(1, dtypes=dtypes)
+        out_table = out_table.fill(float('nan'))
+        for mirror in self.child_devices:
+            mirror_number = int(mirror.connection.split()[1])
+            x_value = mirror.xaxis.static_value
+            y_value = mirror.yaxis.static_value
+            x_motor_number = 2*mirror_number + 1
+            y_motor_number = 2*mirror_number + 2
+            out_table[0]['motor %d'%x_motor_number] = x_value   
+            out_table[0]['motor %d'%y_motor_number] = y_value  
     
+        grp = hdf5_file.create_group('/devices/'+self.name)
+        grp.create_dataset('MOTOR_VALUE', compression=config.compression, data=out_table) 
