@@ -94,7 +94,7 @@ class PulseBlaster(PseudoclockDevice):
     allowed_children = [Pseudoclock]
     
     def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = ''):
-        PseudoclockDevice.__init__(self,name,trigger_device,trigger_connection)
+        PseudoclockDevice.__init__(self,name, trigger_device, trigger_connection)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
