@@ -51,7 +51,7 @@ class Camera(TriggerableDevice):
         start = t
         end = t + duration
         for exposure in self.exposures:
-            other_t, _ other_duration = exposure
+            other_t, _, other_duration = exposure
             other_start = other_t
             other_end = other_t + other_duration
             if abs(other_start - end) < self.minimum_recovery_time or abs(end - other_start) < self.minimum_recovery_time:
@@ -65,7 +65,7 @@ class Camera(TriggerableDevice):
         self.exposures.append((name, t, frametype, duration))
         return duration
     
-    def do_checks(self, (*args, **kwargs)
+    def do_checks(self, *args, **kwargs):
         self.trigger_device.do_checks(self, *args, **kwargs)
         # Check that all Cameras sharing a trigger device have exposures when we have exposures:
         # TODO
