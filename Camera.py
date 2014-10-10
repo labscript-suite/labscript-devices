@@ -33,7 +33,7 @@ class Camera(TriggerableDevice):
         self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
-        
+        self.exposures = []
         
     def expose(self, name, t , frametype, exposuretime=None):
         if exposuretime is None:
