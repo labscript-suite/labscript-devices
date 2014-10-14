@@ -2,7 +2,7 @@ import os
 import sys
 import importlib
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a
