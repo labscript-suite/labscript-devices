@@ -11,63 +11,95 @@
 #                                                                   #
 #####################################################################
 
+try:
+    from labscript_utils import check_version
+except ImportError:
+    raise ImportError('Require labscript_utils > 2.1.0')
+    
+check_version('labscript', '2.0.1', '3')
+
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import DigitalOut, LabscriptError
+from labscript import TriggerableDevice, DigitalOut, LabscriptError
 import numpy as np
 
 @labscript_device
-class Camera(DigitalOut):
+class Camera(TriggerableDevice):
     description = 'Generic Camera'
     frame_types = ['atoms','flat','dark','fluoro','clean']
-    minimum_recovery_time = 0 # To be set by subclasses
     
-    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size, exposuretime=None, orientation='side'):
-        DigitalOut.__init__(self,name,parent_device,connection)
+    # To be set as instantiation arguments:
+    trigger_edge_type = None
+    minimum_recovery_time = None
+    
+    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size,
+                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0):
+         # not a class attribute, so we don't have to have a subclass for each model of camera:
+        self.trigger_edge_type = trigger_edge_type
+        self.minimum_recovery_time = minimum_recovery_time
+        TriggerableDevice.__init__(self, name, parent_device, connection)
         self.exposuretime = exposuretime
         self.orientation = orientation
-        self.exposures = []
         self.BLACS_connection = BIAS_port
         if isinstance(serial_number,str):
             serial_number = int(serial_number,16)
         self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
+        self.exposures = []
         
-    def expose(self,name, t , frametype, exposuretime=None):
-        self.go_high(t)
+    def expose(self, name, t , frametype, exposuretime=None):
         if exposuretime is None:
             duration = self.exposuretime
         else:
             duration = exposuretime
         if duration is None:
-            raise LabscriptError('Camera has not had an exposuretime set as an instantiation argument, ' +
+            raise LabscriptError('Camera %s has not had an exposuretime set as an instantiation argument, '%self.name +
                                  'and one was not specified for this exposure')
-        self.go_low(t + duration)
+        if not exposuretime > 0:
+            raise LabscriptError("exposuretime must be > 0, not %s"%str(exposuretime))
+        # Only ask for a trigger if one has not already been requested by 
+        # another camera attached to the same trigger:
+        already_requested = False
+        for camera in self.trigger_device.child_devices:
+            if camera is not self:
+                for _, other_t, _, other_duration in camera.exposures:
+                    if t == other_t and duration == other_duration:
+                        already_requested = True
+        if not already_requested:
+            self.trigger_device.trigger(t, duration)
+        # Check for exposures too close together (check for overlapping 
+        # triggers already performed in self.trigger_device.trigger()):
+        start = t
+        end = t + duration
         for exposure in self.exposures:
-            start = exposure[1]
-            end = start + duration
-            # Check for overlapping exposures:
-            if start <= t <= end or start <= t+duration <= end:
-                raise LabscriptError('%s %s has two overlapping exposures: ' %(self.description, self.name) + \
-                                 'one at t = %fs for %fs, and another at t = %fs for %fs.'%(t,duration,start,duration))
-            # Check for exposures too close together:
-            if abs(start - (t + duration)) < self.minimum_recovery_time or abs((t+duration) - end) < self.minimum_recovery_time:
+            _, other_t, _, other_duration = exposure
+            other_start = other_t
+            other_end = other_t + other_duration
+            if abs(other_start - end) < self.minimum_recovery_time or abs(other_end - start) < self.minimum_recovery_time:
                 raise LabscriptError('%s %s has two exposures closer together than the minimum recovery time: ' %(self.description, self.name) + \
-                                 'one at t = %fs for %fs, and another at t = %fs for %fs. '%(t,duration,start,duration) + \
-                                 'The minimum recovery time is %fs.'%self.minimum_recovery_time)
+                                     'one at t = %fs for %fs, and another at t = %fs for %fs. '%(t,duration,start,duration) + \
+                                     'The minimum recovery time is %fs.'%self.minimum_recovery_time)
         # Check for invalid frame type:                        
         if not frametype in self.frame_types:
-            raise LabscriptError('%s is not a valid frame type for %s %s.'%(str(frametype), self.description, self.name) +\
-                             'Allowed frame types are: \n%s'%'\n'.join(self.frame_types))
+            raise LabscriptError('%s is not a valid frame type for %s.'%(str(frametype), self.name) +
+                                 'Allowed frame types are: \n%s'%'\n'.join(self.frame_types))
         self.exposures.append((name, t, frametype, duration))
         return duration
     
-    def do_checks(self, *args):
-        if not self.t0 in self.instructions:
-            self.go_low(self.t0)
-        DigitalOut.do_checks(self, *args) 
-           
+    def do_checks(self):
+        # Check that all Cameras sharing a trigger device have exposures when we have exposures:
+        for camera in self.trigger_device.child_devices:
+            if camera is not self:
+                for exposure in self.exposures:
+                    if exposure not in camera.exposures:
+                        _, start, _, duration = exposure
+                        raise LabscriptError('Cameras %s and %s share a trigger. ' % (self.name, camera.name) + 
+                                             '%s has an exposure at %fs for %fs, ' % (self.name, start, duration) +
+                                             'but there is no matching exposure for %s. ' % camera.name +
+                                             'Cameras sharing a trigger must have identical exposure times and durations.')
+                        
     def generate_code(self, hdf5_file):
+        self.do_checks()
         table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposuretime',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
         group = hdf5_file['devices'].create_group(self.name)
