@@ -19,11 +19,15 @@ import numpy as np
 class Camera(TriggerableDevice):
     description = 'Generic Camera'
     frame_types = ['atoms','flat','dark','fluoro','clean']
-    trigger_edge_type = None
     
-    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size, exposuretime=None, orientation='side', trigger_edge_type='rising'):
+    # To be set as instantiation arguments:
+    trigger_edge_type = None
+    minimum_recovery_time = None
+    
+    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size, exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0):
          # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
+        self.minimum_recovery_time = minimum_recovery_time
         TriggerableDevice.__init__(self, name, parent_device, connection)
         self.exposuretime = exposuretime
         self.orientation = orientation
