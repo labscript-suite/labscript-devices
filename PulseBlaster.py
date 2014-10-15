@@ -850,7 +850,7 @@ class PulseblasterWorker(Worker):
 
             
 @runviewer_parser
-class MyRunviewerClass(object):
+class PulseBlasterParser(object):
     num_dds = 2
     num_flags = 12
     

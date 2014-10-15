@@ -13,7 +13,7 @@
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker
-
+from labscript_devices.PulseBlaster import PulseBlasterParser
 
 @labscript_device
 class PulseBlaster_SP2_24_100_32k(PulseBlaster_No_DDS):
@@ -36,3 +36,7 @@ class PulseBlaster_SP2_24_100_32k_Worker(PulseblasterNoDDSWorker):
     core_clock_freq = 100.0
     
      
+@runviewer_parser
+class PulseBlaster_SP2_24_100_32k_Parser(PulseBlasterParser):
+    num_dds = 0
+    num_flags = 24
