@@ -173,18 +173,37 @@ class SLMTab(DeviceTab):
         
         # Get the region properties from teh connection table and build the dictionary to produce the IMAGE object outputs
         image_properties = {}
-        self.regions = {}
+        self.regions = {} # dict for worker process
+        regions = {} # dict for nicer view of SLM output
         accepted_region_property_keys = ['width', 'height', 'x', 'y']
         for child_name, child in self.connection_object.child_list.items():
             image_properties[child.parent_port] = child.properties
             
             self.regions[child.parent_port] = {k:v for k,v in child.properties.items() if k in accepted_region_property_keys}
             
+            x = child.properties['x']
+            y = child.properties['y']
+            wx = child.properties['width']
+            wy = child.properties['height']
+            regions[child.parent_port] = {'offset':QPointF(x,y), 'size':QSize(wx,wy), 'item':None, 'encoded':''}
             
         # Create the outputs and widgets and place the widgets in the UI
         self.create_image_outputs(image_properties)
         _,_,_,image_widgets = self.auto_create_widgets()
+        # hide the widget views
+        for region, widget in image_widgets.items():
+            widget._view.hide()
         self.auto_place_widgets(("Regions", image_widgets))
+        
+        # generate the better looking view
+        self.scene = QGraphicsScene(0,0,self.slm_properties['width'],self.slm_properties['height'])
+        self.view = SLMGraphicsView(regions, self.scene)
+        self.wrapper_objects = {}
+        for region in image_widgets:
+            self.wrapper_objects[region] = ImageWrapperWidget(self.view, region)
+            self._IMAGE[region].add_widget(self.wrapper_objects[region])
+        
+        self.get_tab_layout().addWidget(self.view)
         
         self.supports_remote_value_check(False)        
         self.supports_smart_programming(True) 
@@ -265,24 +284,29 @@ class ImageWrapperWidget(QObject):
     imageUpdated = Signal(str)
     
     def __init__(self, parent, region):
-        QObject.__init__(self, parent)
+        QObject.__init__(self)
         self._parent = parent
         self.region = region
         self._Image = None
         
-    def lock(self):
-        self._parent.lock(region)
+    def lock(self, notify_Image=True):
+        if self._Image is not None and notify_Image:
+            self._Image.lock()
+        # self._parent.lock(self.region)
     
-    def unlock(self):
-        self._parent.unlock(region)
+    def unlock(self, notify_Image=True):        
+        if self._Image is not None and notify_Image:
+            self._Image.unlock()
+        # self._parent.unlock(self.region)
         
     @property
     def value(self):
-        return self._parent.get_value(region)
+        return self._parent.regions[self.region]['encoded']
         
     @value.setter
     def value(self, value):
-        self._parent.set_value(region, unicode(value))
+        self._parent.add_image(self.region, unicode(value))
+        self.imageUpdated.emit(unicode(value))
         
     def set_Image(self, Image, notify_old_Image=True, notify_new_Image=True):
         # If we are setting a new Image, remove this widget from the old one (if it isn't None) and add it to the new one (if it isn't None)
@@ -354,7 +378,7 @@ class SLMGraphicsView(QGraphicsView):
         return self.regions[region]['encoded']
         
     def resizeEvent(self, event):
-        self.fitInView(self.scene().sceneRect())
+        self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
         return QGraphicsView.resizeEvent(self, event)
         
         
