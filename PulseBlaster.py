@@ -93,12 +93,22 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = ''):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', start_api_call='pb_start'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
-        
+        # If we are the master pseudoclock, there are two ways that BLACS can start us running.
+        # One is to call pb_start, to start us in software time. The other is to defer calling pb_stop_programming
+        # until everything is ready to start. Then, the next hardware trigger to the PulseBlaster will start it.
+        # It is important not to call pb_stop_programming too soon, because if the pulseblaster is receiving
+        # repeated triggers (such as from a 50/60-Hz line trigger, then we do not want it to start running
+        # before everything is ready. Not calling pb_stop_programming until we are ready ensures triggers are
+        # ignored.
+        possible_start_api_calls = ['pb_start', 'pb_stop_programming']
+        if start_api_call not in possible_start_api_calls:
+            raise LabscriptError('start_api_call must be one of %s'%str(possible_start_api_calls))
+        self.set_property('start_api_call', start_api_call)
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
         # Create the internal direct output clock_line
@@ -459,7 +469,7 @@ class PulseBlaster(PseudoclockDevice):
         group = hdf5_file['/devices/'+self.name]  
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
         group.attrs['stop_time'] = self.stop_time       
-    
+        
     def generate_code(self, hdf5_file):
         # Generate the hardware instructions
         hdf5_file.create_group('/devices/'+self.name)

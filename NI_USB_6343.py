@@ -211,7 +211,7 @@ class NI_USB_6343Worker(Worker):
             self.do_read = int32()
     
             self.do_task.CreateDOChan(do_channels,"",DAQmx_Val_ChanPerLine)
-            self.do_task.CfgSampClkTiming(clock_terminal,1000000,DAQmx_Val_Rising,DAQmx_Val_FiniteSamps,do_bitfield.shape[0])
+            self.do_task.CfgSampClkTiming(clock_terminal,500000,DAQmx_Val_Rising,DAQmx_Val_FiniteSamps,do_bitfield.shape[0])
             self.do_task.WriteDigitalLines(do_bitfield.shape[0],False,10.0,DAQmx_Val_GroupByScanNumber,do_write_data,self.do_read,None)
             self.do_task.StartTask()
             
@@ -230,7 +230,7 @@ class NI_USB_6343Worker(Worker):
             ao_read = int32()
 
             self.ao_task.CreateAOVoltageChan(ao_channels,"",-10.0,10.0,DAQmx_Val_Volts,None)
-            self.ao_task.CfgSampClkTiming(clock_terminal,1000000,DAQmx_Val_Rising,DAQmx_Val_FiniteSamps, ao_data.shape[0])
+            self.ao_task.CfgSampClkTiming(clock_terminal,500000,DAQmx_Val_Rising,DAQmx_Val_FiniteSamps, ao_data.shape[0])
             
             self.ao_task.WriteAnalogF64(ao_data.shape[0],False,10.0,DAQmx_Val_GroupByScanNumber, ao_data,ao_read,None)
             self.ao_task.StartTask()   
