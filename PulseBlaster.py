@@ -104,7 +104,8 @@ class PulseBlaster(PseudoclockDevice):
         # It is important not to call pb_stop_programming too soon, because if the pulseblaster is receiving
         # repeated triggers (such as from a 50/60-Hz line trigger, then we do not want it to start running
         # before everything is ready. Not calling pb_stop_programming until we are ready ensures triggers are
-        # ignored.
+        # ignored. This is savd to the connection table as a property, as it is related to how the device
+        # is triggered.
         possible_start_api_calls = ['pb_start', 'pb_stop_programming']
         if start_api_call not in possible_start_api_calls:
             raise LabscriptError('start_api_call must be one of %s'%str(possible_start_api_calls))
@@ -551,10 +552,12 @@ class PulseBlasterTab(DeviceTab):
         self.auto_place_widgets(("DDS Outputs",dds_widgets),("Flags",do_widgets,sort))
         
         # Store the board number to be used
-        self.board_number = int(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        connection_object = self.settings['connection_table'].find_by_name(self.device_name)
+        self.board_number = int(connection_object.BLACS_connection)
+        self.start_api_call = connection_object.properties['start_api_call']
         
         # Create and set the primary worker
-        self.create_worker("main_worker",PulseblasterWorker,{'board_number':self.board_number})
+        self.create_worker("main_worker",PulseblasterWorker,{'board_number':self.board_number, 'start_api_call': self.start_api_call})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device

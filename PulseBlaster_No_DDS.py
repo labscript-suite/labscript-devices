@@ -104,10 +104,14 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         self.auto_place_widgets(("Flags",do_widgets,sort))
         
         # Store the board number to be used
-        self.board_number = int(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        connection_object = self.settings['connection_table'].find_by_name(self.device_name)
+        self.board_number = int(connection_object.BLACS_connection)
+        self.start_api_call = connection_object.properties['start_api_call']
         
         # Create and set the primary worker
-        self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number, 'num_DO': self.num_DO})
+        self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number,
+                                                                   'num_DO': self.num_DO,
+                                                                   'start_api_call': self.start_api_call,})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
