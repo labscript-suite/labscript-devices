@@ -55,8 +55,8 @@ class Camera(TriggerableDevice):
         if duration is None:
             raise LabscriptError('Camera %s has not had an exposuretime set as an instantiation argument, '%self.name +
                                  'and one was not specified for this exposure')
-        if not exposuretime > 0:
-            raise LabscriptError("exposuretime must be > 0, not %s"%str(exposuretime))
+        if not duration > 0:
+            raise LabscriptError("exposuretime must be > 0, not %s"%str(duration))
         # Only ask for a trigger if one has not already been requested by 
         # another camera attached to the same trigger:
         already_requested = False
