@@ -106,12 +106,13 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # Store the board number to be used
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         self.board_number = int(connection_object.BLACS_connection)
-        self.start_api_call = connection_object.properties['start_api_call']
+        # And which scheme we're using for buffered output programming and triggering:
+        self.programming_scheme = connection_object.properties['programming_scheme']
         
         # Create and set the primary worker
         self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number,
                                                                    'num_DO': self.num_DO,
-                                                                   'start_api_call': self.start_api_call,})
+                                                                   'programming_scheme': self.programming_scheme,})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
@@ -149,14 +150,22 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # an experimental run.
         self.status, waits_pending = yield(self.queue_work(self._primary_worker,'check_status'))
         
-        if notify_queue is not None and self.status['waiting'] and not waits_pending:
+        if self.programming_scheme == 'pb_start/BRANCH':
+            done_condition = self.status['waiting']
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            done_condition = self.status['stopped']
+            
+        if notify_queue is not None and done_condition and not waits_pending:
             # Experiment is over. Tell the queue manager about it, then
             # set the status checking timeout back to every 2 seconds
             # with no queue.
             notify_queue.put('done')
             self.statemachine_timeout_remove(self.status_monitor)
             self.statemachine_timeout_add(2000,self.status_monitor)
-        
+            if self.programming_scheme == 'pb_stop_programming/STOP':
+                # Not clear that on all models the outputs will be correct after being
+                # stopped this way, so we do program_manual with current values to be sure:
+                self.program_device()
         # TODO: Update widgets
         # a = ['stopped','reset','running','waiting']
         # for name in a:
@@ -170,7 +179,7 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_start'))
+        yield(self.queue_work(self._primary_worker,'start_run'))
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
@@ -195,10 +204,9 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
 class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):
+        from labscript_utils import check_version
+        check_version('spinapi', '3.1.1', '4')
         exec 'from spinapi import *' in globals()
-        
-        check_version('spinapi', '3.0.4', '4')
-        import spinapi
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
@@ -260,6 +268,14 @@ class PulseblasterNoDDSWorker(Worker):
         # TODO: return coerced/quantised values
         return {}
         
+    def start_run(self):
+        if self.programming_scheme == 'pb_start/BRANCH':
+            pb_start()
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            pb_stop_programming()
+        else:
+            raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
+            
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         self.h5file = h5file
         with h5py.File(h5file,'r') as hdf5_file:
@@ -271,14 +287,19 @@ class PulseblasterNoDDSWorker(Worker):
             #Let's get the final state of the pulseblaster. z's are the args we don't need:
             flags,z,z,z = pulse_program[-1]
             
+            # Always call start_programming regardless of whether we are going to do any
+            # programming or not. This is so that is the programming_scheme is 'pb_stop_programming/STOP'
+            # we are ready to be triggered by a call to pb_stop_programming() even if no programming
+            # occurred due to smart programming:
+            pb_start_programming(PULSE_PROGRAM)
+            
             if fresh or (self.smart_cache['initial_values'] != initial_values) or \
-            (len(self.smart_cache['pulse_program']) != len(pulse_program)) or \
-            (self.smart_cache['pulse_program'] != pulse_program).any() or \
-            not self.smart_cache['ready_to_go']:
+                (len(self.smart_cache['pulse_program']) != len(pulse_program)) or \
+                (self.smart_cache['pulse_program'] != pulse_program).any() or \
+                not self.smart_cache['ready_to_go']:
             
                 self.smart_cache['ready_to_go'] = True
                 self.smart_cache['initial_values'] = initial_values
-                pb_start_programming(PULSE_PROGRAM)
                 # Line zero is a wait on the final state of the program:
                 pb_inst_pbonly(flags,WAIT,0,100)
                 
@@ -307,7 +328,18 @@ class PulseblasterNoDDSWorker(Worker):
                     self.smart_cache['pulse_program'] = pulse_program
                     for args in pulse_program:
                         pb_inst_pbonly(*args)
+                        
+            if self.programming_scheme == 'pb_start/BRANCH':
+                # We will be triggered by pb_start() if we are are the master pseudoclock or a single hardware trigger
+                # from the master if we are not:
                 pb_stop_programming()
+            elif self.programming_scheme == 'pb_stop_programming/STOP':
+                # Don't call pb_stop_programming(). We don't want to pulseblaster to respond to hardware
+                # triggers (such as 50/60Hz line triggers) until we are ready to run.
+                # Our start_method will call pb_stop_programming() when we are ready
+                pass
+            else:
+                raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
             
             # Are there waits in use in this experiment? The monitor waiting for the end of
             # the experiment will need to know:
