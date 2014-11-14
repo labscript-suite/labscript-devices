@@ -98,18 +98,18 @@ class NovaTechDDS9M(IntermediateDevice):
                                      'Format must be \'channel n\' with n from 0 to 4.')
             DDSs[channel] = output
         for connection in DDSs:
-            if connection in range(2):
+            if connection in range(4):
                 # Dynamic DDS
                 dds = DDSs[connection]   
                 dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
                 dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
                 dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
-            elif connection in range(2,4):
-                # StaticDDS:
-                dds = DDSs[connection]   
-                dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.static_value, dds)
-                dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.static_value, dds)
-                dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.static_value, dds)
+            # elif connection in range(2,4):
+                # # StaticDDS:
+                # dds = DDSs[connection]   
+                # dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.static_value, dds)
+                # dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.static_value, dds)
+                # dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.static_value, dds)
             else:
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(dds.description,dds.name,str(dds.connection)) + 
                                      'Format must be \'channel n\' with n from 0 to 4.')
@@ -147,9 +147,9 @@ class NovaTechDDS9M(IntermediateDevice):
             if not connection in DDSs:
                 continue
             dds = DDSs[connection]
-            static_table['freq%d'%connection] = dds.frequency.static_value
-            static_table['amp%d'%connection] = dds.amplitude.static_value
-            static_table['phase%d'%connection] = dds.phase.static_value
+            static_table['freq%d'%connection] = dds.frequency.raw_output[0]
+            static_table['amp%d'%connection] = dds.amplitude.raw_output[0]
+            static_table['phase%d'%connection] = dds.phase.raw_output[0]
             
         grp = hdf5_file.create_group('/devices/'+self.name)
         grp.attrs['frequency_scale_factor'] = 10
