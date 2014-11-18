@@ -107,8 +107,11 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         self.board_number = int(connection_object.BLACS_connection)
         # And which scheme we're using for buffered output programming and triggering:
-        self.programming_scheme = connection_object.properties['programming_scheme']
-        
+        try:
+            self.programming_scheme = connection_object.properties['programming_scheme']
+        except KeyError:
+            # Backward compatibility:
+            self.programming_scheme = 'pb_start/BRANCH'
         # Create and set the primary worker
         self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number,
                                                                    'num_DO': self.num_DO,
