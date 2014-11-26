@@ -702,6 +702,7 @@ class NI_USB_6343WaitMonitorWorker(Worker):
         self.logger.debug('transition_to_buffered')
         # Save h5file path (for storing data later!)
         self.h5_file = h5file
+        self.is_wait_monitor_device = False # Will be set to true in a moment if necessary
         self.logger.debug('setup_task')
         with h5py.File(h5file, 'r') as hdf5_file:
             dataset = hdf5_file['waits']
@@ -722,7 +723,7 @@ class NI_USB_6343WaitMonitorWorker(Worker):
             if not timeout_device == device_name and acquisition_device == device_name:
                 raise NotImplementedError("NI-USB-6343 worker must be both the wait monitor timeout device and acquisition device." +
                                           "Being only one could be implemented if there's a need for it, but it isn't at the moment")
-            
+            self.is_wait_monitor_device = True
             # The counter acquisition task:
             self.acquisition_task = Task()
             acquisition_chan = '/'.join([self.MAX_name,acquisition_connection])
@@ -782,8 +783,10 @@ class NI_USB_6343WaitMonitorWorker(Worker):
                     data['timeout'] = self.wait_table['timeout']
                     data['duration'] = wait_durations
                     data['timed_out'] = waits_timed_out
-                hdf5_file.create_dataset('/data/waits', data=data)
-            self.wait_durations_analysed.post(self.h5_file)
+                if self.is_wait_monitor_device:
+                    hdf5_file.create_dataset('/data/waits', data=data)
+            if self.is_wait_monitor_device:
+                self.wait_durations_analysed.post(self.h5_file)
         
         return True
     

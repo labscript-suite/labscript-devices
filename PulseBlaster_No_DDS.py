@@ -17,6 +17,8 @@ from labscript import PseudoclockDevice, config
 
 import numpy as np
 
+import time
+
 def check_version(module_name, at_least, less_than, version=None):
 
     class VersionException(Exception):
@@ -106,16 +108,17 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # Store the board number to be used
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         self.board_number = int(connection_object.BLACS_connection)
+        
         # And which scheme we're using for buffered output programming and triggering:
-        try:
-            self.programming_scheme = connection_object.properties['programming_scheme']
-        except KeyError:
-            # Backward compatibility:
-            self.programming_scheme = 'pb_start/BRANCH'
+        # (default values for backward compat with old connection tables)
+        self.programming_scheme = connection_object.properties.get('programming_scheme', 'pb_start/BRANCH')
+        self.line_trigger_period = connection_object.properties.get('line_trigger_period', None)
+        
         # Create and set the primary worker
         self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number,
                                                                    'num_DO': self.num_DO,
-                                                                   'programming_scheme': self.programming_scheme,})
+                                                                   'programming_scheme': self.programming_scheme,
+                                                                   'line_trigger_period': self.line_trigger_period})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
@@ -251,6 +254,10 @@ class PulseblasterNoDDSWorker(Worker):
                 flags += '1'
             else:
                 flags += '0'
+        
+        if self.programming_scheme == 'pb_stop_programming/STOP':
+            # Need to ensure device is stopped before programming - or we won't know what line it's on.
+            pb_stop()
             
         # Write the first two lines of the pulse program:
         pb_start_programming(PULSE_PROGRAM)
@@ -276,11 +283,16 @@ class PulseblasterNoDDSWorker(Worker):
             pb_start()
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             pb_stop_programming()
+            if self.line_trigger_period is not None:
+                time.sleep(1.5*self.line_trigger_period)
         else:
             raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
             
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         self.h5file = h5file
+        if self.programming_scheme == 'pb_stop_programming/STOP':
+            # Need to ensure device is stopped before programming - or we wont know what line it's on.
+            pb_stop()
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
                            
@@ -368,7 +380,13 @@ class PulseblasterNoDDSWorker(Worker):
 
     def transition_to_manual(self):
         status, waits_pending = self.check_status()
-        if status['waiting'] and not waits_pending:
+        
+        if self.programming_scheme == 'pb_start/BRANCH':
+            done_condition = status['waiting']
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            done_condition = True # status['stopped']
+            
+        if done_condition and not waits_pending:
             return True
         else:
             return False
