@@ -112,13 +112,11 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # And which scheme we're using for buffered output programming and triggering:
         # (default values for backward compat with old connection tables)
         self.programming_scheme = connection_object.properties.get('programming_scheme', 'pb_start/BRANCH')
-        self.line_trigger_period = connection_object.properties.get('line_trigger_period', None)
         
         # Create and set the primary worker
         self.create_worker("main_worker",self.device_worker_class,{'board_number':self.board_number,
                                                                    'num_DO': self.num_DO,
-                                                                   'programming_scheme': self.programming_scheme,
-                                                                   'line_trigger_period': self.line_trigger_period})
+                                                                   'programming_scheme': self.programming_scheme})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
@@ -283,8 +281,7 @@ class PulseblasterNoDDSWorker(Worker):
             pb_start()
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             pb_stop_programming()
-            if self.line_trigger_period is not None:
-                time.sleep(1.5*self.line_trigger_period)
+            pb_start()
         else:
             raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
             

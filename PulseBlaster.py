@@ -93,7 +93,7 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', line_trigger_period=None):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
@@ -118,19 +118,7 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('programming_scheme must be one of %s'%str(possible_programming_schemes))
         if trigger_device is not None and programming_scheme != 'pb_start/BRANCH':
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
-        if line_trigger_period is not None and programming_scheme != 'pb_stop_programming/STOP':
-            raise LabscriptError('line_trigger_period only relevant if programming_scheme is \'pb_stop_programming/STOP\'')
-        if line_trigger_period is None and programming_scheme == 'pb_stop_programming/STOP':
-            raise LabscriptError('line_trigger_period must be set if programming_scheme is \'pb_stop_programming/STOP\'. ' +
-                                 'Set this to the maximum time (in seconds) the PulseBlaster can expect to wait for an external trigger. ' +
-                                 'For example if triggering from a 50/60Hz line trigger, set this to 1.0/50 or 1.0/60. ' +
-                                 'This is necessary for the status checking code to be able to distinguish between the shot having ended ' +
-                                 'and the shot not having started yet, both of which look the same when inspecting the PulseBlaster\'s status. ' +
-                                 'We solve this by simply waiting for line_trigger_period before checking the status, and that way we can ' + 
-                                 'know for sure that the shot has begun, and any status checks reporting that the PulseBlaster has stopped ' + 
-                                 'can be confidently interpreted as the actual end of the experiment.')
         self.set_property('programming_scheme', programming_scheme)
-        self.set_property('line_trigger_period', line_trigger_period)
         self.programming_scheme = programming_scheme
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
@@ -592,12 +580,10 @@ class PulseBlasterTab(DeviceTab):
         # And which scheme we're using for buffered output programming and triggering:
         # (default values for backward compat with old connection tables)
         self.programming_scheme = connection_object.properties.get('programming_scheme', 'pb_start/BRANCH')
-        self.line_trigger_period = connection_object.properties.get('line_trigger_period', None)
             
         # Create and set the primary worker
         self.create_worker("main_worker",PulseblasterWorker,{'board_number':self.board_number,
-                                                             'programming_scheme': self.programming_scheme,
-                                                             'line_trigger_period': self.line_trigger_period})
+                                                             'programming_scheme': self.programming_scheme})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
@@ -788,8 +774,7 @@ class PulseblasterWorker(Worker):
             pb_start()
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             pb_stop_programming()
-            if self.line_trigger_period is not None:
-                time.sleep(1.5*self.line_trigger_period)
+            pb_start()
         else:
             raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
     
