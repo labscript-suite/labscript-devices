@@ -269,7 +269,7 @@ class CameraWorker(Worker):
         s.connect((host, int(port)))
         s.send('done\r\n')
         response = s.recv(1024)
-        if not 'ok' in response:
+        if response != 'ok\r\n':
             s.close()
             raise Exception(response)
         response = s.recv(1024)
