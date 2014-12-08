@@ -25,9 +25,12 @@ class NovaTechDDS9M(IntermediateDevice):
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     
-    def __init__(self, name, parent_device, com_port, baud_rate=115200):
+    def __init__(self, name, parent_device, com_port, baud_rate=115200, update_mode='synchronous'):
         IntermediateDevice.__init__(self, name, parent_device)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
+        if not update_mode in ['synchronous', 'asynchronous']:
+            raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')
+        self.set_property('update_mode', update_mode)
     
     def add_device(self, device):
         Device.add_device(self, device)
@@ -196,8 +199,10 @@ class NovatechDDS9MTab(DeviceTab):
         # and auto place the widgets in the UI
         self.auto_place_widgets(("DDS Outputs",dds_widgets))
         
+        connection_object = self.settings['connection_table'].find_by_name(self.device_name)
+        
         # Store the COM port to be used
-        blacs_connection =  str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        blacs_connection =  str(connection_object.BLACS_connection)
         if ',' in blacs_connection:
             self.com_port, baud_rate = blacs_connection.split(',')
             self.baud_rate = int(baud_rate)
@@ -205,8 +210,12 @@ class NovatechDDS9MTab(DeviceTab):
             self.com_port = blacs_connection
             self.baud_rate = 115200
         
+        self.update_mode = connection_object.properties.get('update_mode', 'synchronous')
+        
         # Create and set the primary worker
-        self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port, 'baud_rate': self.baud_rate})
+        self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port,
+                                                              'baud_rate': self.baud_rate,
+                                                              'update_mode': self.update_mode})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
@@ -344,7 +353,7 @@ class NovatechDDS9mWorker(Worker):
                 oldtable = self.smart_cache['TABLE_DATA']
                 for ddsno in range(2):
                     if fresh or i >= len(oldtable) or (line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]) != (oldtable[i]['freq%d'%ddsno],oldtable[i]['phase%d'%ddsno],oldtable[i]['amp%d'%ddsno]):
-                        self.connection.write('t%d %04x %08x,%04x,%04x,ff\r\n '%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
+                        self.connection.write('t%d %04x %08x,%04x,%04x,ff\r\n'%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
                         self.connection.readline()
                 et = time.time()
                 tt=et-st
@@ -371,11 +380,19 @@ class NovatechDDS9mWorker(Worker):
             # Transition to table mode:
             self.connection.write('m t\r\n')
             self.connection.readline()
-            # Transition to hardware updates:
-            self.connection.write('I e\r\n')
-            self.connection.readline()
-            # We are now waiting for a rising edge to trigger the output
-            # of the second table pair (first of the experiment)
+            if self.update_mode == 'synchronous':
+                # Transition to hardware synchronous updates:
+                self.connection.write('I e\r\n')
+                self.connection.readline()
+                # We are now waiting for a rising edge to trigger the output
+                # of the second table pair (first of the experiment)
+            elif self.update_mode == 'asynchronous':
+                # Output will now be updated on falling edges.
+                pass
+            else:
+                raise ValueError('invalid update mode %s'%str(self.update_mode))
+                
+            
         return self.final_values
     
     def abort_transition_to_buffered(self):
