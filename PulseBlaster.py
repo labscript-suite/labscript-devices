@@ -93,22 +93,33 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', start_api_call='pb_start'):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
-        # If we are the master pseudoclock, there are two ways that BLACS can start us running.
-        # One is to call pb_start, to start us in software time. The other is to defer calling pb_stop_programming
-        # until everything is ready to start. Then, the next hardware trigger to the PulseBlaster will start it.
-        # It is important not to call pb_stop_programming too soon, because if the pulseblaster is receiving
-        # repeated triggers (such as from a 50/60-Hz line trigger, then we do not want it to start running
-        # before everything is ready. Not calling pb_stop_programming until we are ready ensures triggers are
-        # ignored.
-        possible_start_api_calls = ['pb_start', 'pb_stop_programming']
-        if start_api_call not in possible_start_api_calls:
-            raise LabscriptError('start_api_call must be one of %s'%str(possible_start_api_calls))
-        self.set_property('start_api_call', start_api_call)
+        # If we are the master pseudoclock, there are two ways we can start and stop the PulseBlaster.
+        #
+        # 'pb_start/BRANCH':
+        # Call pb_start(), to start us in software time. At the end of the program BRANCH to
+        # a WAIT instruction at the beginning, ready to start again.
+        #
+        # 'pb_stop_programming/STOP'
+        # Defer calling pb_stop_programming() until everything is ready to start.
+        # Then, the next hardware trigger to the PulseBlaster will start it.
+        # It is important not to call pb_stop_programming() too soon, because if the PulseBlaster is receiving
+        # repeated triggers (such as from a 50/60-Hz line trigger), then we do not want it to start running
+        # before everything is ready. Not calling pb_stop_programming() until we are ready ensures triggers are
+        # ignored until then. In this case, we end with a STOP instruction, ensuring further triggers do not cause
+        # the PulseBlaster to run repeatedly until start_programming()/stop_programming() are called once more.
+        # The programming scheme is saved as a property in the connection table and read out by BLACS.
+        possible_programming_schemes = ['pb_start/BRANCH', 'pb_stop_programming/STOP']
+        if programming_scheme not in possible_programming_schemes:
+            raise LabscriptError('programming_scheme must be one of %s'%str(possible_programming_schemes))
+        if trigger_device is not None and programming_scheme != 'pb_start/BRANCH':
+            raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
+        self.set_property('programming_scheme', programming_scheme)
+        self.programming_scheme = programming_scheme
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
         # Create the internal direct output clock_line
@@ -429,15 +440,27 @@ class PulseBlaster(PseudoclockDevice):
                 j += 2 if quotient else 1
                 
 
-        # This is how we stop the pulse program. We branch from the last
-        # instruction to the zeroth, which BLACS has programmed in with
-        # the same values and a WAIT instruction. The PulseBlaster then
-        # waits on instuction zero, which is a state ready for either
-        # further static updates or buffered mode.
-        pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
-                        'flags': flagstring, 'instruction': 'BRANCH',
-                        'data': 0, 'delay': 10.0/self.clock_limit*1e9})  
-                        
+        if self.programming_scheme == 'pb_start/BRANCH':
+            # This is how we stop the pulse program. We branch from the last
+            # instruction to the zeroth, which BLACS has programmed in with
+            # the same values and a WAIT instruction. The PulseBlaster then
+            # waits on instuction zero, which is a state ready for either
+            # further static updates or buffered mode.
+            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                            'flags': flagstring, 'instruction': 'BRANCH',
+                            'data': 0, 'delay': 10.0/self.clock_limit*1e9})
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            # An ordinary stop instruction. This has the downside that the PulseBlaster might
+            # (on some models) reset its output to zero momentarily until BLACS calls program_manual, which
+            # it will for this programming scheme. However it is necessary when the PulseBlaster has
+            # repeated triggers coming to it, such as a 50Hz/60Hz line trigger. We can't have it sit
+            # on a WAIT instruction as above, or it will trigger and run repeatedly when that's not what
+            # we wanted.
+            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                            'flags': flagstring, 'instruction': 'STOP',
+                            'data': 0, 'delay': 10.0/self.clock_limit*1e9})
+        else:
+            raise AssertionError('Invalid programming scheme %s'%str(self.programming_scheme))
         return pb_inst
         
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
@@ -551,10 +574,16 @@ class PulseBlasterTab(DeviceTab):
         self.auto_place_widgets(("DDS Outputs",dds_widgets),("Flags",do_widgets,sort))
         
         # Store the board number to be used
-        self.board_number = int(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
+        connection_object = self.settings['connection_table'].find_by_name(self.device_name)
+        self.board_number = int(connection_object.BLACS_connection)
         
+        # And which scheme we're using for buffered output programming and triggering:
+        # (default values for backward compat with old connection tables)
+        self.programming_scheme = connection_object.properties.get('programming_scheme', 'pb_start/BRANCH')
+            
         # Create and set the primary worker
-        self.create_worker("main_worker",PulseblasterWorker,{'board_number':self.board_number})
+        self.create_worker("main_worker",PulseblasterWorker,{'board_number':self.board_number,
+                                                             'programming_scheme': self.programming_scheme})
         self.primary_worker = "main_worker"
         
         # Set the capabilities of this device
@@ -614,21 +643,30 @@ class PulseBlasterTab(DeviceTab):
         # an experimental run.
         self.status, waits_pending = yield(self.queue_work(self._primary_worker,'check_status'))
         
-        if notify_queue is not None and self.status['waiting'] and not waits_pending:
+        if self.programming_scheme == 'pb_start/BRANCH':
+            done_condition = self.status['waiting']
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            done_condition = self.status['stopped']
+            
+        if notify_queue is not None and done_condition and not waits_pending:
             # Experiment is over. Tell the queue manager about it, then
             # set the status checking timeout back to every 2 seconds
             # with no queue.
             notify_queue.put('done')
             self.statemachine_timeout_remove(self.status_monitor)
             self.statemachine_timeout_add(2000,self.status_monitor)
-        
+            if self.programming_scheme == 'pb_stop_programming/STOP':
+                # Not clear that on all models the outputs will be correct after being
+                # stopped this way, so we do program_manual with current values to be sure:
+                self.program_device()
+                
         # Update widgets with new status
         for state in self.status_states:
             self.status_widgets[state].setText(str(self.status[state]))
                         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_start'))
+        yield(self.queue_work(self._primary_worker,'start_run'))
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
@@ -653,6 +691,8 @@ class PulseBlasterTab(DeviceTab):
 @BLACS_worker        
 class PulseblasterWorker(Worker):
     def init(self):
+        from labscript_utils import check_version
+        check_version('spinapi', '3.1.1', '4')
         exec 'from spinapi import *' in globals()
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
@@ -678,14 +718,19 @@ class PulseblasterWorker(Worker):
         pb_core_clock(75)
 
     def program_manual(self,values):
+    
+        if self.programming_scheme == 'pb_stop_programming/STOP':
+            # Need to ensure device is stopped before programming - or we won't know what line it's on.
+            pb_stop()
+            
         # Program the DDS registers:
         for i in range(2):
             pb_select_dds(i)
             # Program the frequency, amplitude and phase into their
             # zeroth registers:
-            program_amp_regs(values['dds %d'%i]['amp'])
-            program_freq_regs(values['dds %d'%i]['freq']/10.0**6) # method expects MHz
-            program_phase_regs(values['dds %d'%i]['phase'])
+            program_amp_regs(values['dds %d'%i]['amp']) # Does not call pb_stop_programming anyway, so no kwarg needed
+            program_freq_regs(values['dds %d'%i]['freq']/10.0**6, call_stop_programming=False) # method expects MHz
+            program_phase_regs(values['dds %d'%i]['phase'], call_stop_programming=False)
 
         # create flags string
         # NOTE: The spinapi can take a string or integer for flags.
@@ -704,7 +749,7 @@ class PulseblasterWorker(Worker):
                 flags += '1'
             else:
                 flags += '0'
-            
+        
         # Write the first two lines of the pulse program:
         pb_start_programming(PULSE_PROGRAM)
         # Line zero is a wait:
@@ -724,8 +769,20 @@ class PulseblasterWorker(Worker):
         # TODO: return coerced/quantised values
         return {}
         
+    def start_run(self):
+        if self.programming_scheme == 'pb_start/BRANCH':
+            pb_start()
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            pb_stop_programming()
+            pb_start()
+        else:
+            raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
+    
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         self.h5file = h5file
+        if self.programming_scheme == 'pb_stop_programming/STOP':
+            # Need to ensure device is stopped before programming - or we wont know what line it's on.
+            pb_stop()
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
             # Program the DDS registers:
@@ -748,10 +805,14 @@ class PulseblasterWorker(Worker):
                     program_amp_regs(*amps)
                 if fresh or len(freqs) != len(self.smart_cache['freqs%d'%i]) or (freqs != self.smart_cache['freqs%d'%i]).any():
                     self.smart_cache['freqs%d'%i] = freqs
-                    program_freq_regs(*freqs)
+                    # We must be careful not to call stop_programming() until the end,
+                    # lest the pulseblaster become responsive to triggers before we are done programming.
+                    # This is not an issue for program_amp_regs above, only for freq and phase regs.
+                    program_freq_regs(*freqs, call_stop_programming=False)
                 if fresh or len(phases) != len(self.smart_cache['phases%d'%i]) or (phases != self.smart_cache['phases%d'%i]).any():      
                     self.smart_cache['phases%d'%i] = phases
-                    program_phase_regs(*phases)
+                    # See above comment - we must not call pb_stop_programming here:
+                    program_phase_regs(*phases, call_stop_programming=False)
                 
                 ampregs.append(amps)
                 freqregs.append(freqs)
@@ -768,15 +829,20 @@ class PulseblasterWorker(Worker):
             finalamp1 = ampregs[1][ampreg1]
             finalphase0 = phaseregs[0][phasereg0]
             finalphase1 = phaseregs[1][phasereg1]
-
+            
+            # Always call start_programming regardless of whether we are going to do any
+            # programming or not. This is so that is the programming_scheme is 'pb_stop_programming/STOP'
+            # we are ready to be triggered by a call to pb_stop_programming() even if no programming
+            # occurred due to smart programming:
+            pb_start_programming(PULSE_PROGRAM)
+            
             if fresh or (self.smart_cache['initial_values'] != initial_values) or \
-            (len(self.smart_cache['pulse_program']) != len(pulse_program)) or \
-            (self.smart_cache['pulse_program'] != pulse_program).any() or \
-            not self.smart_cache['ready_to_go']:
+                (len(self.smart_cache['pulse_program']) != len(pulse_program)) or \
+                (self.smart_cache['pulse_program'] != pulse_program).any() or \
+                not self.smart_cache['ready_to_go']:
             
                 self.smart_cache['ready_to_go'] = True
                 self.smart_cache['initial_values'] = initial_values
-                pb_start_programming(PULSE_PROGRAM)
                 # Line zero is a wait on the final state of the program:
                 pb_inst_dds2(freqreg0,phasereg0,ampreg0,en0,0,freqreg1,phasereg1,ampreg1,en1,0,flags,WAIT,0,100)
                 
@@ -805,7 +871,18 @@ class PulseblasterWorker(Worker):
                     self.smart_cache['pulse_program'] = pulse_program
                     for args in pulse_program:
                         pb_inst_dds2(*args)
+            
+            if self.programming_scheme == 'pb_start/BRANCH':
+                # We will be triggered by pb_start() if we are are the master pseudoclock or a single hardware trigger
+                # from the master if we are not:
                 pb_stop_programming()
+            elif self.programming_scheme == 'pb_stop_programming/STOP':
+                # Don't call pb_stop_programming(). We don't want to pulseblaster to respond to hardware
+                # triggers (such as 50/60Hz line triggers) until we are ready to run.
+                # Our start_method will call pb_stop_programming() when we are ready
+                pass
+            else:
+                raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
             
             # Are there waits in use in this experiment? The monitor waiting for the end of
             # the experiment will need to know:
@@ -833,7 +910,13 @@ class PulseblasterWorker(Worker):
 
     def transition_to_manual(self):
         status, waits_pending = self.check_status()
-        if status['waiting'] and not waits_pending:
+        
+        if self.programming_scheme == 'pb_start/BRANCH':
+            done_condition = status['waiting']
+        elif self.programming_scheme == 'pb_stop_programming/STOP':
+            done_condition = True # status['stopped']
+            
+        if done_condition and not waits_pending:
             return True
         else:
             return False
