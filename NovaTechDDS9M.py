@@ -31,7 +31,8 @@ class NovaTechDDS9M(IntermediateDevice):
         if not update_mode in ['synchronous', 'asynchronous']:
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')
         self.set_property('update_mode', update_mode)
-    
+        self.update_mode = update_mode
+        
     def add_device(self, device):
         Device.add_device(self, device)
         # The Novatech doesn't support 0Hz output; set the default frequency of the DDS to 0.1 Hz:
@@ -154,6 +155,11 @@ class NovaTechDDS9M(IntermediateDevice):
             static_table['amp%d'%connection] = dds.amplitude.raw_output[0]
             static_table['phase%d'%connection] = dds.phase.raw_output[0]
             
+        if self.update_mode == 'asynchronous':
+            # Duplicate the first line. Otherwise, we are one step ahead in the table
+            # from the start of a run. This problem is not completely understood, but this
+            # fixes it:
+            out_table = np.concatenate([out_table[0:1], out_table])
         grp = hdf5_file.create_group('/devices/'+self.name)
         grp.attrs['frequency_scale_factor'] = 10
         grp.attrs['amplitude_scale_factor'] = 1023
