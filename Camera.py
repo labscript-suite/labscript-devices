@@ -19,24 +19,34 @@ except ImportError:
 check_version('labscript', '2.0.1', '3')
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import TriggerableDevice, DigitalOut, LabscriptError
+from labscript import TriggerableDevice, LabscriptError
 import numpy as np
 
 @labscript_device
 class Camera(TriggerableDevice):
     description = 'Generic Camera'
     frame_types = ['atoms','flat','dark','fluoro','clean']
+        
     
     # To be set as instantiation arguments:
     trigger_edge_type = None
     minimum_recovery_time = None
     
-    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size,
-                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0):
-         # not a class attribute, so we don't have to have a subclass for each model of camera:
+    def __init__(self, name, parent_device, connection, properties_dict = {},
+                 BIAS_port = 1027, serial_number = 0x0, SDK = '', effective_pixel_size = 0.0,
+                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, **kwargs):
+
+        # Assume that all accepted kwarguments are things that we want to know
+        # about and save in the parameters dictionary, and strip off everything else
+        properties_dict.update(locals().copy())
+        properties_dict = self.clean_properties(properties_dict,
+                ["name", "parent_device", "connection", "parameters_dict", "kwargs"])
+            
+        TriggerableDevice.__init__(self, name, parent_device, connection, properties_dict = properties_dict, **kwargs)
+        
+        # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
-        TriggerableDevice.__init__(self, name, parent_device, connection)
         self.exposuretime = exposuretime
         self.orientation = orientation
         self.BLACS_connection = BIAS_port
