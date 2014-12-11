@@ -24,23 +24,20 @@ import numpy as np
 
 @labscript_device
 class Camera(TriggerableDevice):
-    description = 'Generic Camera'
-    frame_types = ['atoms','flat','dark','fluoro','clean']
-        
+    description = 'Generic Camera'        
     
     # To be set as instantiation arguments:
     trigger_edge_type = None
     minimum_recovery_time = None
     
-    def __init__(self, name, parent_device, connection, properties_dict = {},
-                 BIAS_port = 1027, serial_number = 0x0, SDK = '', effective_pixel_size = 0.0,
-                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, **kwargs):
-
-        # Assume that all accepted kwarguments are things that we want to know
-        # about and save in the parameters dictionary, and strip off everything else
+    def __init__(self, name, parent_device, connection,
+                 BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
+                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, 
+                 properties_dict={}, **kwargs):
+        # strip off named parameters that we do not want in the properties field
         properties_dict.update(locals().copy())
         properties_dict = self.clean_properties(properties_dict,
-                ["name", "parent_device", "connection", "parameters_dict", "kwargs"])
+                ["name", "parent_device", "connection", "properties_dict", "kwargs"])
             
         TriggerableDevice.__init__(self, name, parent_device, connection, properties_dict = properties_dict, **kwargs)
         
@@ -89,10 +86,6 @@ class Camera(TriggerableDevice):
                 raise LabscriptError('%s %s has two exposures closer together than the minimum recovery time: ' %(self.description, self.name) + \
                                      'one at t = %fs for %fs, and another at t = %fs for %fs. '%(t,duration,start,duration) + \
                                      'The minimum recovery time is %fs.'%self.minimum_recovery_time)
-        # Check for invalid frame type:                        
-        if not frametype in self.frame_types:
-            raise LabscriptError('%s is not a valid frame type for %s.'%(str(frametype), self.name) +
-                                 'Allowed frame types are: \n%s'%'\n'.join(self.frame_types))
         self.exposures.append((name, t, frametype, duration))
         return duration
     

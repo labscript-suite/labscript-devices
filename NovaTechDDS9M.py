@@ -25,19 +25,20 @@ class NovaTechDDS9M(IntermediateDevice):
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     
-    def __init__(self, name, parent_device, properties_dict = {},
-                 com_port = "", baud_rate=115200, update_mode='synchronous', **kwargs):
-        # Assume that all accepted kwarguments are things that we want to know
-        # about and save in the parameters dictionary, and strip off everything else
+    def __init__(self, name, parent_device, 
+                 com_port = "", baud_rate=115200, update_mode='synchronous', properties_dict = {}, **kwargs):
+        # strip off named parameters that we do not want in the properties field
         properties_dict.update(locals().copy())
         properties_dict = self.clean_properties(properties_dict,
-                ["name", "parent_device", "parameters_dict", "kwargs"])
+                ["name", "parent_device", "properties_dict", "kwargs"])
 
         IntermediateDevice.__init__(self, name, parent_device, properties_dict=properties_dict, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
         if not update_mode in ['synchronous', 'asynchronous']:
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')            
-            
+        
+        self.update_mode = update_mode        
+        
     def add_device(self, device):
         Device.add_device(self, device)
         # The Novatech doesn't support 0Hz output; set the default frequency of the DDS to 0.1 Hz:
