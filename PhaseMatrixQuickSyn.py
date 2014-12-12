@@ -13,7 +13,7 @@
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
-from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config, LabscriptError
+from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config, LabscriptError, set_passed_properties
 import numpy as np
 
 class QuickSynDDS(StaticDDS):
@@ -21,6 +21,8 @@ class QuickSynDDS(StaticDDS):
     description = 'PhaseMatrix QuickSyn DDS'
     allowed_children = [StaticAnalogQuantity,StaticDigitalOut]
     generation = 2
+    
+    @set_passed_properties(keep_names = [])    
     def __init__(self, name, parent_device, connection, freq_limits = None, freq_conv_class = None,freq_conv_params = {}):
         Device.__init__(self,name,parent_device,connection)
         self.frequency = StaticAnalogQuantity(self.name+'_freq',self,'freq',freq_limits,freq_conv_class,freq_conv_params)
@@ -48,6 +50,8 @@ class PhaseMatrixQuickSyn(Device):
     description = 'QuickSyn Frequency Synthesiser'
     allowed_children = [QuickSynDDS]
     generation = 0
+
+    @set_passed_properties(keep_names = [])    
     def __init__(self, name,com_port):
         Device.__init__(self, name, None, None)
         self.BLACS_connection = com_port

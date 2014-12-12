@@ -12,7 +12,7 @@
 #####################################################################
 
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError
-from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
+from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device, set_passed_properties
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -43,6 +43,7 @@ class PineBlaster(PseudoclockDevice):
     
     max_instructions = 15000
     
+    @set_passed_properties(keep_names = [])    
     def __init__(self, name, trigger_device=None, trigger_connection=None, usbport='COM1'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = usbport

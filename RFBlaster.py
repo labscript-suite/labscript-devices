@@ -12,7 +12,7 @@
 #####################################################################
 
 import os
-from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
 import numpy as np
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
@@ -39,6 +39,7 @@ class RFBlaster(PseudoclockDevice):
     trigger_delay = 873.75e-6
     wait_day = trigger_delay
     
+    @set_passed_properties()
     def __init__(self, name, ip_address, trigger_device=None, trigger_connection=None):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = ip_address

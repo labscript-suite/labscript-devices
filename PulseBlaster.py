@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
-from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError
+from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
 import numpy as np
 
@@ -93,8 +93,9 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None):
-        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
+    @set_passed_properties(keep_names = ["firmware", "programming_scheme", "pulse_width"])    
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
@@ -118,7 +119,6 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('programming_scheme must be one of %s'%str(possible_programming_schemes))
         if trigger_device is not None and programming_scheme != 'pb_start/BRANCH':
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
-        self.set_property('programming_scheme', programming_scheme)
         self.programming_scheme = programming_scheme
 
         if pulse_width is None:
