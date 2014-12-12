@@ -1,6 +1,6 @@
 import numpy as np
 from labscript_devices import runviewer_parser
-from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError
+from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock, h5py
 
 class NIBoard(IntermediateDevice):
