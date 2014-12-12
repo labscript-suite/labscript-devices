@@ -35,9 +35,7 @@ class Camera(TriggerableDevice):
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
                  exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, 
                  **kwargs):
-            
-        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
-        
+                    
         # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
@@ -50,6 +48,9 @@ class Camera(TriggerableDevice):
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
         self.exposures = []
+        
+        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
+
         
     def expose(self, name, t , frametype, exposuretime=None):
         if exposuretime is None:
