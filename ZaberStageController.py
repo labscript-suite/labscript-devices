@@ -12,7 +12,7 @@
 #####################################################################
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import StaticAnalogQuantity, Device, LabscriptError
+from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
 import numpy as np
 
 class ZaberStageTLSR150D(StaticAnalogQuantity):
@@ -34,6 +34,8 @@ class ZaberStageTLS28M(StaticAnalogQuantity):
 class ZaberStageController(Device):
     allowed_children = [ZaberStageTLSR150D,ZaberStageTLSR300D,ZaberStageTLS28M]
     generation = 0
+    
+    @set_passed_properties()
     def __init__(self, name,com_port):
         Device.__init__(self, name, None, None)
         self.BLACS_connection = com_port

@@ -19,7 +19,7 @@ except ImportError:
 check_version('labscript', '2.0.1', '3')
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import TriggerableDevice, LabscriptError
+from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
 
 @labscript_device
@@ -30,16 +30,13 @@ class Camera(TriggerableDevice):
     trigger_edge_type = None
     minimum_recovery_time = None
     
+    @set_passed_properties()
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
                  exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, 
-                 properties_dict={}, **kwargs):
-        # strip off named parameters that we do not want in the properties field
-        properties_dict.update(locals().copy())
-        properties_dict = self.clean_properties(properties_dict,
-                ["name", "parent_device", "connection", "properties_dict", "kwargs"])
+                 **kwargs):
             
-        TriggerableDevice.__init__(self, name, parent_device, connection, properties_dict = properties_dict, **kwargs)
+        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
         
         # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
