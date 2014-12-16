@@ -43,7 +43,9 @@ class PineBlaster(PseudoclockDevice):
     
     max_instructions = 15000
     
-    @set_passed_properties(keep_names = [])    
+    @set_passed_properties(property_names = {
+        "con_table_properties": ["usbport"]}
+        )    
     def __init__(self, name, trigger_device=None, trigger_connection=None, usbport='COM1'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = usbport

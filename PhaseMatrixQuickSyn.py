@@ -22,7 +22,7 @@ class QuickSynDDS(StaticDDS):
     allowed_children = [StaticAnalogQuantity,StaticDigitalOut]
     generation = 2
     
-    @set_passed_properties(keep_names = [])    
+    @set_passed_properties()    
     def __init__(self, name, parent_device, connection, freq_limits = None, freq_conv_class = None,freq_conv_params = {}):
         Device.__init__(self,name,parent_device,connection)
         self.frequency = StaticAnalogQuantity(self.name+'_freq',self,'freq',freq_limits,freq_conv_class,freq_conv_params)

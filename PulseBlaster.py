@@ -93,7 +93,10 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    @set_passed_properties(keep_names = ["firmware", "programming_scheme", "pulse_width"])    
+    @set_passed_properties(
+        property_names = {"con_table_properties": ["firmware",  "programming_scheme"], 
+                          "device_properties": ["pulse_width"]}
+        )
     def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number

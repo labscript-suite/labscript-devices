@@ -30,10 +30,14 @@ class Camera(TriggerableDevice):
     trigger_edge_type = None
     minimum_recovery_time = None
     
-    @set_passed_properties()
+    @set_passed_properties(
+        property_names = {
+            "con_table_properties": ["BIAS_port"], 
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposuretime", "orientation", "trigger_edge_type", "minimum_recovery_time", "added_properties"]}
+        )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
-                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, 
+                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
                  **kwargs):
                     
         # not a class attribute, so we don't have to have a subclass for each model of camera:

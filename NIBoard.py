@@ -11,7 +11,9 @@ class NIBoard(IntermediateDevice):
     clock_limit = 500e3 # underestimate I think.
     description = 'generic_NI_Board'
     
-    @set_passed_properties(keep_names = ["acquisition_rate"])
+    @set_passed_properties(property_names = {
+        "device_properties":["acquisition_rate", "MAX_name"]}
+        )
     def __init__(self, name, parent_device, clock_terminal, MAX_name=None, acquisition_rate=0):
         IntermediateDevice.__init__(self, name, parent_device)
         self.acquisition_rate = acquisition_rate
