@@ -36,7 +36,7 @@ class ZaberStageController(Device):
     generation = 0
     
     @set_passed_properties(property_names = {"con_table_properties" : ["com_port"]})
-    def __init__(self, name,com_port):
+    def __init__(self, name, com_port = ""):
         Device.__init__(self, name, None, None)
         self.BLACS_connection = com_port
         
