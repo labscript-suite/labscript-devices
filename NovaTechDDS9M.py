@@ -162,7 +162,7 @@ class NovaTechDDS9M(IntermediateDevice):
             # from the start of a run. This problem is not completely understood, but this
             # fixes it:
             out_table = np.concatenate([out_table[0:1], out_table])
-        grp = hdf5_file.create_group('/devices/'+self.name)
+        grp = self.init_device_group(hdf5_file)
         grp.attrs['frequency_scale_factor'] = 10
         grp.attrs['amplitude_scale_factor'] = 1023
         grp.attrs['phase_scale_factor'] = 45.511111111111113

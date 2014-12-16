@@ -107,7 +107,8 @@ class Camera(TriggerableDevice):
         self.do_checks()
         table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposuretime',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
-        group = hdf5_file['devices'].create_group(self.name)
+
+        group = self.init_device_group(hdf5_file)
         group.attrs['exposure_time'] = float(self.exposuretime) if self.exposuretime is not None else float('nan')
         group.attrs['orientation'] = self.orientation
         group.attrs['SDK'] = self.sdk
