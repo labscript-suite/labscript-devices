@@ -33,7 +33,7 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "con_table_properties": ["BIAS_port"], 
-            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposuretime", "orientation", "trigger_edge_type", "minimum_recovery_time", "added_properties"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time", "added_properties"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,

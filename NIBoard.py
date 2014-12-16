@@ -91,7 +91,7 @@ class NIBoard(IntermediateDevice):
         digital_out_table = []
         if digitals:
             digital_out_table = self.convert_bools_to_bytes(digitals.values())
-        grp = hdf5_file['/devices/'+self.name]
+        grp = self.init_device_group(hdf5_file)
         if all(analog_out_table.shape): # Both dimensions must be nonzero
             analog_dataset = grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)
             grp.attrs['analog_out_channels'] = ', '.join(analog_out_attrs)
