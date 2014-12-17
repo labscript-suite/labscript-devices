@@ -11,8 +11,8 @@
 #                                                                   #
 #####################################################################
 
-from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError
-from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device, set_passed_properties
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
+from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
