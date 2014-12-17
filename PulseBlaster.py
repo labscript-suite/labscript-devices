@@ -999,7 +999,7 @@ class PulseBlasterParser(object):
                 traces['dds %d_%s'%(i,sub_chnl)] = []   
         
         # now build the traces
-        t = 0. # TODO: Offset by initial trigger of parent
+        t = 0. if parent is None else PulseBlaster.trigger_delay # Offset by initial trigger of parent
         i = 0
         while i < len(pulse_program):
             # ignore the first 2 instructions, they are dummy instructions for BLACS
@@ -1049,19 +1049,20 @@ class PulseBlasterParser(object):
                     
             else: # Continue
                 if row['inst'] == 8: #WAIT
-                    # print 'Wait at %.9f'%t
+                    print 'Wait at %.9f'%t
                     pass
                 clock.append(t)
                 self._add_pulse_program_row_to_traces(traces,row,dds)
                 t+= row['length']*1.0e-9
             
-                if row['inst'] == 8: #WAIT
+                if row['inst'] == 8 and parent is not None: #WAIT
                     #TODO: Offset next time by trigger delay is not master pseudoclock
-                    pass
+                    t+= PulseBlaster.trigger_delay
+                    
             
             i += 1            
                 
-        # print 'Stop time: %.9f'%t 
+        print 'Stop time: %.9f'%t 
         # now put together the traces
         to_return = {}
         clock = np.array(clock, dtype=np.float64)

@@ -105,6 +105,7 @@ class PineBlaster(PseudoclockDevice):
         group.create_dataset('PULSE_PROGRAM', compression = config.compression, data=pulse_program)
         # TODO: is this needed, the PulseBlasters don't save it... 
         group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
+        group.attrs['stop_time'] = self.stop_time  
  
 
 @runviewer_parser
