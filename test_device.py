@@ -8,7 +8,7 @@ class test_device(Device):
     
     @set_passed_properties(
         property_names = {
-                 "con_table_properties": ["name"], 
+                 "connection_table_properties": ["name"],
                  "device_properties": ["DoSomething"]}
         )
     def __init__(self, name, DoSomething = False, **kwargs):

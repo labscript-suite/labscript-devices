@@ -35,7 +35,7 @@ class ZaberStageController(Device):
     allowed_children = [ZaberStageTLSR150D,ZaberStageTLSR300D,ZaberStageTLS28M]
     generation = 0
     
-    @set_passed_properties(property_names = {"con_table_properties" : ["com_port"]})
+    @set_passed_properties(property_names = {"connection_table_properties" : ["com_port"]})
     def __init__(self, name, com_port = ""):
         Device.__init__(self, name, None, None)
         self.BLACS_connection = com_port

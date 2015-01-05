@@ -94,7 +94,7 @@ class PulseBlaster(PseudoclockDevice):
     allowed_children = [Pseudoclock]
     
     @set_passed_properties(
-        property_names = {"con_table_properties": ["firmware",  "programming_scheme"], 
+        property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
                           "device_properties": ["pulse_width"]}
         )
     def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
