@@ -17,6 +17,7 @@ import labscript_devices.NIBoard as parent
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
 
 @labscript_device
 class NI_PCI_6733(parent.NIBoard):
@@ -152,11 +153,12 @@ class NiPCI6733Worker(Worker):
             
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/'][device_name]
-            clock_terminal = group.attrs['clock_terminal']
+            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
+            clock_terminal = device_properties['clock_terminal']
             h5_data = group.get('ANALOG_OUTS')
             if h5_data:
                 self.buffered_using_analog = True
-                ao_channels = group.attrs['analog_out_channels']
+                ao_channels = device_properties['analog_out_channels']
                 # We use all but the last sample (which is identical to the
                 # second last sample) in order to ensure there is one more
                 # clock tick than there are samples. The 6733 requires this
@@ -168,7 +170,7 @@ class NiPCI6733Worker(Worker):
             h5_data = group.get('DIGITAL_OUTS')
             if h5_data:
                 self.buffered_using_digital = True
-                do_channels = group.attrs['digital_lines']
+                do_channels = device_properties['digital_lines']
                 do_bitfield = numpy.array(h5_data,dtype=numpy.uint32)
             else:
                 self.buffered_using_digital = False

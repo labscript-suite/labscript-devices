@@ -12,7 +12,7 @@
 #####################################################################
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
-from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError
+from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
 import numpy as np
 
@@ -93,8 +93,12 @@ class PulseBlaster(PseudoclockDevice):
     # This device can only have Pseudoclock children (digital outs and DDS outputs should be connected to a child device)
     allowed_children = [Pseudoclock]
     
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH'):
-        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
+    @set_passed_properties(
+        property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
+                          "device_properties": ["pulse_width"]}
+        )
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
@@ -118,8 +122,26 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('programming_scheme must be one of %s'%str(possible_programming_schemes))
         if trigger_device is not None and programming_scheme != 'pb_start/BRANCH':
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
-        self.set_property('programming_scheme', programming_scheme)
         self.programming_scheme = programming_scheme
+
+        if pulse_width is None:
+            pulse_width = 0.5/self.clock_limit # the shortest possible
+        if pulse_width < 0.5/self.clock_limit:
+            message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
+                       '( = %s seconds)'%str(0.5/self.clock_limit))
+            raise LabscriptError(message)
+        # Round pulse width up to the nearest multiple of clock resolution:
+        quantised_pulse_width = 2*pulse_width/self.clock_resolution
+        quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
+        # This will be used as the high time of clock ticks:
+        self.pulse_width = quantised_pulse_width*self.clock_resolution/2
+
+        # This pulse width, if larger than the minimum, may limit how fast we can tick.
+        # Update self.clock_limit accordingly.
+        minimum_low_time = 0.5/self.clock_limit
+        if self.pulse_width > minimum_low_time:
+            self.clock_limit = 1/(self.pulse_width + minimum_low_time)
+
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
         # Create the internal direct output clock_line
@@ -400,7 +422,7 @@ class PulseBlaster(PseudoclockDevice):
                 # The loop and endloop instructions will only use the remainder:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LOOP',
-                                'data': instruction['reps'], 'delay': remainder*1e9})
+                                'data': instruction['reps'], 'delay': self.pulse_width*1e9})
                 
                 for clock_line in instruction['enabled_clocks']:
                     if clock_line != self._direct_output_clock_line:
@@ -419,7 +441,7 @@ class PulseBlaster(PseudoclockDevice):
                                 
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'END_LOOP',
-                                'data': j, 'delay': remainder*1e9})
+                                'data': j, 'delay': (2*remainder - self.pulse_width)*1e9})
                                 
                 # Two instructions were used in the case of there being no LONG_DELAY, 
                 # otherwise three. This increment is done here so that the j referred
@@ -491,7 +513,8 @@ class PulseBlaster(PseudoclockDevice):
         # Okay now write it to the file: 
         group = hdf5_file['/devices/'+self.name]  
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
-        group.attrs['stop_time'] = self.stop_time       
+        self.set_property(hdf5_file, 'stop_time', self.stop_time, location='device_properties')
+
         
     def generate_code(self, hdf5_file):
         # Generate the hardware instructions

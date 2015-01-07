@@ -19,24 +19,30 @@ except ImportError:
 check_version('labscript', '2.0.1', '3')
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import TriggerableDevice, DigitalOut, LabscriptError
+from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
 
 @labscript_device
 class Camera(TriggerableDevice):
-    description = 'Generic Camera'
-    frame_types = ['atoms','flat','dark','fluoro','clean']
+    description = 'Generic Camera'        
     
     # To be set as instantiation arguments:
     trigger_edge_type = None
     minimum_recovery_time = None
     
-    def __init__(self, name, parent_device, connection, BIAS_port, serial_number, SDK, effective_pixel_size,
-                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0):
-         # not a class attribute, so we don't have to have a subclass for each model of camera:
+    @set_passed_properties(
+        property_names = {
+            "connection_table_properties": ["BIAS_port"],
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposuretime", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
+        )
+    def __init__(self, name, parent_device, connection,
+                 BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
+                 exposuretime=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
+                 **kwargs):
+                    
+        # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
-        TriggerableDevice.__init__(self, name, parent_device, connection)
         self.exposuretime = exposuretime
         self.orientation = orientation
         self.BLACS_connection = BIAS_port
@@ -46,6 +52,9 @@ class Camera(TriggerableDevice):
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
         self.exposures = []
+        
+        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
+
         
     def expose(self, name, t , frametype, exposuretime=None):
         if exposuretime is None:
@@ -79,10 +88,6 @@ class Camera(TriggerableDevice):
                 raise LabscriptError('%s %s has two exposures closer together than the minimum recovery time: ' %(self.description, self.name) + \
                                      'one at t = %fs for %fs, and another at t = %fs for %fs. '%(t,duration,start,duration) + \
                                      'The minimum recovery time is %fs.'%self.minimum_recovery_time)
-        # Check for invalid frame type:                        
-        if not frametype in self.frame_types:
-            raise LabscriptError('%s is not a valid frame type for %s.'%(str(frametype), self.name) +
-                                 'Allowed frame types are: \n%s'%'\n'.join(self.frame_types))
         self.exposures.append((name, t, frametype, duration))
         return duration
     
@@ -102,12 +107,9 @@ class Camera(TriggerableDevice):
         self.do_checks()
         table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposuretime',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
-        group = hdf5_file['devices'].create_group(self.name)
-        group.attrs['exposure_time'] = float(self.exposuretime) if self.exposuretime is not None else float('nan')
-        group.attrs['orientation'] = self.orientation
-        group.attrs['SDK'] = self.sdk
-        group.attrs['serial_number'] = self.sn
-        group.attrs['effective_pixel_size'] = self.effective_pixel_size
+
+        group = self.init_device_group(hdf5_file)
+
         if self.exposures:
             group.create_dataset('EXPOSURES', data=data)
             

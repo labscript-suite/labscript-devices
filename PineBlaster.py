@@ -11,11 +11,13 @@
 #                                                                   #
 #####################################################################
 
-from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
 from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
+
 
 
 # Define a PineBlasterPseudoClock that only accepts one child clockline
@@ -43,6 +45,9 @@ class PineBlaster(PseudoclockDevice):
     
     max_instructions = 15000
     
+    @set_passed_properties(property_names = {
+        "connection_table_properties": ["usbport"]}
+        )    
     def __init__(self, name, trigger_device=None, trigger_connection=None, usbport='COM1'):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = usbport
@@ -104,8 +109,8 @@ class PineBlaster(PseudoclockDevice):
             pulse_program[i]['reps'] = instruction['reps']
         group.create_dataset('PULSE_PROGRAM', compression = config.compression, data=pulse_program)
         # TODO: is this needed, the PulseBlasters don't save it... 
-        group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
-        group.attrs['stop_time'] = self.stop_time  
+        self.set_property('is_master_pseudoclock', self.is_master_pseudoclock, location='device_properties')
+        self.set_property('stop_time', self.stop_time, location='device_properties')
  
 
 @runviewer_parser
@@ -269,7 +274,8 @@ class PineblasterWorker(Worker):
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
             pulse_program = group['PULSE_PROGRAM'][:]
-            self.is_master_pseudoclock = group.attrs['is_master_pseudoclock']
+            device_properties = labscript_utils.properties.get(hdf5_file, self.name, 'device_properties')
+            self.is_master_pseudoclock = device_properties['is_master_pseudoclock']
             
         for i, instruction in enumerate(pulse_program):
             if i == len(self.smart_cache):
