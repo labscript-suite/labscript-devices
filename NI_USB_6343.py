@@ -17,6 +17,8 @@ import labscript_devices.NIBoard as parent
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
+
 
 @labscript_device
 class NI_USB_6343(parent.NIBoard):
@@ -172,11 +174,13 @@ class NI_USB_6343Worker(Worker):
             
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/'][device_name]
-            clock_terminal = group.attrs['clock_terminal']
+            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
+            connection_table_properties = labscript_utils.properties.get(f, self.name, 'connection_table_properties')
+            clock_terminal = connection_table_properties['clock_terminal']
             h5_data = group.get('ANALOG_OUTS')
             if h5_data:
                 self.buffered_using_analog = True
-                ao_channels = group.attrs['analog_out_channels']
+                ao_channels = device_properties['analog_out_channels']
                 # We use all but the last sample (which is identical to the
                 # second last sample) in order to ensure there is one more
                 # clock tick than there are samples. The 6733 requires this
@@ -188,7 +192,7 @@ class NI_USB_6343Worker(Worker):
             h5_data = group.get('DIGITAL_OUTS')
             if h5_data:
                 self.buffered_using_digital = True
-                do_channels = group.attrs['digital_lines']
+                do_channels = device_properties['digital_lines']
                 do_bitfield = numpy.array(h5_data,dtype=numpy.uint32)
             else:
                 self.buffered_using_digital = False
@@ -464,10 +468,12 @@ class NI_USB_6343AcquisitionWorker(Worker):
         h5_chnls = []
         with h5py.File(h5file,'r') as hdf5_file:
             group =  hdf5_file['/devices/'+device_name]
-            self.clock_terminal = group.attrs['clock_terminal']
-            if 'analog_in_channels' in group.attrs:
-                h5_chnls = group.attrs['analog_in_channels'].split(', ')
-                self.buffered_rate = float(group.attrs['acquisition_rate'])
+            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
+            connection_table_properties = labscript_utils.properties.get(f, self.name, 'connection_table_properties')
+            clock_terminal = connection_table_properties['clock_terminal']
+            if 'analog_in_channels' in device_properties:
+                h5_chnls = device_properties['analog_in_channels'].split(', ')
+                self.buffered_rate = device_properties['acquisition_rate']
             else:
                self.logger.debug("no input channels")
         # combine static channels with h5 channels (using a set to avoid duplicates)

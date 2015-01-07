@@ -16,6 +16,8 @@ from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscri
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
+
 
 
 # Define a PineBlasterPseudoClock that only accepts one child clockline
@@ -107,7 +109,7 @@ class PineBlaster(PseudoclockDevice):
             pulse_program[i]['reps'] = instruction['reps']
         group.create_dataset('PULSE_PROGRAM', compression = config.compression, data=pulse_program)
         # TODO: is this needed, the PulseBlasters don't save it... 
-        group.attrs['is_master_pseudoclock'] = self.is_master_pseudoclock
+        self.set_property('is_master_pseudoclock', self.is_master_pseudoclock, location='device_properties')
  
 
 @runviewer_parser
@@ -271,7 +273,8 @@ class PineblasterWorker(Worker):
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
             pulse_program = group['PULSE_PROGRAM'][:]
-            self.is_master_pseudoclock = group.attrs['is_master_pseudoclock']
+            device_properties = labscript_utils.properties.get(hdf5_file, self.name, 'device_properties')
+            self.is_master_pseudoclock = device_properties['is_master_pseudoclock']
             
         for i, instruction in enumerate(pulse_program):
             if i == len(self.smart_cache):

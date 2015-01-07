@@ -17,6 +17,8 @@ from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTec
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
+
         
 @labscript_device
 class NovaTechDDS9M(IntermediateDevice):
@@ -24,7 +26,9 @@ class NovaTechDDS9M(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
-    @set_passed_properties()    
+    @set_passed_properties(
+        property_names = {'connection_table_properties': ['update_mode']}
+        )
     def __init__(self, name, parent_device, 
                  com_port = "", baud_rate=115200, update_mode='synchronous', **kwargs):
 
@@ -162,12 +166,13 @@ class NovaTechDDS9M(IntermediateDevice):
             # from the start of a run. This problem is not completely understood, but this
             # fixes it:
             out_table = np.concatenate([out_table[0:1], out_table])
+
         grp = self.init_device_group(hdf5_file)
-        grp.attrs['frequency_scale_factor'] = 10
-        grp.attrs['amplitude_scale_factor'] = 1023
-        grp.attrs['phase_scale_factor'] = 45.511111111111113
         grp.create_dataset('TABLE_DATA',compression=config.compression,data=out_table) 
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table) 
+        self.set_property(hdf5_file, 'frequency_scale_factor', 10, location='device_properties')
+        self.set_property(hdf5_file, 'amplitude_scale_factor', 1023, location='device_properties')
+        self.set_property(hdf5_file, 'phase_scale_factor', 45.511111111111113, location='device_properties')
 
 
 

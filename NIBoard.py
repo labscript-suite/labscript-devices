@@ -2,6 +2,7 @@ import numpy as np
 from labscript_devices import runviewer_parser
 from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock, h5py
+import labscript_utils.properties
 
 class NIBoard(IntermediateDevice):
     allowed_children = [AnalogOut, DigitalOut, AnalogIn]
@@ -93,18 +94,18 @@ class NIBoard(IntermediateDevice):
             digital_out_table = self.convert_bools_to_bytes(digitals.values())
         grp = self.init_device_group(hdf5_file)
         if all(analog_out_table.shape): # Both dimensions must be nonzero
-            analog_dataset = grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)
-            grp.attrs['analog_out_channels'] = ', '.join(analog_out_attrs)
+            grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)
+            self.set_property('analog_out_channels', ', '.join(analog_out_attrs))
         if len(digital_out_table): # Table must be non empty
-            digital_dataset = grp.create_dataset('DIGITAL_OUTS',compression=config.compression,data=digital_out_table)
-            grp.attrs['digital_lines'] = '/'.join((self.MAX_name,'port0','line0:%d'%(self.n_digitals-1)))
+            grp.create_dataset('DIGITAL_OUTS',compression=config.compression,data=digital_out_table)
+            self.set_property('digital_lines', '/'.join((self.MAX_name,'port0','line0:%d'%(self.n_digitals-1))))
         if len(acquisition_table): # Table must be non empty
-            input_dataset = grp.create_dataset('ACQUISITIONS',compression=config.compression,data=acquisition_table)
-            grp.attrs['analog_in_channels'] = ', '.join(input_attrs)
-            grp.attrs['acquisition_rate'] = self.acquisition_rate
-        grp.attrs['clock_terminal'] = self.clock_terminal
-        
-        
+            grp.create_dataset('ACQUISITIONS',compression=config.compression,data=acquisition_table)
+            self.set_property('analog_in_channels', ', '.join(input_attrs))
+        # TODO: move this to decorator (requires ability to set positional args with @set_passed_properties)
+        self.set_property('clock_terminal', self.clock_terminal, location='connection_table_properties')
+
+
 @runviewer_parser
 class RunviewerClass(object):
     num_digitals = 32
@@ -130,7 +131,7 @@ class RunviewerClass(object):
         with h5py.File(self.path, 'r') as f:
             if 'ANALOG_OUTS' in f['devices/%s'%self.name]:
                 analogs = f['devices/%s/ANALOG_OUTS'%self.name][:]
-                analog_out_channels = f['devices/%s'%self.name].attrs['analog_out_channels'].split(', ')
+                analog_out_channels = labscript_utils.properties.get(f, self.name, 'device_properties')['analog_out_channels'].split(', ')
             else:
                 analogs = None
                 analog_out_channels = []

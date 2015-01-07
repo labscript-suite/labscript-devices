@@ -33,11 +33,11 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "connection_table_properties": ["BIAS_port"],
-            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time", "added_properties"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposuretime", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
-                 exposuretime=None, orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
+                 exposuretime=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
                  **kwargs):
                     
         # not a class attribute, so we don't have to have a subclass for each model of camera:
@@ -109,11 +109,7 @@ class Camera(TriggerableDevice):
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)
-        group.attrs['exposure_time'] = float(self.exposuretime) if self.exposuretime is not None else float('nan')
-        group.attrs['orientation'] = self.orientation
-        group.attrs['SDK'] = self.sdk
-        group.attrs['serial_number'] = self.sn
-        group.attrs['effective_pixel_size'] = self.effective_pixel_size
+
         if self.exposures:
             group.create_dataset('EXPOSURES', data=data)
             

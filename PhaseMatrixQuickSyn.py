@@ -11,10 +11,11 @@
 #                                                                   #
 #####################################################################
 
+import numpy as np
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
 from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config, LabscriptError, set_passed_properties
-import numpy as np
+import labscript_utils.properties
 
 class QuickSynDDS(StaticDDS):
     """A StaticDDS that supports only frequency control, with no phase or amplitude control."""
@@ -51,7 +52,7 @@ class PhaseMatrixQuickSyn(Device):
     allowed_children = [QuickSynDDS]
     generation = 0
 
-    @set_passed_properties(keep_names = [])    
+    @set_passed_properties()
     def __init__(self, name,com_port):
         Device.__init__(self, name, None, None)
         self.BLACS_connection = com_port
@@ -96,8 +97,8 @@ class PhaseMatrixQuickSyn(Device):
         static_table['freq0'] = dds.frequency.raw_output[0]
         static_table['gate0'] = dds.gate.raw_output[0]
         grp = hdf5_file.create_group('/devices/'+self.name)
-        grp.attrs['frequency_scale_factor'] = 1000
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table) 
+        self.set_property(hdf5_file, 'frequency_scale_factor', 1000, location='device_properties')
         
         
         
