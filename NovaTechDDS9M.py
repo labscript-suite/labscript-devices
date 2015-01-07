@@ -170,9 +170,9 @@ class NovaTechDDS9M(IntermediateDevice):
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('TABLE_DATA',compression=config.compression,data=out_table) 
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table) 
-        self.set_property(hdf5_file, 'frequency_scale_factor', 10, location='device_properties')
-        self.set_property(hdf5_file, 'amplitude_scale_factor', 1023, location='device_properties')
-        self.set_property(hdf5_file, 'phase_scale_factor', 45.511111111111113, location='device_properties')
+        self.set_property('frequency_scale_factor', 10, location='device_properties')
+        self.set_property('amplitude_scale_factor', 1023, location='device_properties')
+        self.set_property('phase_scale_factor', 45.511111111111113, location='device_properties')
 
 
 

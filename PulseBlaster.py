@@ -513,7 +513,7 @@ class PulseBlaster(PseudoclockDevice):
         # Okay now write it to the file: 
         group = hdf5_file['/devices/'+self.name]  
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
-        self.set_property(hdf5_file, 'stop_time', self.stop_time, location='device_properties')
+        self.set_property('stop_time', self.stop_time, location='device_properties')
 
         
     def generate_code(self, hdf5_file):

@@ -95,13 +95,13 @@ class NIBoard(IntermediateDevice):
         grp = self.init_device_group(hdf5_file)
         if all(analog_out_table.shape): # Both dimensions must be nonzero
             grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)
-            self.set_property('analog_out_channels', ', '.join(analog_out_attrs))
+            self.set_property('analog_out_channels', ', '.join(analog_out_attrs), location='device_properties')
         if len(digital_out_table): # Table must be non empty
             grp.create_dataset('DIGITAL_OUTS',compression=config.compression,data=digital_out_table)
-            self.set_property('digital_lines', '/'.join((self.MAX_name,'port0','line0:%d'%(self.n_digitals-1))))
+            self.set_property('digital_lines', '/'.join((self.MAX_name,'port0','line0:%d'%(self.n_digitals-1))), location='device_properties')
         if len(acquisition_table): # Table must be non empty
             grp.create_dataset('ACQUISITIONS',compression=config.compression,data=acquisition_table)
-            self.set_property('analog_in_channels', ', '.join(input_attrs))
+            self.set_property('analog_in_channels', ', '.join(input_attrs), location='device_properties')
         # TODO: move this to decorator (requires ability to set positional args with @set_passed_properties)
         self.set_property('clock_terminal', self.clock_terminal, location='connection_table_properties')
 
