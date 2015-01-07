@@ -4,6 +4,11 @@ import importlib
 
 __version__ = '1.0.1'
 
+from labscript_utils import check_version
+
+check_version('labscript_utils', '2.2', '3')
+
+
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a
      decorator and a method for looking up classes decorated with it,
