@@ -2,11 +2,13 @@ import os
 import sys
 import importlib
 
-__version__ = '1.0.1'
+__version__ = '2.0.0'
 
 from labscript_utils import check_version
 
 check_version('labscript_utils', '2.2', '3')
+check_version('labscript', '2.1', '3')
+check_version('blacs', '2.1', '3')
 
 
 class ClassRegister(object):

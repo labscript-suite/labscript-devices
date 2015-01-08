@@ -174,8 +174,8 @@ class NI_USB_6343Worker(Worker):
             
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/'][device_name]
-            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
-            connection_table_properties = labscript_utils.properties.get(f, self.name, 'connection_table_properties')
+            device_properties = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
+            connection_table_properties = labscript_utils.properties.get(hdf5_file, device_name, 'connection_table_properties')
             clock_terminal = connection_table_properties['clock_terminal']
             h5_data = group.get('ANALOG_OUTS')
             if h5_data:
@@ -468,9 +468,9 @@ class NI_USB_6343AcquisitionWorker(Worker):
         h5_chnls = []
         with h5py.File(h5file,'r') as hdf5_file:
             group =  hdf5_file['/devices/'+device_name]
-            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
-            connection_table_properties = labscript_utils.properties.get(f, self.name, 'connection_table_properties')
-            clock_terminal = connection_table_properties['clock_terminal']
+            device_properties = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
+            connection_table_properties = labscript_utils.properties.get(hdf5_file, device_name, 'connection_table_properties')
+            self.clock_terminal = connection_table_properties['clock_terminal']
             if 'analog_in_channels' in device_properties:
                 h5_chnls = device_properties['analog_in_channels'].split(', ')
                 self.buffered_rate = device_properties['acquisition_rate']

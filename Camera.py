@@ -33,17 +33,17 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "connection_table_properties": ["BIAS_port"],
-            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposuretime", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
-                 exposuretime=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
+                 exposure_time=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
                  **kwargs):
                     
         # not a class attribute, so we don't have to have a subclass for each model of camera:
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
-        self.exposuretime = exposuretime
+        self.exposure_time = exposure_time
         self.orientation = orientation
         self.BLACS_connection = BIAS_port
         if isinstance(serial_number,str):
@@ -53,19 +53,26 @@ class Camera(TriggerableDevice):
         self.effective_pixel_size = effective_pixel_size
         self.exposures = []
         
+        # DEPRECATED: backward compatibility:
+        if 'exposuretime' in kwargs:
+            # We will call self.set_property later to overwrite the non-underscored kwarg's default value.
+            self.exposure_time = kwargs.pop('exposuretime')
+            import sys
+            sys.stderr.write('WARNING: Camera\'s keyword argument \'exposuretime\' deprecated. Use \'exposure_time\' instead.\n')
+        
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
         
-    def expose(self, name, t , frametype, exposuretime=None):
-        if exposuretime is None:
-            duration = self.exposuretime
+    def expose(self, name, t , frametype, exposure_time=None):
+        if exposure_time is None:
+            duration = self.exposure_time
         else:
-            duration = exposuretime
+            duration = exposure_time
         if duration is None:
-            raise LabscriptError('Camera %s has not had an exposuretime set as an instantiation argument, '%self.name +
+            raise LabscriptError('Camera %s has not had an exposure_time set as an instantiation argument, '%self.name +
                                  'and one was not specified for this exposure')
         if not duration > 0:
-            raise LabscriptError("exposuretime must be > 0, not %s"%str(duration))
+            raise LabscriptError("exposure_time must be > 0, not %s"%str(duration))
         # Only ask for a trigger if one has not already been requested by 
         # another camera attached to the same trigger:
         already_requested = False
@@ -105,13 +112,16 @@ class Camera(TriggerableDevice):
                         
     def generate_code(self, hdf5_file):
         self.do_checks()
-        table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposuretime',float)]
+        table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)
 
         if self.exposures:
             group.create_dataset('EXPOSURES', data=data)
+            
+        # DEPRECATED backward campatibility for use of exposuretime keyword argument instead of exposure_time:
+        self.set_property('exposure_time', self.exposure_time, location='device_properties', overwrite=True)
             
             
 
