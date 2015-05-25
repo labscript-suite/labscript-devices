@@ -274,7 +274,7 @@ class PineblasterWorker(Worker):
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
             pulse_program = group['PULSE_PROGRAM'][:]
-            device_properties = labscript_utils.properties.get(hdf5_file, self.name, 'device_properties')
+            device_properties = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
             self.is_master_pseudoclock = device_properties['is_master_pseudoclock']
             
         for i, instruction in enumerate(pulse_program):
