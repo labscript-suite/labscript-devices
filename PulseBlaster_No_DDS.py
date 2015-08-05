@@ -141,7 +141,7 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
                                # 'waiting_yes':self.builder.get_object('waiting_yes'),
                                # 'waiting_no':self.builder.get_object('waiting_no')}
         
-     def get_child_from_connection_table(self, parent_device_name, port):
+    def get_child_from_connection_table(self, parent_device_name, port):
         # This is a direct output, let's search for it on the internal intermediate device called 
         # PulseBlasterDirectOutputs
         if parent_device_name == self.device_name:
