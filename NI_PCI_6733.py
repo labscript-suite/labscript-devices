@@ -55,7 +55,6 @@ class NI_PCI_6733Tab(DeviceTab):
         # Capabilities
         self.num_AO = 8
         self.num_DO = 8
-        self.num_PFI = 10
         self.base_units = 'V'
         self.base_min = -10.0
         self.base_max = 10.0
@@ -76,9 +75,6 @@ class NI_PCI_6733Tab(DeviceTab):
         for i in range(self.num_DO):
             do_prop['port0/line%d'%i] = {}
             
-        pfi_prop = {}
-        for i in range(self.num_PFI):
-            pfi_prop['PFI %d'%i] = {}
             
         # Create the output objects    
         self.create_analog_outputs(ao_prop)        
@@ -87,29 +83,23 @@ class NI_PCI_6733Tab(DeviceTab):
         
         # now create the digital output objects
         self.create_digital_outputs(do_prop)        
-        self.create_digital_outputs(pfi_prop)
         # manually create the digital output widgets so they are grouped separately
         do_widgets = self.create_digital_widgets(do_prop)
-        pfi_widgets = self.create_digital_widgets(pfi_prop)
         
         def do_sort(channel):
             flag = channel.replace('port0/line','')
             flag = int(flag)
             return '%02d'%(flag)
             
-        def pfi_sort(channel):
-            flag = channel.replace('PFI ','')
-            flag = int(flag)
-            return '%02d'%(flag)
             
         # and auto place the widgets in the UI
-        self.auto_place_widgets(("Analog Outputs",ao_widgets),("Digital Outputs",do_widgets,do_sort),("PFI Outputs",pfi_widgets,pfi_sort))
+        self.auto_place_widgets(("Analog Outputs",ao_widgets),("Digital Outputs",do_widgets,do_sort))
         
         # Store the Measurement and Automation Explorer (MAX) name
         self.MAX_name = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
         
         # Create and set the primary worker
-        self.create_worker("main_worker",NiPCI6733Worker,{'MAX_name':self.MAX_name, 'limits': [self.base_min,self.base_max], 'num_AO':self.num_AO, 'num_DO': self.num_DO, 'num_PFI': self.num_PFI})
+        self.create_worker("main_worker",NiPCI6733Worker,{'MAX_name':self.MAX_name, 'limits': [self.base_min,self.base_max], 'num_AO':self.num_AO, 'num_DO': self.num_DO})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
@@ -135,7 +125,7 @@ class NiPCI6733Worker(Worker):
         # Create DO task:
         self.do_task = Task()
         self.do_read = int32()
-        self.do_data = numpy.zeros(self.num_DO+self.num_PFI, dtype=numpy.uint8)
+        self.do_data = numpy.zeros(self.num_DO, dtype=numpy.uint8)
         
         self.setup_static_channels()
         
@@ -149,7 +139,6 @@ class NiPCI6733Worker(Worker):
             self.ao_task.CreateAOVoltageChan(self.MAX_name+"/ao%d"%i,"",self.limits[0],self.limits[1],DAQmx_Val_Volts,None)
         #setup DO ports
         self.do_task.CreateDOChan(self.MAX_name+"/port0/line0:7","",DAQmx_Val_ChanForAllLines)
-        self.do_task.CreateDOChan(self.MAX_name+"/port0/PFI0:9","",DAQmx_Val_ChanForAllLines)
         
     def shutdown(self):        
         self.ao_task.StopTask()
@@ -164,8 +153,6 @@ class NiPCI6733Worker(Worker):
         
         for i in range(self.num_DO):
             self.do_data[i] = front_panel_values['port0/line%d'%i]
-        for i in range(self.num_PFI):
-            self.do_data[i+self.num_DO] = front_panel_values['PFI %d'%i]
         self.do_task.WriteDigitalLines(1,True,1,DAQmx_Val_GroupByChannel,self.do_data,byref(self.do_read),None)
         # TODO: Return coerced/quantised values
         return {}
@@ -243,11 +230,13 @@ class NiPCI6733Worker(Worker):
                 # Final values here are a dictionary of values, keyed by channel:
                 channel_list = [channel.split('/')[1] for channel in ao_channels.split(', ')]
                 final_values = {channel: value for channel, value in zip(channel_list, ao_data[-1,:])}
-                return final_values
+                
             else:
                 # we should probabaly still stop the task (this makes it easier to setup the task later)
                 self.ao_task.StopTask()
                 self.ao_task.ClearTask()
+        
+        return final_values
             
     def transition_to_manual(self,abort=False):
         # if aborting, don't call StopTask since this throws an
