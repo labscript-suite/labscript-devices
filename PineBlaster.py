@@ -37,8 +37,8 @@ class PineBlaster(PseudoclockDevice):
     clock_limit = 10e6
     clock_resolution = 25e-9
     clock_type = 'fast clock'
-    # Todo: find out what this actually is:
-    trigger_delay = 1e-6
+    # Measured by Phil Starkey on 2015/9/24
+    trigger_delay = 350e-9
     # Todo: find out what this actually is:
     wait_delay = 2.5e-6
     allowed_children = [PineBlasterPseudoclock]
