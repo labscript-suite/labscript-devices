@@ -44,6 +44,7 @@ class NovaTechDDS9M(IntermediateDevice):
                  com_port = "", baud_rate=115200, default_baud_rate=0, update_mode='synchronous', **kwargs):
 
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
+        self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
 
         if not update_mode in ['synchronous', 'asynchronous']:
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')            
