@@ -759,7 +759,7 @@ class NiPCIe6363WaitMonitorWorker(Worker):
         self.logger.info('transitioning to static, task stopped')
         # save the data acquired to the h5 file
         if not abort:
-            if self.waits_in_use:
+            if self.is_wait_monitor_device and self.waits_in_use:
                 # Let's work out how long the waits were. The absolute times of each edge on the wait
                 # monitor were:
                 edge_times = numpy.cumsum(self.half_periods)
@@ -782,7 +782,7 @@ class NiPCIe6363WaitMonitorWorker(Worker):
                 # Work out how long the waits were, save em, post an event saying so 
                 dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
                 data = numpy.empty(len(self.wait_table), dtype=dtypes)
-                if self.waits_in_use:
+                if self.is_wait_monitor_device and self.waits_in_use:
                     data['label'] = self.wait_table['label']
                     data['time'] = self.wait_table['time']
                     data['timeout'] = self.wait_table['timeout']
