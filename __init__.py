@@ -2,7 +2,7 @@ import os
 import sys
 import importlib
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 
 from labscript_utils import check_version
 
