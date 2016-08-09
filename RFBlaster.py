@@ -14,6 +14,7 @@
 import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
 import numpy as np
+# import logger
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
@@ -310,19 +311,53 @@ class RFBlasterTab(DeviceTab):
     
 @BLACS_worker
 class RFBlasterWorker(Worker):
+
     def init(self):
         exec 'from multipart_form import *' in globals()
         exec 'from numpy import *' in globals()
         global h5py; import labscript_utils.h5_lock, h5py
-        global urllib2; import urllib2
+        global urllib2; import urllib2; import socket
         global re; import re
-        self.timeout = 30 #How long do we wait until we assume that the RFBlaster is dead? (in seconds)
+        self.timeout = 10   # How long do we wait until we assume that the RFBlaster is dead? (in seconds)
+        self.retries = 3    # Retry attempts before (a) giving up, or (b) attempting to restart kloned (uniform timeout)
+        # self.logpath = os.path.join("C:\\labscript_suite\\labscript_devices", "%s.log" % self.address)
+        # logging.basicConfig(filename=self.logpath, format='%(asctime)s %(message)s')
     
         # See if the RFBlaster answers
-        urllib2.urlopen(self.address,timeout=self.timeout)
-        
+        self._connection_attempt = 1
+        self._kloned_attempted = False
+        while self._connection_attempt < self.retries:
+            try:
+                # logging.info('Connection attempt %i.' % self._connection_attempt)
+                urllib2.urlopen(self.address, timeout=self.timeout)
+                self._connection_attempt = 1
+                break
+            except urllib2.URLError as e:
+                if self._connection_attempt < self.retries:
+                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self._connection_attempt += 1
+                else:
+                    # logging.info('Exception')
+                    raise e
+
         self._last_program_manual_values = {}
         
+    def restart_kloned(self, respawn_netcat=True):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(self.timeout)
+        s.connect((self.address, 8009))
+        # logging.info('Connected!')
+        if respawn_netcat:
+            # logging.info('Respawning netcat...')
+            s.sendall('nohup nc -l -p 8009 -e /bin/sh &')
+            time.sleep(0.5)
+        # logging.info('Trying to start/restart kloned...')
+        s.sendall('./startup/klone_start.sh')
+        time.sleep(0.5)
+        s.shutdown(socket.SHUT_WR)
+        # logging.info('Finished. Closing socket.')
+        s.close()
+
     def program_manual(self,values):
         self._last_program_manual_values = values
         
@@ -333,23 +368,40 @@ class RFBlasterWorker(Worker):
             form.add_field("f_ch%d_in"%i,str(values['dds %d'%i]['freq']*1e-6)) # method expects MHz
             form.add_field("p_ch%d_in"%i,str(values['dds %d'%i]['phase']))
             
-        form.add_field("set_dds","Set device")
+        form.add_field("set_dds", "Set device")
         # Build the request
         req = urllib2.Request(self.address)
-        #raise Exception(form_values)
+        # raise Exception(form_values)
         body = str(form)
         req.add_header('Content-type', form.get_content_type())
         req.add_header('Content-length', len(body))
         req.add_data(body)
-        response = str(urllib2.urlopen(req,timeout=self.timeout).readlines())
-        return_vals = self.get_web_values(response)
-            
+
+        # Make the request
+        self._connection_attempt = 1
+        self._kloned_attempted = False
+        while self._connection_attempt < self.retries:
+            try:
+                response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
+                break
+            except urllib2.URLError as e:
+                if self._connection_attempt < self.retries:
+                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self._connection_attempt += 1
+                elif not self._kloned_attempted:
+                    self._kloned_attempted = True
+                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.restart_kloned()
+                else:
+                    raise e
+
+        return_vals = self.get_web_values(response)        
         return return_vals
         
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
-            #Strip out the binary files and submit to the webserver
+            # Strip out the binary files and submit to the webserver
             form = MultiPartForm()
             self.final_values = {}
             finalfreq = zeros(self.num_DDS)
@@ -364,24 +416,42 @@ class RFBlasterWorker(Worker):
                                                  'gate':True
                                                 }
                 data = group['BINARY_CODE/DDS%d'%i].value
-                form.add_file_content("pulse_ch%d"%i,"output_ch%d.bin"%i,data)
-                
-        form.add_field("upload_and_run","Upload and start")
-        req = urllib2.Request(self.address)
+                form.add_file_content("pulse_ch%d"%i, "output_ch%d.bin"%i,data)
+        form.add_field("upload_and_run", "Upload and start")
 
+        # Build the request
+        req = urllib2.Request(self.address)
         body = str(form)
         req.add_header('Content-type', form.get_content_type())
         req.add_header('Content-length', len(body))
         req.add_data(body)
-        post_buffered_web_vals = self.get_web_values(str(urllib2.urlopen(req,timeout = self.timeout).readlines()))
 
+        # Make the request
+        self._connection_attempt = 1
+        self._kloned_attempted = False
+        while self._connection_attempt < self.retries:
+            try:
+                response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
+                break
+            except urllib2.URLError as e:
+                if self._connection_attempt < self.retries:
+                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self._connection_attempt += 1
+                elif not self._kloned_attempted:
+                    self._kloned_attempted = True
+                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.restart_kloned()
+                else:
+                    raise e
+
+        post_buffered_web_vals = self.get_web_values(response)
         return self.final_values
                  
     def abort_transition_to_buffered(self):
         # TODO: untested (this is probably wrong...)
         form = MultiPartForm()
-        #tell the rfblaster to stop
-        form.add_field("halt","Halt execution")
+        # Tell the RFBlaster to stop
+        form.add_field("halt", "Halt execution")
         req = urllib2.Request(self.address)
         body = str(form)
         req.add_header('Content-type', form.get_content_type())
@@ -392,7 +462,7 @@ class RFBlasterWorker(Worker):
     
     def abort_buffered(self):
         form = MultiPartForm()
-        #tell the rfblaster to stop
+        # Tell the RFBlaster to stop
         form.add_field("halt","Halt execution")
         req = urllib2.Request(self.address)
         body = str(form)
@@ -406,8 +476,8 @@ class RFBlasterWorker(Worker):
         # TODO: check that the RF blaster program is finished?
         return True
      
-    def get_web_values(self,page): 
-        #prepare regular expressions for finding the values:
+    def get_web_values(self, page): 
+        # Prepare regular expressions for finding the values:
         search = re.compile(r'name="([fap])_ch(\d+?)_in"\s*?value="([0-9.]+?)"')
         webvalues = re.findall(search,page)
         
@@ -432,9 +502,24 @@ class RFBlasterWorker(Worker):
         return newvals
     
     def check_remote_values(self):
-        #read the webserver page to see what values it puts in the form
-        page = str(urllib2.urlopen(self.address,timeout=self.timeout).readlines())
-        return self.get_web_values(page)
+        # Read the webserver page to see what values it puts in the form
+        self._connection_attempt = 1
+        self._kloned_attempted = False
+        while self._connection_attempt < self.retries:
+            try:
+                response = str(urllib2.urlopen(self.address,timeout=self.timeout).readlines())
+                break
+            except urllib2.URLError as e:
+                if self._connection_attempt < self.retries:
+                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self._connection_attempt += 1
+                elif not self._kloned_attempted:
+                    self._kloned_attempted = True
+                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.restart_kloned()
+                else:
+                    raise e
+        return self.get_web_values(response)
         
     def shutdown(self):
         # TODO: implement this?
