@@ -340,7 +340,8 @@ class RFBlasterWorker(Worker):
                 self._connection_attempt = 1
                 self._connected = True
                 break
-            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine, urllib2.socket.error) as e:
+                self.netlogger.warning('init: ' + str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('init: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
@@ -350,7 +351,7 @@ class RFBlasterWorker(Worker):
                     self.restart_kloned()
                     self._connection_attempt = 1
                 else:
-                    self.netlogger.info('init: Exception')
+                    self.netlogger.error('init: ' + str(e))
                     raise e
 
         self._last_program_manual_values = {}
@@ -402,7 +403,8 @@ class RFBlasterWorker(Worker):
                 response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
                 self.netlogger.info('program_manual: Connected!')
                 break
-            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine, urllib2.socket.error) as e:
+                self.netlogger.warning('program_manual: ' + str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('program_manual: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
@@ -411,6 +413,7 @@ class RFBlasterWorker(Worker):
                     self.netlogger.info('program_manual: Connecting to %s to attempt kloned restart...' % self.ip)
                     self.restart_kloned()
                 else:
+                    self.netlogger.error('program_manual: ' + str(e))                    
                     raise e
 
         return_vals = self.get_web_values(response)        
@@ -454,7 +457,8 @@ class RFBlasterWorker(Worker):
                 response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
                 self.netlogger.info('transition_to_buffered: Connected!')
                 break
-            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine, urllib2.socket.error) as e:
+                self.netlogger.warning('transition_to_buffered: ' + str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('transition_to_buffered: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
@@ -464,6 +468,7 @@ class RFBlasterWorker(Worker):
                     self.restart_kloned()
                     self._connection_attempt = 1
                 else:
+                    self.netlogger.error('transition_to_buffered: ' + str(e))   
                     raise e
 
         post_buffered_web_vals = self.get_web_values(response)
@@ -534,7 +539,8 @@ class RFBlasterWorker(Worker):
                 response = str(urllib2.urlopen(self.address,timeout=self.timeout).readlines())
                 self.netlogger.info('check_remote_values: Connected!')               
                 break
-            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine, urllib2.socket.error) as e:
+                self.netlogger.warning('check_remote_values: ' + str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('check_remote_values: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
@@ -544,6 +550,7 @@ class RFBlasterWorker(Worker):
                     self.restart_kloned()
                     self._connection_attempt = 1
                 else:
+                    self.netlogger.error('check_remote_values: ' + str(e))   
                     raise e
         return self.get_web_values(response)
         
