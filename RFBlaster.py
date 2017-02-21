@@ -14,9 +14,10 @@
 import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
 import numpy as np
-# import logger
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+
+from labscript_utils.setup_logging import setup_logging
 
 # Define a RFBlasterPseudoclock that only accepts one child clockline
 class RFBlasterPseudoclock(Pseudoclock):    
@@ -257,7 +258,7 @@ class RFBlasterTab(DeviceTab):
         self.address = "http://" + str(self.BLACS_connection) + ":8080"
         
         # Create and set the primary worker
-        self.create_worker("main_worker",RFBlasterWorker,{'address':self.address, 'num_DDS':self.num_DDS})
+        self.create_worker("main_worker", RFBlasterWorker, {'address': self.address, 'num_DDS': self.num_DDS})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
@@ -316,46 +317,60 @@ class RFBlasterWorker(Worker):
         exec 'from multipart_form import *' in globals()
         exec 'from numpy import *' in globals()
         global h5py; import labscript_utils.h5_lock, h5py
-        global urllib2; import urllib2; import socket
+        global urllib2; import urllib2;
+        global socket; import socket
         global re; import re
         self.timeout = 10   # How long do we wait until we assume that the RFBlaster is dead? (in seconds)
         self.retries = 3    # Retry attempts before (a) giving up, or (b) attempting to restart kloned (uniform timeout)
-        # self.logpath = os.path.join("C:\\labscript_suite\\labscript_devices", "%s.log" % self.address)
-        # logging.basicConfig(filename=self.logpath, format='%(asctime)s %(message)s')
-    
+        p = re.compile('http://([0-9.]+):[0-9]+')
+        m = p.match(self.address)
+        self.ip = m.group(1)
+        self.netlogger = setup_logging('rfBlaster_%s' % self.ip)
+        self.netlogger.info('init: Started logging')
+
         # See if the RFBlaster answers
         self._connection_attempt = 1
         self._kloned_attempted = False
-        while self._connection_attempt < self.retries:
+        self._connected = False
+        while not self._connected:
             try:
-                # logging.info('Connection attempt %i.' % self._connection_attempt)
+                self.netlogger.info('init: Connection attempt %i.' % self._connection_attempt)
                 urllib2.urlopen(self.address, timeout=self.timeout)
+                self.netlogger.info('init: Connected!')
                 self._connection_attempt = 1
+                self._connected = True
                 break
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
                 if self._connection_attempt < self.retries:
-                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self.netlogger.info('init: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
+                elif not self._kloned_attempted:
+                    self._kloned_attempted = True
+                    self.netlogger.info('init: Connecting to %s to attempt kloned restart...' % self.ip)
+                    self.restart_kloned()
+                    self._connection_attempt = 1
                 else:
-                    # logging.info('Exception')
+                    self.netlogger.info('init: Exception')
                     raise e
 
         self._last_program_manual_values = {}
         
     def restart_kloned(self, respawn_netcat=True):
+        import time
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(self.timeout)
-        s.connect((self.address, 8009))
-        # logging.info('Connected!')
+        self.netlogger.info('restart_kloned: Connecting to %s...' % self.ip)
+        s.connect((self.ip, 8009))
+        self.netlogger.info('restart_kloned: Connected!')
         if respawn_netcat:
-            # logging.info('Respawning netcat...')
+            self.netlogger.info('restart_kloned: Respawning netcat...')
             s.sendall('nohup nc -l -p 8009 -e /bin/sh &')
             time.sleep(0.5)
-        # logging.info('Trying to start/restart kloned...')
+        self.netlogger.info('restart_kloned: Trying to start/restart kloned...')
         s.sendall('./startup/klone_start.sh')
         time.sleep(0.5)
         s.shutdown(socket.SHUT_WR)
-        # logging.info('Finished. Closing socket.')
+        self.netlogger.info('restart_kloned: Finished. Closing socket.')
         s.close()
 
     def program_manual(self,values):
@@ -380,17 +395,20 @@ class RFBlasterWorker(Worker):
         # Make the request
         self._connection_attempt = 1
         self._kloned_attempted = False
-        while self._connection_attempt < self.retries:
+        response = None
+        while not isinstance(response, str):
             try:
+                self.netlogger.info('program_manual: Connection attempt %i.' % self._connection_attempt)
                 response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
+                self.netlogger.info('program_manual: Connected!')
                 break
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
                 if self._connection_attempt < self.retries:
-                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self.netlogger.info('program_manual: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
                 elif not self._kloned_attempted:
                     self._kloned_attempted = True
-                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.netlogger.info('program_manual: Connecting to %s to attempt kloned restart...' % self.ip)
                     self.restart_kloned()
                 else:
                     raise e
@@ -429,18 +447,22 @@ class RFBlasterWorker(Worker):
         # Make the request
         self._connection_attempt = 1
         self._kloned_attempted = False
-        while self._connection_attempt < self.retries:
+        response = None
+        while not isinstance(response, str):        
             try:
+                self.netlogger.info('transition_to_buffered: Connection attempt %i.' % self._connection_attempt)
                 response = str(urllib2.urlopen(req, timeout=self.timeout).readlines())
+                self.netlogger.info('transition_to_buffered: Connected!')
                 break
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
                 if self._connection_attempt < self.retries:
-                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self.netlogger.info('transition_to_buffered: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
                 elif not self._kloned_attempted:
                     self._kloned_attempted = True
-                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.netlogger.info('transition_to_buffered: Connecting to %s to attempt kloned restart...' % self.ip)
                     self.restart_kloned()
+                    self._connection_attempt = 1
                 else:
                     raise e
 
@@ -505,18 +527,22 @@ class RFBlasterWorker(Worker):
         # Read the webserver page to see what values it puts in the form
         self._connection_attempt = 1
         self._kloned_attempted = False
-        while self._connection_attempt < self.retries:
+        response = None
+        while not isinstance(response, str):
             try:
+                self.netlogger.info('check_remote_values: Connection attempt %i.' % self._connection_attempt)                
                 response = str(urllib2.urlopen(self.address,timeout=self.timeout).readlines())
+                self.netlogger.info('check_remote_values: Connected!')               
                 break
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.httplib.BadStatusLine) as e:
                 if self._connection_attempt < self.retries:
-                    # logging.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self.netlogger.info('check_remote_values: Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
                     self._connection_attempt += 1
                 elif not self._kloned_attempted:
                     self._kloned_attempted = True
-                    # logging.info('Connecting to %s to attempt kloned restart...' %  self.address)
+                    self.netlogger.info('check_remote_values: Connecting to %s to attempt kloned restart...' % self.ip)
                     self.restart_kloned()
+                    self._connection_attempt = 1
                 else:
                     raise e
         return self.get_web_values(response)
