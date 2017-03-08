@@ -12,7 +12,7 @@
 #####################################################################
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-from labscript_devices.PulseBlaster import PulseBlaster
+from labscript_devices.PulseBlaster import PulseBlaster, PulseBlasterParser
 from labscript import PseudoclockDevice, config
 
 import numpy as np
@@ -429,5 +429,8 @@ class PulseblasterNoDDSWorker(Worker):
         #TODO: implement this
         pass
         
-
+@runviewer_parser
+class PulseBlaster_No_DDS_Parser(PulseBlasterParser):
+	num_dds = 0
+	num_DO = 24
 
