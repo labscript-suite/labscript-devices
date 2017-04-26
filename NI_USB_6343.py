@@ -551,7 +551,13 @@ class NI_USB_6343AcquisitionWorker(Worker):
             # There were waits in this shot. We need to wait until the other process has
             # determined their durations before we proceed:
             self.wait_durations_analysed.wait(self.h5_file)
+
         with h5py.File(self.h5_file,'a') as hdf5_file:
+            if waits_in_use:
+                # get the wait start times and durations
+                waits = hdf5_file['/data/waits']
+                wait_times = waits['time']
+                wait_durations = waits['duration']
             try:
                 acquisitions = hdf5_file['/devices/'+device_name+'/ACQUISITIONS']
             except:
@@ -563,6 +569,11 @@ class NI_USB_6343AcquisitionWorker(Worker):
                 # Group doesn't exist yet, create it:
                 measurements = hdf5_file.create_group('/data/traces')
             for connection,label,start_time,end_time,wait_label,scale_factor,units in acquisitions:
+                if waits_in_use:
+                    # add durations from all waits that start prior to start_time of acquisition
+                    start_time += wait_durations[(wait_times < start_time)].sum()
+                    # compare wait_times to end_time to allow for waits during an acquisition
+                    end_time += wait_durations[(wait_times < end_time)].sum()
                 start_index = numpy.ceil(self.buffered_rate*(start_time-self.ai_start_delay))
                 end_index = numpy.floor(self.buffered_rate*(end_time-self.ai_start_delay))
                 # numpy.ceil does what we want above, but float errors can miss the equality
