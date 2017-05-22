@@ -2,7 +2,7 @@
 #                                                                   #
 # /labscript_devices/DummyDevice.py                                 #
 #                                                                   #
-# Copyright 2013, Monash University                                 #
+# Copyright 2017, Joint Quantum Institute                           #
 #                                                                   #
 # This file is part of labscript_devices, in the labscript suite    #
 # (see http://labscriptsuite.org), and is licensed under the        #
