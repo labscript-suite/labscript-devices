@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/DummyDevice.py                                 #
+# /labscript_devices/DummyPseudoclock.py                            #
 #                                                                   #
 # Copyright 2017, Joint Quantum Institute                           #
 #                                                                   #
@@ -20,12 +20,12 @@ from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
 from labscript import PseudoclockDevice
 
 @labscript_device
-class DummyDevice(PseudoclockDevice):
+class DummyPseudoclock(PseudoclockDevice):
 
-    description = 'Dummy device'
+    description = 'Dummy pseudoclock'
     clock_limit = 1e6
 
-    def __init__(self, name='dummy_device', BLACS_connection='dummy_connection', **kwargs):
+    def __init__(self, name='dummy_pseudoclock', BLACS_connection='dummy_connection', **kwargs):
         self.BLACS_connection = BLACS_connection
         PseudoclockDevice.__init__(self, name, None, None, **kwargs)
 
@@ -38,10 +38,10 @@ from blacs.tab_base_classes import Worker
 
 
 @BLACS_tab
-class DummyDeviceTab(DeviceTab):
+class DummyPseudoclockTab(DeviceTab):
     def initialise_workers(self):
         worker_initialisation_kwargs = {}
-        self.create_worker("main_worker", DummyDeviceWorker, worker_initialisation_kwargs)
+        self.create_worker("main_worker", DummyPseudoclockWorker, worker_initialisation_kwargs)
         self.primary_worker = "main_worker"
 
     @define_state(MODE_BUFFERED, True)  
@@ -49,7 +49,7 @@ class DummyDeviceTab(DeviceTab):
         notify_queue.put('done')
 
 @BLACS_worker
-class DummyDeviceWorker(Worker):
+class DummyPseudoclockWorker(Worker):
     def program_manual(self, values):
         return {}
 
