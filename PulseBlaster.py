@@ -95,9 +95,9 @@ class PulseBlaster(PseudoclockDevice):
     
     @set_passed_properties(
         property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
-                          "device_properties": ["pulse_width"]}
+                          "device_properties": ["pulse_width", "max_instructions"]}
         )
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, max_instructions=4000, **kwargs):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
@@ -143,7 +143,7 @@ class PulseBlaster(PseudoclockDevice):
             pulse_width = 'symmetric'
             self.pulse_width = None
 
-        
+        self.max_instructions = max_instructions
 
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
@@ -507,6 +507,10 @@ class PulseBlaster(PseudoclockDevice):
                             'data': 0, 'delay': 10.0/self.clock_limit*1e9})
         else:
             raise AssertionError('Invalid programming scheme %s'%str(self.programming_scheme))
+            
+        if len(pb_inst) > self.max_instructions:
+            raise LabscriptError("The Pulseblaster memory cannot store more than 4000 instuctions, but the PulseProgram contains {:d} instructions.".format(len(pb_inst))) 
+            
         return pb_inst
         
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
