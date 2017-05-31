@@ -509,7 +509,7 @@ class PulseBlaster(PseudoclockDevice):
             raise AssertionError('Invalid programming scheme %s'%str(self.programming_scheme))
             
         if len(pb_inst) > self.max_instructions:
-            raise LabscriptError("The Pulseblaster memory cannot store more than 4000 instuctions, but the PulseProgram contains {:d} instructions.".format(len(pb_inst))) 
+            raise LabscriptError("The Pulseblaster memory cannot store more than {:d} instuctions, but the PulseProgram contains {:d} instructions.".format(self.max_instructions, len(pb_inst))) 
             
         return pb_inst
         
