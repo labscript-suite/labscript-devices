@@ -126,12 +126,22 @@ class Camera(TriggerableDevice):
             
 
 import os
+import sys
+
+if 'PySide' in sys.modules.copy():
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+else:
+    from PyQt4.QtCore import *
+    from PyQt4.QtGui import *
+
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
 
 from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
+import qtutils.icons
 
 @BLACS_tab
 class CameraTab(DeviceTab):
@@ -144,8 +154,7 @@ class CameraTab(DeviceTab):
         port = int(self.settings['connection_table'].find_by_name(self.settings["device_name"]).BLACS_connection)
         self.ui.port_label.setText(str(port)) 
         
-        self.ui.is_responding.setVisible(False)
-        self.ui.is_not_responding.setVisible(False)
+        self.ui.check_connectivity_pushButton.setIcon(QIcon(':/qtutils/fugue/arrow-circle'))
         
         self.ui.host_lineEdit.returnPressed.connect(self.update_settings_and_check_connectivity)
         self.ui.use_zmq_checkBox.toggled.connect(self.update_settings_and_check_connectivity)
@@ -178,21 +187,26 @@ class CameraTab(DeviceTab):
        
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def update_settings_and_check_connectivity(self, *args):
-        self.ui.saying_hello.setVisible(True)
-        self.ui.is_responding.setVisible(False)
-        self.ui.is_not_responding.setVisible(False)
+        icon = QIcon(':/qtutils/fugue/hourglass')
+        pixmap = icon.pixmap(QSize(16, 16))
+        status_text = 'Checking...'
+        self.ui.status_icon.setPixmap(pixmap)
+        self.ui.server_status.setText(status_text)
         kwargs = self.get_save_data()
         responding = yield(self.queue_work(self.primary_worker, 'update_settings_and_check_connectivity', **kwargs))
         self.update_responding_indicator(responding)
         
     def update_responding_indicator(self, responding):
-        self.ui.saying_hello.setVisible(False)
         if responding:
-            self.ui.is_responding.setVisible(True)
-            self.ui.is_not_responding.setVisible(False)
+            icon = QIcon(':/qtutils/fugue/tick')
+            pixmap = icon.pixmap(QSize(16, 16))
+            status_text = 'Server is responding'
         else:
-            self.ui.is_responding.setVisible(False)
-            self.ui.is_not_responding.setVisible(True)
+            icon = QIcon(':/qtutils/fugue/exclamation')
+            pixmap = icon.pixmap(QSize(16, 16))
+            status_text = 'Server not responding'
+        self.ui.status_icon.setPixmap(pixmap)
+        self.ui.server_status.setText(status_text)
 
 @BLACS_worker            
 class CameraWorker(Worker):
