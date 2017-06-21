@@ -78,7 +78,17 @@ from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MOD
 from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
+import qtutils.icons
 import os
+import sys
+
+# We can't import * from QtCore & QtGui, as one of them has a function called bin() which overrides the builtin, which is used in the pulseblaster worker
+if 'PySide' in sys.modules.copy():
+    from PySide import QtCore
+    from PySide import QtGui
+else:
+    from PyQt4 import QtCore
+    from PyQt4 import QtGui
 
 @BLACS_tab
 class Pulseblaster_No_DDS_Tab(DeviceTab):
@@ -134,6 +144,13 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         ui.start_button.clicked.connect(self.start)
         ui.stop_button.clicked.connect(self.stop)
         ui.reset_button.clicked.connect(self.reset)
+        # Add icons
+        ui.start_button.setIcon(QtGui.QIcon(':/qtutils/fugue/control'))
+        ui.start_button.setToolTip('Start')
+        ui.stop_button.setIcon(QtGui.QIcon(':/qtutils/fugue/control-stop-square'))
+        ui.stop_button.setToolTip('Stop')
+        ui.reset_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-circle'))
+        ui.reset_button.setToolTip('Reset')
         
         # initialise dictionaries of data to display and get references to the QLabels
         self.status_states = ['stopped', 'reset', 'running', 'waiting']
@@ -199,7 +216,13 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
                 self.program_device()
         # Update widgets with new status
         for state in self.status_states:
-            self.status_widgets[state].setText(str(self.status[state]))
+            if self.status[state]:
+                icon = QtGui.QIcon(':/qtutils/fugue/tick')
+            else:
+                icon = QtGui.QIcon(':/qtutils/fugue/cross')
+            
+            pixmap = icon.pixmap(QtCore.QSize(16, 16))
+            self.status_widgets[state].setPixmap(pixmap)
         
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
