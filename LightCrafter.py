@@ -153,4 +153,111 @@ class LightCrafter(IntermediateDevice):
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('IMAGE_TABLE',compression=config.compression,data=out_table)
         
+@BLACS_tab
+class SLMTab(DeviceTab):
+    # For now, assume only the DLP 0.3 WVGA is supported, fix the image dimensions:
+    width = 608
+    height = 684
+    
+    def initialise_GUI(self):
+        # find the connection table object for this device
+        self.connection_object = self.connection_table.find_by_name(self.device_name)
         
+        # Get the region properties from teh connection table and build the dictionary to produce the IMAGE object outputs
+        image_properties = {}
+        for child_name, child in self.connection_object.child_list.items():
+            x = 0
+            y = 0
+            wx = self.width
+            wy = self.height
+            image_properties[child.parent_port] = {'x': x, 'y': y, 'width' : wx, 'height' : wy}
+            
+            
+        # Create the outputs and widgets and place the widgets in the UI
+        self.create_image_outputs(image_properties)
+        _,_,_,image_widgets = self.auto_create_widgets()
+        # hide the widget views
+        # for region, widget in image_widgets.items():
+            # widget._view.hide()
+        self.auto_place_widgets(("Regions", image_widgets))
+        
+        # generate the better looking view
+        # self.scene = QGraphicsScene(0,0,self.width,self.height)
+        # self.view = SLMGraphicsView(regions, self.scene)
+        # self.wrapper_objects = {}
+        # for region in image_widgets:
+            # self.wrapper_objects[region] = ImageWrapperWidget(self.view, region)
+            # self._IMAGE[region].add_widget(self.wrapper_objects[region])
+        
+        # self.get_tab_layout().addWidget(self.view)
+        
+        self.supports_remote_value_check(False)        
+        self.supports_smart_programming(True) 
+        
+    def initialise_workers(self):
+        self.server = self.BLACS_connection
+        self.create_worker("main_worker",SLMWorker,{'server':self.server, 'regions':self.regions, 'slm_properties':self.slm_properties})
+        self.primary_worker = "main_worker"
+        
+        
+@BLACS_worker
+class SLMWorker(Worker):
+    def init(self):
+        self.host, self.port = self.server.split(':')
+        
+        # data = '%s %d %d %s'%('initialise', self.slm_properties['width'], self.slm_properties['height'], repr(self.regions))
+        # response = self.send_data(data)
+        # if response == 'ok':
+            # return True
+        # else:
+            # raise Exception('invalid response from server: ' + str(response))
+
+    def send_data(self, data):
+        # return zprocess.zmq_get(self.port, self.host, data=data)
+        return
+    
+    def program_manual(self, values):
+        # for region, value in values.items():
+            # data = '%s %s %s'%('manual', region, value)
+            # response = self.send_data(data)
+            # if response != 'ok':
+                # raise Exception('Failed to program manual for region %s. Message was: %s'%(region, response))
+                
+        return {}
+        
+    def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+        # h5file = shared_drive.path_to_agnostic(h5file)
+        # response = self.send_data("%s %s %s %s"%("transition_to_buffered", device_name, h5file, fresh))
+        
+        # if response != 'ok':
+            # raise Exception('Failed to transition to manual. Message from server was: %s'%response)
+            
+        # final_values = {}
+        # for region in initial_values:
+            # final_values[region] = self.status(region)
+            
+        # return final_values
+        return
+        
+    def transition_to_manual(self):
+        # reponse = self.send_data("transition_to_manual")
+        # if response != 'ok':
+            # raise Exception('Failed to transition to manual.  Message from server was: %s'%response)
+            
+        return True
+        
+    def abort(self):
+        # reponse = self.send_data("transition_to_manual")
+        # if response != 'ok':
+            # raise Exception('Failed to abort.  Message from server was: %s'%response)
+            
+        return True
+        
+    def abort_buffered(self):
+        return self.abort()
+        
+    def abort_transition_to_buffered(self):
+        return self.abort()
+        
+    def status(self, region):
+        return self.send_data("status %s"%region)
