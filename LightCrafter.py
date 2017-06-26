@@ -71,7 +71,7 @@ class ImageSet(Output):
     
     
     
-    def __init__(self, name, parent_device, connection = None):
+    def __init__(self, name, parent_device, connection = 'Mirror'):
         Output.__init__(self, name, parent_device, connection)
         
         
@@ -252,7 +252,7 @@ class LightCrafterWorker(Worker):
         
         # Initialise it to a static image display
         self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['static'])
-        
+        # self.program_manual({"None" : base64.b64encode(blank_bmp)})
         
         
         
@@ -312,10 +312,13 @@ class LightCrafterWorker(Worker):
     def program_manual(self, values):
         for region, value in values.items():
             data = value
-            
-        ## not 100% sure how the image stuff is handled in BLACS, so lets check to see if it's a BMP
-        data = base64.b64decode(data)
-        print len(data)
+            data = base64.b64decode(data)
+        # Replace empty data with the black picture
+        if not data:
+            data = blank_bmp
+        ## Check to see if it's a BMP
+        
+        print "programming %s bytes starting with %s"%(len(data),data[0:10])
         
         if data[0:2] != "BM":
                 raise Exception('Error loading image: Image does not appear to be in bmp format (Initial bits are %s)'%data[0:2])
