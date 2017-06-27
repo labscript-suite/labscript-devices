@@ -79,8 +79,6 @@ class ImageSet(Output):
     def set_image(self, t, path):
         if not os.path.exists(path):
             raise LabscriptError('Cannot load the image for SLM Segment %s (path: %s)'%(self.name, path))
-        if t == self.t0:
-            raise LabscriptError("Cannot set image on %s at t0, as the device needs a clock tick to set the first image. We rely on throwing away a blank image that would otherwise be set at t0. Sorry, you'll have to hack something else together if you need something on the DMD at the start."%self.name)
         # First rough check that the path leads to a .bmp file
         if len(path) < 5 or path[-4:] != '.bmp':
             raise LabscriptError('Error loading image into %s: Image does not appear to be in bmp format(path: %s) Length: %s, end: %s'%(self.name, path, len(path),path[-4:] ))
@@ -331,7 +329,7 @@ class LightCrafterWorker(Worker):
         with h5py.File(h5file) as hdf5_file:
             group = hdf5_file['/devices/'+device_name]
             if 'IMAGE_TABLE' in group:
-                table_data = group['IMAGE_TABLE'][1:] # we're throwing away the first image, which must be blank, since we need a clock tick to get to the first image. This should keep everything in synch.
+                table_data = group['IMAGE_TABLE'][:]
         
         
         if table_data is not None:
