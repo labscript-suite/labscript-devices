@@ -95,13 +95,28 @@ class PulseBlaster(PseudoclockDevice):
     
     @set_passed_properties(
         property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
-                          "device_properties": ["pulse_width", "max_instructions"]}
+                          "device_properties": ["pulse_width", "max_instructions",
+                                                "time_based_stop_workaround",
+                                                "time_based_stop_workaround_extra_time"]}
         )
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, max_instructions=4000, **kwargs):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '',
+                 programming_scheme='pb_start/BRANCH', pulse_width=None, max_instructions=4000,
+                 time_based_stop_workaround=False, time_based_stop_workaround_extra_time=0.5, **kwargs):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
+        
+        # time_based_stop_workaround is for old pulseblaster models
+        # which do not respond correctly to status checks. These models
+        # provide no way to know when the shot has completed. So if
+        # time_based_stop_workaround=True, we fall back to simply waiting until 
+        # stop_time and assuming in the BLACS worker that the end of the shot
+        # occurs at this time. time_based_stop_workaround_extra_time is a
+        # configurable duration for how much longer than stop_time we should wait,
+        # to allow for hardware waits and software timing variation.
+        
+        
         # If we are the master pseudoclock, there are two ways we can start and stop the PulseBlaster.
         #
         # 'pb_start/BRANCH':
@@ -711,12 +726,15 @@ class PulseBlasterTab(DeviceTab):
         # When called with a queue, this function writes to the queue
         # when the pulseblaster is waiting. This indicates the end of
         # an experimental run.
-        self.status, waits_pending = yield(self.queue_work(self._primary_worker,'check_status'))
+        self.status, waits_pending, time_based_shot_over = yield(self.queue_work(self._primary_worker,'check_status'))
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = self.status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             done_condition = self.status['stopped']
+            
+        if time_based_shot_over is not None:
+            done_condition = time_based_shot_over
             
         if notify_queue is not None and done_condition and not waits_pending:
             # Experiment is over. Tell the queue manager about it, then
@@ -792,6 +810,10 @@ class PulseblasterWorker(Worker):
         pb_select_board(self.board_number)
         pb_init()
         pb_core_clock(75)
+        
+        # This is only set to True on a per-shot basis, so set it to False
+        # for manual mode
+        self.time_based_stop_workaround = False
 
     def program_manual(self,values):
     
@@ -853,6 +875,9 @@ class PulseblasterWorker(Worker):
             pb_start()
         else:
             raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
+        if self.time_based_stop_workaround:
+            import time
+            self.time_based_shot_end_time = time.time() + self.time_based_shot_duration
     
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         self.h5file = h5file
@@ -861,6 +886,12 @@ class PulseblasterWorker(Worker):
             pb_stop()
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
+            
+            # Is this shot using the fixed-duration workaround instead of checking the PulseBlaster's status?
+            self.time_based_stop_workaround = group.attrs.get('time_based_stop_workaround', False)
+            if self.time_based_stop_workaround:
+                self.time_based_shot_duration = group.attrs['stop_time'] + group.attrs['time_based_stop_workaround_extra_time']
+            
             # Program the DDS registers:
             ampregs = []
             freqregs = []
@@ -982,16 +1013,28 @@ class PulseblasterWorker(Worker):
                 self.waits_pending = False
             except zprocess.TimeoutError:
                 pass
-        return pb_read_status(), self.waits_pending
+        if self.time_based_stop_workaround:
+            import time
+            time_based_shot_over = time.time() > self.time_based_shot_end_time
+        else:
+            time_based_shot_over = None
+        return pb_read_status(), self.waits_pending, time_based_shot_over
 
     def transition_to_manual(self):
-        status, waits_pending = self.check_status()
+        status, waits_pending, time_based_shot_over = self.check_status()
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             done_condition = True # status['stopped']
             
+        if time_based_shot_over is not None:
+            done_condition = time_based_shot_over
+            
+        # This is only set to True on a per-shot basis, so reset it to False
+        # for manual mode
+        self.time_based_stop_workaround = False
+        
         if done_condition and not waits_pending:
             return True
         else:
