@@ -350,7 +350,9 @@ class PulseblasterNoDDSWorker(Worker):
             # Is this shot using the fixed-duration workaround instead of checking the PulseBlaster's status?
             self.time_based_stop_workaround = group.attrs.get('time_based_stop_workaround', False)
             if self.time_based_stop_workaround:
-                self.time_based_shot_duration = group.attrs['stop_time'] + group.attrs['time_based_stop_workaround_extra_time']
+                self.time_based_shot_duration = (group.attrs['stop_time']
+                                                 + hdf5_file['waits'][:]['timeout'].sum()
+                                                 + group.attrs['time_based_stop_workaround_extra_time'])
             
             # Now for the pulse program:
             pulse_program = group['PULSE_PROGRAM'][2:]

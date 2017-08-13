@@ -107,14 +107,20 @@ class PulseBlaster(PseudoclockDevice):
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
         
-        # time_based_stop_workaround is for old pulseblaster models
-        # which do not respond correctly to status checks. These models
-        # provide no way to know when the shot has completed. So if
-        # time_based_stop_workaround=True, we fall back to simply waiting until 
-        # stop_time and assuming in the BLACS worker that the end of the shot
-        # occurs at this time. time_based_stop_workaround_extra_time is a
-        # configurable duration for how much longer than stop_time we should wait,
-        # to allow for hardware waits and software timing variation.
+        # time_based_stop_workaround is for old pulseblaster models which do
+        # not respond correctly to status checks. These models provide no way
+        # to know when the shot has completed. So if
+        # time_based_stop_workaround=True, we fall back to simply waiting
+        # until stop_time (plus the timeout of all waits) and assuming in the
+        # BLACS worker that the end of the shot occurs at this time.
+        # time_based_stop_workaround_extra_time is a configurable duration for
+        # how much longer than stop_time we should wait, to allow for software
+        # timing variation. Note that since the maximum duration of all waits
+        # is included in the calculation of the time at which the experiemnt
+        # should be stopped, attention should be paid to the timeout argument
+        # of all waits, since if it is larger than necessary, this will
+        # increase the duration of your shots even if the waits are actually
+        # short in duration.
         
         
         # If we are the master pseudoclock, there are two ways we can start and stop the PulseBlaster.
@@ -890,7 +896,9 @@ class PulseblasterWorker(Worker):
             # Is this shot using the fixed-duration workaround instead of checking the PulseBlaster's status?
             self.time_based_stop_workaround = group.attrs.get('time_based_stop_workaround', False)
             if self.time_based_stop_workaround:
-                self.time_based_shot_duration = group.attrs['stop_time'] + group.attrs['time_based_stop_workaround_extra_time']
+                self.time_based_shot_duration = (group.attrs['stop_time']
+                                                 + hdf5_file['waits'][:]['timeout'].sum()
+                                                 + group.attrs['time_based_stop_workaround_extra_time'])
             
             # Program the DDS registers:
             ampregs = []
