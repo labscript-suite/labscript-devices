@@ -80,15 +80,11 @@ from blacs.device_base_class import DeviceTab
 from qtutils import UiLoader
 import qtutils.icons
 import os
-import sys
 
 # We can't import * from QtCore & QtGui, as one of them has a function called bin() which overrides the builtin, which is used in the pulseblaster worker
-if 'PySide' in sys.modules.copy():
-    from PySide import QtCore
-    from PySide import QtGui
-else:
-    from PyQt4 import QtCore
-    from PyQt4 import QtGui
+from qtutils.qt import QtCore
+from qtutils.qt import QtGui
+from qtutils.qt import QtWidgets
 
 @BLACS_tab
 class Pulseblaster_No_DDS_Tab(DeviceTab):
