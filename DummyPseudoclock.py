@@ -17,17 +17,20 @@
 
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
-from labscript import PseudoclockDevice
+from labscript import PseudoclockDevice, Pseudoclock, ClockLine
 
 @labscript_device
 class DummyPseudoclock(PseudoclockDevice):
 
     description = 'Dummy pseudoclock'
     clock_limit = 1e6
+    clock_resolution = 1e-6
 
     def __init__(self, name='dummy_pseudoclock', BLACS_connection='dummy_connection', **kwargs):
         self.BLACS_connection = BLACS_connection
         PseudoclockDevice.__init__(self, name, None, None, **kwargs)
+        self.pseudoclock = Pseudoclock(self.name + '_pseudoclock', self, 'pseudoclock')
+        self.clockline = ClockLine(name='clockline', pseudoclock=self.pseudoclock, connection='dummy')
 
     def generate_code(self, hdf5_file):
         group = self.init_device_group(hdf5_file)
