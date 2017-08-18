@@ -33,11 +33,11 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "connection_table_properties": ["BIAS_port"],
-            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time","acquisition_ROI"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
-                 exposure_time=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0,
+                 exposure_time=float('nan'), orientation='side', trigger_edge_type='rising', minimum_recovery_time=0, acquisition_ROI=None,
                  **kwargs):
                     
         # not a class attribute, so we don't have to have a subclass for each model of camera:
@@ -45,6 +45,7 @@ class Camera(TriggerableDevice):
         self.minimum_recovery_time = minimum_recovery_time
         self.exposure_time = exposure_time
         self.orientation = orientation
+        self.acquisition_ROI = acquisition_ROI
         self.BLACS_connection = BIAS_port
         if isinstance(serial_number,str):
             serial_number = int(serial_number,16)
@@ -123,7 +124,11 @@ class Camera(TriggerableDevice):
         # DEPRECATED backward campatibility for use of exposuretime keyword argument instead of exposure_time:
         self.set_property('exposure_time', self.exposure_time, location='device_properties', overwrite=True)
             
-            
+    def set_acquisition_ROI(self, acq_ROI):
+        # acq_ROI is a tuple of form (width, height, offset_X, offset_Y)
+        # This method is used in a script to overwrite a camera's
+        # acquisition_ROI without throwing errors in the connection table.
+        self.set_property('acquisition_ROI', acq_ROI, location='device_properties', overwrite=True)
 
 import os
 
