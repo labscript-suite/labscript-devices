@@ -1,3 +1,8 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import os
 import sys
 import importlib
@@ -47,7 +52,7 @@ class ClassRegister(object):
         try:
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
-            print 'imported', name, 'ok!'
+            print('imported', name, 'ok!')
         except ImportError:
             sys.stderr.write('Error importing module %s.%s whilst looking for classes for device %s. '%(__name__, name, name) +
                              'Check that the module exists, is named correctly, and can be imported with no errors. ' +
