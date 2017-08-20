@@ -10,6 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
@@ -171,8 +175,8 @@ class RFBlaster(PseudoclockDevice):
                                      stdout=PIPE, stderr=PIPE, cwd=rfjuice_folder,startupinfo=startupinfo)
                 stdout, stderr = compilation.communicate()
                 if compilation.returncode:
-                    print stdout
-                    raise LabscriptError('RFBlaster compilation exited with code %d\n\n'%compilation.returncode + 
+                    print(stdout)
+                    raise LabscriptError('RFBlaster compilation exited with code %d\n\n'%compilation.returncode +
                                          'Stdout was:\n %s\n'%stdout + 'Stderr was:\n%s\n'%stderr)
                 # Save the binary to the h5 file:
                 with open(temp_binary_filepath,'rb') as binary_file:
@@ -311,8 +315,8 @@ class RFBlasterTab(DeviceTab):
 @BLACS_worker
 class RFBlasterWorker(Worker):
     def init(self):
-        exec 'from multipart_form import *' in globals()
-        exec 'from numpy import *' in globals()
+        exec('from multipart_form import *') in globals()
+        exec('from numpy import *') in globals()
         global h5py; import labscript_utils.h5_lock, h5py
         global urllib2; import urllib2
         global re; import re
