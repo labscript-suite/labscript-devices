@@ -10,6 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 try:
     from labscript_utils import check_version
@@ -159,7 +163,7 @@ class CameraTab(DeviceTab):
         return {'host': str(self.ui.host_lineEdit.text()), 'use_zmq': self.ui.use_zmq_checkBox.isChecked()}
     
     def restore_save_data(self, save_data):
-        print 'restore save data running'
+        print('restore save data running')
         if save_data:
             host = save_data['host']
             self.ui.host_lineEdit.setText(host)
