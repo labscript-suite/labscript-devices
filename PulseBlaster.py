@@ -10,6 +10,11 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
@@ -764,7 +769,7 @@ class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
         check_version('spinapi', '3.1.1', '4')
-        exec 'from spinapi import *' in globals()
+        exec('from spinapi import *') in globals()
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
@@ -1120,7 +1125,7 @@ class PulseBlasterParser(object):
                     
             else: # Continue
                 if row['inst'] == 8: #WAIT
-                    print 'Wait at %.9f'%t
+                    print('Wait at %.9f'%t)
                     pass
                 clock.append(t)
                 self._add_pulse_program_row_to_traces(traces,row,dds)
@@ -1133,7 +1138,7 @@ class PulseBlasterParser(object):
             
             i += 1            
                 
-        print 'Stop time: %.9f'%t 
+        print('Stop time: %.9f'%t)
         # now put together the traces
         to_return = {}
         clock = np.array(clock, dtype=np.float64)
