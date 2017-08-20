@@ -10,6 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 import numpy as np
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
@@ -195,7 +199,7 @@ class PhaseMatrixQuickSynTab(DeviceTab):
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
     def update_lock_recovery(self):
         value = self.status_ui.lock_recovery_button.isChecked()
-        print value
+        print(value)
         yield(self.queue_work(self._primary_worker,'update_lock_recovery',value))
        
 
