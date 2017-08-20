@@ -10,6 +10,10 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 from labscript import LabscriptError, AnalogOut
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
@@ -110,9 +114,9 @@ class NI_PCI_6733Tab(DeviceTab):
 @BLACS_worker
 class NiPCI6733Worker(Worker):
     def init(self):
-        exec 'from PyDAQmx import Task' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('from PyDAQmx import Task') in globals()
+        exec('from PyDAQmx.DAQmxConstants import *') in globals()
+        exec('from PyDAQmx.DAQmxTypes import *') in globals()
         global pylab; import pylab
         global h5py; import labscript_utils.h5_lock, h5py
         global numpy; import numpy
