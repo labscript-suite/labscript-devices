@@ -819,8 +819,10 @@ class PulseblasterWorker(Worker):
         pb_core_clock(75)
         
         # This is only set to True on a per-shot basis, so set it to False
-        # for manual mode
+        # for manual mode. Set associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
 
     def program_manual(self,values):
     
@@ -1022,7 +1024,7 @@ class PulseblasterWorker(Worker):
                 self.waits_pending = False
             except zprocess.TimeoutError:
                 pass
-        if self.time_based_stop_workaround:
+        if self.time_based_shot_end_time is not None:
             import time
             time_based_shot_over = time.time() > self.time_based_shot_end_time
         else:
@@ -1041,8 +1043,10 @@ class PulseblasterWorker(Worker):
             done_condition = time_based_shot_over
             
         # This is only set to True on a per-shot basis, so reset it to False
-        # for manual mode
+        # for manual mode. Reset associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
         
         if done_condition and not waits_pending:
             return True
