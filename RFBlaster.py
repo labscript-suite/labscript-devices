@@ -92,8 +92,8 @@ class RFBlaster(PseudoclockDevice):
         
         # Generate clock and save raw instructions to the h5 file:
         PseudoclockDevice.generate_code(self, hdf5_file)
-        dtypes = [('time',float),('amp0',float),('freq0',float),('phase0',float),('amp1',float),('freq1',float),('phase1',float)]
-        
+        dtypes = {'names': ['time', 'amp0', 'freq0', 'phase0', 'amp1', 'freq1', 'phase1'], 'formats': [float, float, float, float, float, float, float]}
+
         times = self.pseudoclock.times[self._clock_line]
         
         data = np.zeros(len(times),dtype=dtypes)
@@ -107,9 +107,8 @@ class RFBlaster(PseudoclockDevice):
         group.create_dataset('TABLE_DATA',compression=config.compression, data=data)
         
         # Quantise the data and save it to the h5 file:
-        quantised_dtypes = [('time',np.int64),
-                            ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
-                            ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)]
+        quantised_dtypes = {'names': ['time', 'amp0', 'freq0', 'phase0', 'amp1', 'freq1', 'phase1'], 'formats': [np.int64, np.int32, np.int32, np.int32, np.int32, np.int32, np.int32]}
+
         quantised_data = np.zeros(len(times),dtype=quantised_dtypes)
         quantised_data['time'] = np.array(c.tT*1e6*data['time']+0.5)
         for dds in range(2):
@@ -315,8 +314,8 @@ class RFBlasterTab(DeviceTab):
 @BLACS_worker
 class RFBlasterWorker(Worker):
     def init(self):
-        exec('from multipart_form import *') in globals()
-        exec('from numpy import *') in globals()
+        exec('from multipart_form import *', globals())
+        exec('from numpy import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global urllib2; import urllib2
         global re; import re
