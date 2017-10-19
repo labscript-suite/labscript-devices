@@ -18,6 +18,7 @@ if PY2:
 from labscript import LabscriptError
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 import labscript_devices.NIBoard as parent
+from labscript_utils.horrible_dtypes_hack import dtypeslist2dict
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -115,9 +116,9 @@ class NI_USB_6343Tab(DeviceTab):
 @BLACS_worker
 class NI_USB_6343Worker(Worker):
     def init(self):
-        exec('from PyDAQmx import Task') in globals()
-        exec('from PyDAQmx.DAQmxConstants import *') in globals()
-        exec('from PyDAQmx.DAQmxTypes import *') in globals()
+        exec('from PyDAQmx import Task, DAQmxResetDevice', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global pylab; import pylab
         global numpy; import numpy
         global h5py; import labscript_utils.h5_lock, h5py
@@ -320,7 +321,7 @@ class NI_USB_6343AcquisitionWorker(Worker):
         
         # And event for knowing when the wait durations are known, so that we may use them
         # to chunk up acquisition data:
-        self.wait_durations_analysed = zprocess.Event('wait_durations_analysed')
+        self.wait_durations_analysed = zprocess.Event(b'wait_durations_analysed')
         
         self.daqmx_read_thread = threading.Thread(target=self.daqmx_read)
         self.daqmx_read_thread.daemon = True
@@ -525,7 +526,7 @@ class NI_USB_6343AcquisitionWorker(Worker):
 
             start_time = time.time()
             if self.buffered_data_list:
-                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtypes)
+                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtypeslist2dict(dtypes))
                 for i, data in enumerate(self.buffered_data_list):
                     data.shape = (len(self.buffered_channels),self.ai_read.value)              
                     for j, (chan, dtype) in enumerate(dtypes):
@@ -593,7 +594,7 @@ class NI_USB_6343AcquisitionWorker(Worker):
                                        endpoint=True)
                 values = self.buffered_data[connection][start_index:end_index+1]
                 dtypes = [('t', numpy.float64),('values', numpy.float32)]
-                data = numpy.empty(len(values),dtype=dtypes)
+                data = numpy.empty(len(values),dtype=dtypeslist2dict(dtypes))
                 data['t'] = times
                 data['values'] = values
                 measurements.create_dataset(label, data=data)
@@ -627,8 +628,8 @@ class NI_USB_6343WaitMonitorWorker(Worker):
         self.h5_file = None
         self.task = None
         self.abort = False
-        self.all_waits_finished = zprocess.Event('all_waits_finished',type='post')
-        self.wait_durations_analysed = zprocess.Event('wait_durations_analysed',type='post')
+        self.all_waits_finished = zprocess.Event(b'all_waits_finished',type='post')
+        self.wait_durations_analysed = zprocess.Event(b'wait_durations_analysed',type='post')
     
     def shutdown(self):
         self.logger.info('Shutdown requested, stopping task')
@@ -797,7 +798,7 @@ class NI_USB_6343WaitMonitorWorker(Worker):
             with h5py.File(self.h5_file,'a') as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so 
                 dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
-                data = numpy.empty(len(self.wait_table), dtype=dtypes)
+                data = numpy.empty(len(self.wait_table), dtype=dtypeslist2dict(dtypes))
                 if self.waits_in_use:
                     data['label'] = self.wait_table['label']
                     data['time'] = self.wait_table['time']
