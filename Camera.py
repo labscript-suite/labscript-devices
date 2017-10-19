@@ -116,7 +116,7 @@ class Camera(TriggerableDevice):
                         
     def generate_code(self, hdf5_file):
         self.do_checks()
-        table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)]
+        table_dtypes = {'names': ['name', 'time', 'frametype', 'exposure_time'], 'formats': ['a256', float, 'a256', float]}
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)
@@ -229,7 +229,7 @@ class CameraWorker(Worker):
         if not self.use_zmq:
             return self.initialise_sockets(self.host, self.port)
         else:
-            response = zprocess.zmq_get_raw(self.port, self.host, data='hello')
+            response = zprocess.zmq_get_raw(self.port, self.host, data=b'hello')
             if response == 'hello':
                 return True
             else:
@@ -280,7 +280,7 @@ class CameraWorker(Worker):
     def transition_to_manual(self):
         if not self.use_zmq:
             return self.transition_to_manual_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'done')
+        response = zprocess.zmq_get_raw(self.port, self.host, b'done')
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
         response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10)
@@ -312,7 +312,7 @@ class CameraWorker(Worker):
     def abort(self):
         if not self.use_zmq:
             return self.abort_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'abort')
+        response = zprocess.zmq_get_raw(self.port, self.host, b'abort')
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success 
