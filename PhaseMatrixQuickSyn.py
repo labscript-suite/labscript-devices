@@ -94,8 +94,7 @@ class PhaseMatrixQuickSyn(Device):
         dds.gate.expand_timeseries()
         
         dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-        static_dtypes = [('freq0', np.uint64)] + \
-                        [('gate0', np.uint16)]
+        static_dtypes = {'names': ['freq0', 'gate0'], 'formats': [np.uint64, np.uint16, ]}
         static_table = np.zeros(1, dtype=static_dtypes)   
         static_table['freq0'].fill(1)
         static_table['freq0'] = dds.frequency.raw_output[0]
