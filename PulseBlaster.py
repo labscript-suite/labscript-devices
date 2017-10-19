@@ -16,6 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_utils.horrible_dtypes_hack import dtypeslist2dict
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
@@ -547,7 +548,7 @@ class PulseBlaster(PseudoclockDevice):
                     ('dds_en1', np.int32), ('phase_reset1', np.int32),
                     ('flags', np.int32), ('inst', np.int32),
                     ('inst_data', np.int32), ('length', np.float64)]
-        pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
+        pb_inst_table = np.empty(len(pb_inst),dtype = dtypeslist2dict(pb_dtype))
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
@@ -793,7 +794,7 @@ class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
         check_version('spinapi', '3.1.1', '4')
-        exec('from spinapi import *') in globals()
+        exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
@@ -810,7 +811,7 @@ class PulseblasterWorker(Worker):
         # An event for checking when all waits (if any) have completed, so that
         # we can tell the difference between a wait and the end of an experiment.
         # The wait monitor device is expected to post such events, which we'll wait on:
-        self.all_waits_finished = zprocess.Event('all_waits_finished')
+        self.all_waits_finished = zprocess.Event(b'all_waits_finished')
         self.waits_pending = False
     
         pb_select_board(self.board_number)
