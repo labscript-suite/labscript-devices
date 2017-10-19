@@ -16,6 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_devices import runviewer_parser, labscript_device, BLACS_tab, BLACS_worker
+from labscript_utils.horrible_dtypes_hack import dtypeslist2dict
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -141,11 +142,11 @@ class NovaTechDDS9M(IntermediateDevice):
         pseudoclock = clockline.parent_device
         times = pseudoclock.times[clockline]
        
-        out_table = np.zeros(len(times),dtype=dtypes)
+        out_table = np.zeros(len(times),dtype=dtypeslist2dict(dtypes)) 
         out_table['freq0'].fill(1)
         out_table['freq1'].fill(1)
         
-        static_table = np.zeros(1, dtype=static_dtypes)
+        static_table = np.zeros(1, dtype=dtypeslist2dict(static_dtypes))
         static_table['freq2'].fill(1)
         static_table['freq3'].fill(1)
         
