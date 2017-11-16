@@ -472,17 +472,21 @@ class RunviewerClass(object):
         
         # get the data out of the H5 file
         data = {}
-        with h5py.File(self.path, 'r') as f:
-            if 'TABLE_DATA' in f['devices/%s'%self.name]:
-                table_data = f['devices/%s/TABLE_DATA'%self.name][:]
+        with h5py.File(self.path, 'r') as hdf5_file:
+            if 'TABLE_DATA' in hdf5_file['devices/%s' % self.name]:
+                table_data = hdf5_file['devices/%s/TABLE_DATA' % self.name][:]
+                connection_table_properties = labscript_utils.properties.get(hdf5_file, self.name, 'connection_table_properties')
+                update_mode = connection_table_properties['update_mode']
+                if update_mode == 'asynchronous':
+                    table_data = table_data[1:]
                 for i in range(2):
-                    for sub_chnl in ['freq', 'amp', 'phase']:                        
+                    for sub_chnl in ['freq', 'amp', 'phase']:
                         data['channel %d_%s'%(i,sub_chnl)] = table_data['%s%d'%(sub_chnl,i)][:]
                                 
-            if 'STATIC_DATA' in f['devices/%s'%self.name]:
-                static_data = f['devices/%s/STATIC_DATA'%self.name][:]
+            if 'STATIC_DATA' in hdf5_file['devices/%s'%self.name]:
+                static_data = hdf5_file['devices/%s/STATIC_DATA'%self.name][:]
                 for i in range(2,4):
-                    for sub_chnl in ['freq', 'amp', 'phase']:                        
+                    for sub_chnl in ['freq', 'amp', 'phase']:
                         data['channel %d_%s'%(i,sub_chnl)] = np.empty((len(clock_ticks),))
                         data['channel %d_%s'%(i,sub_chnl)].fill(static_data['%s%d'%(sub_chnl,i)][0])
             
