@@ -476,8 +476,9 @@ class RunviewerClass(object):
             if 'TABLE_DATA' in hdf5_file['devices/%s' % self.name]:
                 table_data = hdf5_file['devices/%s/TABLE_DATA' % self.name][:]
                 connection_table_properties = labscript_utils.properties.get(hdf5_file, self.name, 'connection_table_properties')
-                update_mode = connection_table_properties['update_mode']
-                if update_mode == 'asynchronous':
+                update_mode = getattr(connection_table_properties, 'update_mode', 'synchronous')
+                synchronous_first_line_repeat = getattr(connection_table_properties, 'synchronous_first_line_repeat', False)
+                if update_mode == 'asynchronous' or synchronous_first_line_repeat:
                     table_data = table_data[1:]
                 for i in range(2):
                     for sub_chnl in ['freq', 'amp', 'phase']:
