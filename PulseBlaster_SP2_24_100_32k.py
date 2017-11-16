@@ -21,6 +21,11 @@ class PulseBlaster_SP2_24_100_32k(PulseBlaster_No_DDS):
     clock_limit = 5.0e6
     clock_resolution = 10e-9
     n_flags = 24
+    
+    def __init__(self, *args, **kwargs):
+        if 'max_instructions' not in kwargs:
+            kwargs['max_instructions'] = 32000
+        PulseBlaster_No_DDS.__init__(self, *args, **kwargs)
 
 
 @BLACS_tab    
