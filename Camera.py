@@ -33,7 +33,7 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "connection_table_properties": ["BIAS_port"],
-            "device_properties": ["SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
@@ -48,13 +48,10 @@ class Camera(TriggerableDevice):
         self.BLACS_connection = BIAS_port
         if isinstance(serial_number,str):
             serial_number = int(serial_number,16)
-        self.serial_number = np.uint64(serial_number)
+        self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
         self.exposures = []
-        
-        # Force uint64 type for serial_number
-        self.set_property('serial_number', self.serial_number, location='device_properties')
         
         # DEPRECATED: backward compatibility:
         if 'exposuretime' in kwargs:
