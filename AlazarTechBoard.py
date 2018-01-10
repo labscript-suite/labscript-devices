@@ -23,18 +23,18 @@ if __name__ != "__main__":
     
         @set_passed_properties(property_names = {
             "device_properties":["ats_system_id", "ats_board_id",
-                             "acquisition_rate",
+                             "requested_acquisition_rate",
                              "clock_source_id", "sample_rate_id_or_value", "clock_edge_id", "decimation",
                              "trig_operation",
                              "trig_engine_id1", "trig_source_id1", "trig_slope_id1",  "trig_level_id1",
                              "trig_engine_id2", "trig_source_id2", "trig_slope_id2", "trig_level_id2",
                              "exttrig_coupling_id", "exttrig_range_id",
-                             "trig_delay_samples", "trig_timeout_10usecs"]
+                             "trig_delay_samples", "trig_timeout_10usecs", "input_range"]
         })
     
         def __init__(self, name, server,
                      ats_system_id=1, ats_board_id=1,
-                     acquisition_rate=0, # No default for this, must be calculated and set!
+                     requested_acquisition_rate=0, # No default for this, must be calculated and set!
                      clock_source_id         = ats.INTERNAL_CLOCK,
                      sample_rate_id_or_value = ats.SAMPLE_RATE_180MSPS,
                      clock_edge_id           = ats.CLOCK_EDGE_RISING,
@@ -51,7 +51,8 @@ if __name__ != "__main__":
                      exttrig_coupling_id     = ats.DC_COUPLING,
                      exttrig_range_id        = ats.ETR_5V,
                      trig_delay_samples      =0,
-                     trig_timeout_10usecs    =0):
+                     trig_timeout_10usecs    =0,
+                     input_range             =4000):
             Device.__init__(self, name, None, None)
             # self.acquisition_rate = acquisition_rate
             # self.clock_terminal = clock_terminal
