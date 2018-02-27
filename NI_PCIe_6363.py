@@ -18,7 +18,7 @@ if PY2:
 from labscript import LabscriptError
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 import labscript_devices.NIBoard as parent
-from labscript_utils.horrible_dtypes_hack import dtypeslist2dict
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -536,7 +536,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
 
             start_time = time.time()
             if self.buffered_data_list:
-                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtypeslist2dict(dtypes))
+                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtype_workaround(dtypes))
                 for i, data in enumerate(self.buffered_data_list):
                     data.shape = (len(self.buffered_channels),self.ai_read.value)              
                     for j, (chan, dtype) in enumerate(dtypes):
@@ -604,7 +604,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
                                        endpoint=True)
                 values = self.buffered_data[connection][start_index:end_index+1]
                 dtypes = [('t', numpy.float64),('values', numpy.float32)]
-                data = numpy.empty(len(values),dtype=dtypeslist2dict(dtypes))
+                data = numpy.empty(len(values),dtype=dtype_workaround(dtypes))
                 data['t'] = times
                 data['values'] = values
                 measurements.create_dataset(label, data=data)
@@ -809,7 +809,7 @@ class NiPCIe6363WaitMonitorWorker(Worker):
             with h5py.File(self.h5_file,'a') as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so 
                 dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
-                data = numpy.empty(len(self.wait_table), dtype=dtypeslist2dict(dtypes))
+                data = numpy.empty(len(self.wait_table), dtype=dtype_workaround(dtypes))
                 if self.is_wait_monitor_device and self.waits_in_use:
                     data['label'] = self.wait_table['label']
                     data['time'] = self.wait_table['time']
