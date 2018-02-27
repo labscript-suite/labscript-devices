@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-from labscript_utils.horrible_dtypes_hack import dtypeslist2dict
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
@@ -548,7 +548,7 @@ class PulseBlaster(PseudoclockDevice):
                     ('dds_en1', np.int32), ('phase_reset1', np.int32),
                     ('flags', np.int32), ('inst', np.int32),
                     ('inst_data', np.int32), ('length', np.float64)]
-        pb_inst_table = np.empty(len(pb_inst),dtype = dtypeslist2dict(pb_dtype))
+        pb_inst_table = np.empty(len(pb_inst),dtype = dtype_workaround(pb_dtype))
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
