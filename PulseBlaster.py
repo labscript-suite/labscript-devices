@@ -705,7 +705,7 @@ class PulseBlasterTab(DeviceTab):
         # PulseBlasterDirectOutputs
         if parent_device_name == self.device_name:
             device = self.connection_table.find_by_name(self.device_name)
-            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            pseudoclock = device.child_list[list(device.child_list.keys())[0]] # there should always be one (and only one) child, the Pseudoclock
             clockline = None
             for child_name, child in pseudoclock.child_list.items():
                 # store a reference to the internal clockline
@@ -717,7 +717,7 @@ class PulseBlasterTab(DeviceTab):
                 
             if clockline is not None:
                 # There should only be one child of this clock line, the direct outputs
-                direct_outputs = clockline.child_list[clockline.child_list.keys()[0]] 
+                direct_outputs = clockline.child_list[list(clockline.child_list.keys())[0]]
                 # look to see if the port is used by a child of the direct outputs
                 return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
             else:
