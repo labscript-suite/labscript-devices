@@ -19,9 +19,10 @@ try:
     from labscript_utils import check_version
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
-    
+
 check_version('labscript', '2.0.1', '3')
 
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
@@ -116,7 +117,7 @@ class Camera(TriggerableDevice):
                         
     def generate_code(self, hdf5_file):
         self.do_checks()
-        table_dtypes = {'names': ['name', 'time', 'frametype', 'exposure_time'], 'formats': ['a256', float, 'a256', float]}
+        table_dtypes = dtype_workaround([('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)])
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)
