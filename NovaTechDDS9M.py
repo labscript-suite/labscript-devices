@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_devices import runviewer_parser, labscript_device, BLACS_tab, BLACS_worker
-from labscript_utils.numpy_dtype_workaround.py import dtype_workaround
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
