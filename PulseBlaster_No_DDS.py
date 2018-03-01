@@ -15,6 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 from labscript_devices.PulseBlaster import PulseBlaster, PulseBlasterParser
 from labscript import PseudoclockDevice, config
@@ -52,7 +53,7 @@ class PulseBlaster_No_DDS(PulseBlaster):
     
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:
-        pb_dtype={'names': ['flags', 'inst', 'inst_data', 'length'], 'formats': [np.int32, np.int32, np.int32, np.float64]} 
+        pb_dtype= dtype_workaround([('flags',np.int32), ('inst',np.int32), ('inst_data',np.int32), ('length',np.float64)])
         pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
