@@ -66,7 +66,7 @@ class NIBoard(IntermediateDevice):
         times = pseudoclock.times[clockline]
                 
         analog_out_table = np.empty((len(times),len(analogs)), dtype=np.float32)
-        analog_connections = analogs.keys()
+        analog_connections = list(analogs.keys())
         analog_connections.sort()
         analog_out_attrs = []
         for i, connection in enumerate(analog_connections):
@@ -78,7 +78,7 @@ class NIBoard(IntermediateDevice):
                                   'the limit imposed by %s.'%self.name)
             analog_out_table[:,i] = output.raw_output
             analog_out_attrs.append(self.MAX_name +'/'+connection)
-        input_connections = inputs.keys()
+        input_connections = list(inputs.keys())
         input_connections.sort()
         input_attrs = []
         acquisitions = []
@@ -97,7 +97,7 @@ class NIBoard(IntermediateDevice):
             acquisition_table[i] = acq
         digital_out_table = []
         if digitals:
-            digital_out_table = self.convert_bools_to_bytes(digitals.values())
+            digital_out_table = self.convert_bools_to_bytes(list(digitals.values()))
         grp = self.init_device_group(hdf5_file)
         if all(analog_out_table.shape): # Both dimensions must be nonzero
             grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)

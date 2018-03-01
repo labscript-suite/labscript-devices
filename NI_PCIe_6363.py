@@ -302,9 +302,9 @@ class NiPCIe6363Worker(Worker):
 class NiPCIe6363AcquisitionWorker(Worker):
     def init(self):
         #exec 'import traceback' in globals()
-        exec 'from PyDAQmx import Task' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('from PyDAQmx import Task', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global numpy; import numpy
         global threading; import threading
@@ -622,10 +622,10 @@ class NiPCIe6363AcquisitionWorker(Worker):
     
 class NiPCIe6363WaitMonitorWorker(Worker):
     def init(self):
-        exec 'import ctypes' in globals()
-        exec 'from PyDAQmx import Task' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('import ctypes', globals())
+        exec('from PyDAQmx import Task', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global numpy; import numpy        
         global threading; import threading
