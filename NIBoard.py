@@ -8,6 +8,7 @@ from labscript_devices import runviewer_parser
 from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 class NIBoard(IntermediateDevice):
     allowed_children = [AnalogOut, DigitalOut, AnalogIn]
@@ -89,7 +90,8 @@ class NIBoard(IntermediateDevice):
         # characters. Can't imagine this would be an issue, but to not
         # specify the string length (using dtype=str) causes the strings
         # to all come out empty.
-        acquisitions_table_dtypes = {'names': ['connection', 'label', 'start', 'start', 'stop', 'wait label', 'scale factor', 'units'], 'formats': ['a256', 'a256', float, float, 'a256', float, 'a256']}
+        acquisitions_table_dtypes = dtype_workaround([('connection','a256'), ('label','a256'), ('start',float),
+                                     ('stop',float), ('wait label','a256'),('scale factor',float), ('units','a256')])
         acquisition_table= np.empty(len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
             acquisition_table[i] = acq
