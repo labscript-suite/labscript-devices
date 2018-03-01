@@ -19,6 +19,7 @@ import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
 import numpy as np
 
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 
 # Define a RFBlasterPseudoclock that only accepts one child clockline
@@ -92,7 +93,7 @@ class RFBlaster(PseudoclockDevice):
         
         # Generate clock and save raw instructions to the h5 file:
         PseudoclockDevice.generate_code(self, hdf5_file)
-        dtypes = {'names': ['time', 'amp0', 'freq0', 'phase0', 'amp1', 'freq1', 'phase1'], 'formats': [float, float, float, float, float, float, float]}
+        dtypes = dtype_workaround([('time',float),('amp0',float),('freq0',float),('phase0',float),('amp1',float),('freq1',float),('phase1',float)])
 
         times = self.pseudoclock.times[self._clock_line]
         
@@ -107,7 +108,9 @@ class RFBlaster(PseudoclockDevice):
         group.create_dataset('TABLE_DATA',compression=config.compression, data=data)
         
         # Quantise the data and save it to the h5 file:
-        quantised_dtypes = {'names': ['time', 'amp0', 'freq0', 'phase0', 'amp1', 'freq1', 'phase1'], 'formats': [np.int64, np.int32, np.int32, np.int32, np.int32, np.int32, np.int32]}
+        quantised_dtypes = dtype_workaround([('time',np.int64),
+-                            ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
+-                            ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)])
 
         quantised_data = np.zeros(len(times),dtype=quantised_dtypes)
         quantised_data['time'] = np.array(c.tT*1e6*data['time']+0.5)
