@@ -15,6 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
 from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
 
@@ -106,7 +107,7 @@ class PineBlaster(PseudoclockDevice):
         if len(reduced_instructions) > self.max_instructions:
             raise LabscriptError("%s %s has too many instructions. It has %d and can only support %d"%(self.description, self.name, len(reduced_instructions), self.max_instructions))
         # Store these instructions to the h5 file:
-        dtypes = {'names': ['period', 'reps'], 'formats': [int, int]}
+        dtypes = dtype_workaround([('period',int),('reps',int)])
         pulse_program = np.zeros(len(reduced_instructions),dtype=dtypes)
         for i, instruction in enumerate(reduced_instructions):
             pulse_program[i]['period'] = instruction['period']
