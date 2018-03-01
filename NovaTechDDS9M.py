@@ -250,20 +250,20 @@ class NovatechDDS9mWorker(Worker):
         
         self.connection = serial.Serial(self.com_port, baudrate = self.baud_rate, timeout=0.1)
         self.connection.readlines()
-        
-        self.connection.write('e d\r\n')
+
+        self.connection.write(b'e d\r\n')
         response = self.connection.readline()
         if response == 'e d\r\n':
             # if echo was enabled, then the command to disable it echos back at us!
             response = self.connection.readline()
         if response != "OK\r\n":
             raise Exception('Error: Failed to execute command: "e d". Cannot connect to the device.')
-        
-        self.connection.write('I a\r\n')
+
+        self.connection.write(b'I a\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
-        
-        self.connection.write('m 0\r\n')
+
+        self.connection.write(b'm 0\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "m 0"')
         
@@ -271,7 +271,7 @@ class NovatechDDS9mWorker(Worker):
         
     def check_remote_values(self):
         # Get the currently output values:
-        self.connection.write('QUE\r\n')
+        self.connection.write(b'QUE\r\n')
         try:
             response = [self.connection.readline() for i in range(5)]
         except socket.timeout:
@@ -300,17 +300,17 @@ class NovatechDDS9mWorker(Worker):
 
     def program_static(self,channel,type,value):
         if type == 'freq':
-            command = 'F%d %.7f\r\n'%(channel,value/10.0**6)
+            command = b'F%d %.7f\r\n'%(channel,value/10.0**6)
             self.connection.write(command)
             if self.connection.readline() != "OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'amp':
-            command = 'V%d %u\r\n'%(channel,int(value*1023+0.5))
+            command = b'V%d %u\r\n'%(channel,int(value*1023+0.5))
             self.connection.write(command)
             if self.connection.readline() != "OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'phase':
-            command = 'P%d %u\r\n'%(channel,value*16384/360)
+            command = b'P%d %u\r\n'%(channel,value*16384/360)
             self.connection.write(command)
             if self.connection.readline() != "OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
@@ -340,17 +340,17 @@ class NovatechDDS9mWorker(Worker):
             if fresh or data != self.smart_cache['STATIC_DATA']:
                 self.logger.debug('Static data has changed, reprogramming.')
                 self.smart_cache['STATIC_DATA'] = data
-                self.connection.write('F2 %.7f\r\n'%(data['freq2']/10.0**7))
+                self.connection.write(b'F2 %.7f\r\n'%(data['freq2']/10.0**7))
                 self.connection.readline()
-                self.connection.write('V2 %u\r\n'%(data['amp2']))
+                self.connection.write(b'V2 %u\r\n'%(data['amp2']))
                 self.connection.readline()
-                self.connection.write('P2 %u\r\n'%(data['phase2']))
+                self.connection.write(b'P2 %u\r\n'%(data['phase2']))
                 self.connection.readline()
-                self.connection.write('F3 %.7f\r\n'%(data['freq3']/10.0**7))
+                self.connection.write(b'F3 %.7f\r\n'%(data['freq3']/10.0**7))
                 self.connection.readline()
-                self.connection.write('V3 %u\r\n'%data['amp3'])
+                self.connection.write(b'V3 %u\r\n'%data['amp3'])
                 self.connection.readline()
-                self.connection.write('P3 %u\r\n'%data['phase3'])
+                self.connection.write(b'P3 %u\r\n'%data['phase3'])
                 self.connection.readline()
                 
                 # Save these values into final_values so the GUI can
@@ -372,7 +372,7 @@ class NovatechDDS9mWorker(Worker):
                 oldtable = self.smart_cache['TABLE_DATA']
                 for ddsno in range(2):
                     if fresh or i >= len(oldtable) or (line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]) != (oldtable[i]['freq%d'%ddsno],oldtable[i]['phase%d'%ddsno],oldtable[i]['amp%d'%ddsno]):
-                        self.connection.write('t%d %04x %08x,%04x,%04x,ff\r\n'%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
+                        self.connection.write(b't%d %04x %08x,%04x,%04x,ff\r\n'%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
                         self.connection.readline()
                 et = time.time()
                 tt=et-st
@@ -397,11 +397,11 @@ class NovatechDDS9mWorker(Worker):
             self.final_values['channel 1']['phase'] = data[-1]['phase1']*360/16384.0
             
             # Transition to table mode:
-            self.connection.write('m t\r\n')
+            self.connection.write(b'm t\r\n')
             self.connection.readline()
             if self.update_mode == 'synchronous':
                 # Transition to hardware synchronous updates:
-                self.connection.write('I e\r\n')
+                self.connection.write(b'I e\r\n')
                 self.connection.readline()
                 # We are now waiting for a rising edge to trigger the output
                 # of the second table pair (first of the experiment)
@@ -422,10 +422,10 @@ class NovatechDDS9mWorker(Worker):
         return self.transition_to_manual(True)
     
     def transition_to_manual(self,abort = False):
-        self.connection.write('m 0\r\n')
+        self.connection.write(b'm 0\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "m 0"')
-        self.connection.write('I a\r\n')
+        self.connection.write(b'I a\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         if abort:
