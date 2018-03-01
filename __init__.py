@@ -12,7 +12,7 @@ __version__ = '2.1.0'
 from labscript_utils import check_version
 
 check_version('qtutils', '2.0.0', '3.0.0')
-check_version('labscript_utils', '2.2', '3')
+check_version('labscript_utils', '2.6', '3')
 check_version('labscript', '2.1', '3')
 check_version('blacs', '2.1', '3')
 
