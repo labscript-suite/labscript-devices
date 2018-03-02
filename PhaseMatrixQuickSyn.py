@@ -200,7 +200,6 @@ class PhaseMatrixQuickSynTab(DeviceTab):
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
     def update_lock_recovery(self):
         value = self.status_ui.lock_recovery_button.isChecked()
-        print(value)
         yield(self.queue_work(self._primary_worker,'update_lock_recovery',value))
        
 
