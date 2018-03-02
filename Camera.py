@@ -48,7 +48,7 @@ class Camera(TriggerableDevice):
         self.exposure_time = exposure_time
         self.orientation = orientation
         self.BLACS_connection = BIAS_port
-        if isinstance(serial_number,str):
+        if isinstance(serial_number, str) or isinstance(serial_number, bytes):
             serial_number = int(serial_number,16)
         self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
