@@ -11,16 +11,13 @@
 #                                                                   #
 #####################################################################
 from __future__ import division, unicode_literals, print_function, absolute_import
+
+from labscript_utils import check_version
+check_version('labscript', '2.0.1', '3')
+check_version('zprocess', '2.2.5', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-
-check_version('labscript', '2.0.1', '3')
 
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
@@ -164,7 +161,6 @@ class CameraTab(DeviceTab):
         return {'host': str(self.ui.host_lineEdit.text()), 'use_zmq': self.ui.use_zmq_checkBox.isChecked()}
     
     def restore_save_data(self, save_data):
-        print('restore save data running')
         if save_data:
             host = save_data['host']
             self.ui.host_lineEdit.setText(host)
@@ -210,10 +206,7 @@ class CameraTab(DeviceTab):
 
 @BLACS_worker            
 class CameraWorker(Worker):
-    def init(self):#, port, host, use_zmq):
-#        self.port = port
-#        self.host = host
-#        self.use_zmq = use_zmq
+    def init(self):
         global socket; import socket
         global zmq; import zmq
         global zprocess; import zprocess
@@ -230,7 +223,7 @@ class CameraWorker(Worker):
         if not self.use_zmq:
             return self.initialise_sockets(self.host, self.port)
         else:
-            response = zprocess.zmq_get_raw(self.port, self.host, data='hello'.encode('utf-8')).decode()
+            response = zprocess.zmq_get_string(self.port, self.host, data='hello')
             if response == 'hello':
                 return True
             else:
@@ -255,10 +248,10 @@ class CameraWorker(Worker):
         h5file = shared_drive.path_to_agnostic(h5file)
         if not self.use_zmq:
             return self.transition_to_buffered_sockets(h5file,self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, data=h5file.encode('utf-8')).decode()
+        response = zprocess.zmq_get_string(self.port, self.host, data=h5file)
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10).decode()
+        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return {} # indicates final values of buffered run, we have none
@@ -281,10 +274,10 @@ class CameraWorker(Worker):
     def transition_to_manual(self):
         if not self.use_zmq:
             return self.transition_to_manual_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'done'.encode('utf-8')).decode()
+        response = zprocess.zmq_get_string(self.port, self.host, 'done')
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10).decode()
+        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success
@@ -313,7 +306,7 @@ class CameraWorker(Worker):
     def abort(self):
         if not self.use_zmq:
             return self.abort_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'abort'.encode('utf-8')).decode()
+        response = zprocess.zmq_get_string(self.port, self.host, 'abort').
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success 
