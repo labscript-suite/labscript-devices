@@ -272,7 +272,7 @@ class PulseblasterNoDDSWorker(Worker):
         # An event for checking when all waits (if any) have completed, so that
         # we can tell the difference between a wait and the end of an experiment.
         # The wait monitor device is expected to post such events, which we'll wait on:
-        self.all_waits_finished = zprocess.Event(b'all_waits_finished')
+        self.all_waits_finished = zprocess.Event('all_waits_finished')
         self.waits_pending = False
     
         pb_select_board(self.board_number)
@@ -421,10 +421,7 @@ class PulseblasterNoDDSWorker(Worker):
             # Now we build a dictionary of the final state to send back to the GUI:
             return_values = {}
             # Since we are converting from an integer to a binary string, we need to reverse the string! (see notes above when we create flags variables)
-            if PY2: 
-                return_flags = bin(flags)[2:].rjust(self.num_DO, b'0')[::-1] 
-            else: 
-                return_flags = bin(flags)[2:].rjust(self.num_DO, u'0')[::-1] 
+            return_flags = bin(flags)[2:].rjust(self.num_DO,'0')[::-1]
             for i in range(self.num_DO):
                 return_values['flag %d'%i] = return_flags[i]
                 

@@ -811,7 +811,7 @@ class PulseblasterWorker(Worker):
         # An event for checking when all waits (if any) have completed, so that
         # we can tell the difference between a wait and the end of an experiment.
         # The wait monitor device is expected to post such events, which we'll wait on:
-        self.all_waits_finished = zprocess.Event(b'all_waits_finished')
+        self.all_waits_finished = zprocess.Event('all_waits_finished')
         self.waits_pending = False
     
         pb_select_board(self.board_number)
