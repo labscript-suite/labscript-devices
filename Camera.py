@@ -306,7 +306,7 @@ class CameraWorker(Worker):
     def abort(self):
         if not self.use_zmq:
             return self.abort_sockets(self.host, self.port)
-        response = zprocess.zmq_get_string(self.port, self.host, 'abort').
+        response = zprocess.zmq_get_string(self.port, self.host, 'abort')
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success 
