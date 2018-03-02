@@ -331,7 +331,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
         
         # And event for knowing when the wait durations are known, so that we may use them
         # to chunk up acquisition data:
-        self.wait_durations_analysed = zprocess.Event(b'wait_durations_analysed')
+        self.wait_durations_analysed = zprocess.Event('wait_durations_analysed')
         
         self.daqmx_read_thread = threading.Thread(target=self.daqmx_read)
         self.daqmx_read_thread.daemon = True
@@ -638,8 +638,8 @@ class NiPCIe6363WaitMonitorWorker(Worker):
         self.h5_file = None
         self.task = None
         self.abort = False
-        self.all_waits_finished = zprocess.Event(b'all_waits_finished',type='post')
-        self.wait_durations_analysed = zprocess.Event(b'wait_durations_analysed',type='post')
+        self.all_waits_finished = zprocess.Event('all_waits_finished',type='post')
+        self.wait_durations_analysed = zprocess.Event('wait_durations_analysed',type='post')
     
     def shutdown(self):
         self.logger.info('Shutdown requested, stopping task')
