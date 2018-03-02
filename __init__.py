@@ -1,4 +1,10 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
+try:
+    from labscript_utils import check_version
+except ImportError:
+    raise ImportError('Require labscript_utils > 2.1.0')
+    
+check_version('labscript_utils', '2.6', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -8,8 +14,6 @@ import sys
 import importlib
 
 __version__ = '2.1.0'
-
-from labscript_utils import check_version
 
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript_utils', '2.6', '3')
