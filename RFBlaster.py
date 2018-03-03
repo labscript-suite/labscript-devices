@@ -164,7 +164,7 @@ class RFBlaster(PseudoclockDevice):
                                  jump_to_start=(i == 0),
                                  jump_from_end=False,
                                  close_end=(i == len(diff_tables) - 1),
-                                 local_loop_pre = str(i),
+                                 local_loop_pre = bytes(i), # need to look at CompileD to know if this will be ok on Python 3
                                  set_defaults = (i==0))
                 # Save the assembly to the h5 file:
                 with open(temp_assembly_filepath,) as assembly_file:
@@ -320,12 +320,10 @@ class RFBlasterWorker(Worker):
         exec('from multipart_form import *', globals())
         exec('from numpy import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
-        global urllib2; import urllib2
-        global re; import re
         self.timeout = 30 #How long do we wait until we assume that the RFBlaster is dead? (in seconds)
     
         # See if the RFBlaster answers
-        urllib2.urlopen(self.address,timeout=self.timeout)
+        self.http_request()
         
         self._last_program_manual_values = {}
         
@@ -340,15 +338,8 @@ class RFBlasterWorker(Worker):
             form.add_field("p_ch%d_in"%i,str(values['dds %d'%i]['phase']))
             
         form.add_field("set_dds","Set device")
-        # Build the request
-        req = urllib2.Request(self.address)
-        #raise Exception(form_values)
-        body = str(form)
-        req.add_header('Content-type', form.get_content_type())
-        req.add_header('Content-length', len(body))
-        req.add_data(body)
-        response = str(urllib2.urlopen(req,timeout=self.timeout).readlines())
-        return_vals = self.get_web_values(response)
+
+        return_vals = self.get_web_values(self.http_request(form))
             
         return return_vals
         
@@ -373,14 +364,7 @@ class RFBlasterWorker(Worker):
                 form.add_file_content("pulse_ch%d"%i,"output_ch%d.bin"%i,data)
                 
         form.add_field("upload_and_run","Upload and start")
-        req = urllib2.Request(self.address)
-
-        body = str(form)
-        req.add_header('Content-type', form.get_content_type())
-        req.add_header('Content-length', len(body))
-        req.add_data(body)
-        post_buffered_web_vals = self.get_web_values(str(urllib2.urlopen(req,timeout = self.timeout).readlines()))
-
+        self.http_request(form)
         return self.final_values
                  
     def abort_transition_to_buffered(self):
@@ -388,31 +372,40 @@ class RFBlasterWorker(Worker):
         form = MultiPartForm()
         #tell the rfblaster to stop
         form.add_field("halt","Halt execution")
-        req = urllib2.Request(self.address)
-        body = str(form)
-        req.add_header('Content-type', form.get_content_type())
-        req.add_header('Content-length', len(body))
-        req.add_data(body)
-        urllib2.urlopen(req,timeout=self.timeout)
+        http_request(form)
         return True
     
     def abort_buffered(self):
         form = MultiPartForm()
         #tell the rfblaster to stop
         form.add_field("halt","Halt execution")
-        req = urllib2.Request(self.address)
-        body = str(form)
-        req.add_header('Content-type', form.get_content_type())
-        req.add_header('Content-length', len(body))
-        req.add_data(body)
-        urllib2.urlopen(req,timeout=self.timeout)
+        http_request(form)
         return True
      
     def transition_to_manual(self):
         # TODO: check that the RF blaster program is finished?
         return True
      
+    def http_request(self, form=None): 
+        """Make a HTTP request to the RFBlaster, optionally submitting a form"""
+        if PY2:
+            from urllib2 import urlopen, Request
+        else:
+            from urllib.request import urlopen, Request
+        
+        req = Request(self.address)
+        if form is not None:
+            body = bytes(form) # TODO need to look at MultiPartForm to know if this will work for Python 3
+            req.add_header('Content-type', form.get_content_type())
+            req.add_header('Content-length', len(body))
+            req.add_data(body)
+
+        page = b''.join(urlopen(req, timeout=self.timeout).readlines())
+        page = page.decode('utf8')
+        return page
+
     def get_web_values(self,page): 
+        import re
         #prepare regular expressions for finding the values:
         search = re.compile(r'name="([fap])_ch(\d+?)_in"\s*?value="([0-9.]+?)"')
         webvalues = re.findall(search,page)
@@ -439,8 +432,7 @@ class RFBlasterWorker(Worker):
     
     def check_remote_values(self):
         #read the webserver page to see what values it puts in the form
-        page = str(urllib2.urlopen(self.address,timeout=self.timeout).readlines())
-        return self.get_web_values(page)
+        return self.get_web_values(self.http_request())
         
     def shutdown(self):
         # TODO: implement this?
