@@ -109,8 +109,8 @@ class RFBlaster(PseudoclockDevice):
         
         # Quantise the data and save it to the h5 file:
         quantised_dtypes = dtype_workaround([('time',np.int64),
--                            ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
--                            ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)])
+                            ('amp0',np.int32), ('freq0',np.int32), ('phase0',np.int32),
+                            ('amp1',np.int32), ('freq1',np.int32), ('phase1',np.int32)])
 
         quantised_data = np.zeros(len(times),dtype=quantised_dtypes)
         quantised_data['time'] = np.array(c.tT*1e6*data['time']+0.5)
@@ -314,10 +314,61 @@ class RFBlasterTab(DeviceTab):
             raise Exception('Could not transition to manual. You must restart this device to continue')
             
     
+class MultiPartForm(object):
+    """Accumulate the data to be used when posting a form."""
+
+    def __init__(self):
+        import uuid
+        self.form_fields = []
+        self.files = []
+        self.boundary = uuid.uuid4().hex.encode('utf8')
+    
+    def get_content_type(self):
+        return 'multipart/form-data; boundary=%s' % self.boundary
+
+    def add_field(self, name, value):
+        """Add a simple field to the form data."""
+        self.form_fields.append((name.encode('utf8'), value.encode('utf8')))
+
+    def add_file_content(self, fieldname, filename, body, mimetype=None):
+        import mimetypes
+        if not isinstance(body, bytes):
+            raise TypeError('body must be bytes')
+        if mimetype is None:
+            mimetype = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+        self.files.append((fieldname.encode('utf8'), filename.encode('utf8'),
+                           mimetype.encode('utf8'), body))
+    
+    def tobytes(self):
+        """Return a bytestring for the form data, including attached files."""
+        all_lines = []
+        part_boundary = b'--' + self.boundary
+        
+        for name, value in self.form_fields:
+            lines = [part_boundary,
+                     b'Content-Disposition: form-data; name="%s"' % name,
+                     b'',
+                     value]
+            all_lines.extend(lines)
+        
+        for field_name, filename, content_type, body in self.files:
+            lines = [part_boundary,
+                     b'Content-Disposition: form-data; name="%s"; filename="%s"' % (field_name, filename),
+                     b'Content-Type: %s' % content_type,
+                     b'',
+                     body]
+            all_lines.extend(lines)
+        
+        # Closing boundary marker:
+        lines = [b'--' + self.boundary + b'--',
+                 b'']
+        all_lines.extend(lines)
+        return b'\r\n'.join(all_lines)
+
+
 @BLACS_worker
 class RFBlasterWorker(Worker):
     def init(self):
-        exec('from multipart_form import *', globals())
         exec('from numpy import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         self.timeout = 30 #How long do we wait until we assume that the RFBlaster is dead? (in seconds)
@@ -395,10 +446,10 @@ class RFBlasterWorker(Worker):
         
         req = Request(self.address)
         if form is not None:
-            body = bytes(form) # TODO need to look at MultiPartForm to know if this will work for Python 3
+            body = form.tobytes()
             req.add_header('Content-type', form.get_content_type())
             req.add_header('Content-length', len(body))
-            req.add_data(body)
+            req.data = body
 
         page = b''.join(urlopen(req, timeout=self.timeout).readlines())
         page = page.decode('utf8')
