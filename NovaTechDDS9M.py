@@ -19,11 +19,11 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
-bauds = {9600:'Kb 78', 
-         19200: 'Kb 3c',
-         38400: 'Kb 1e',
-         57600: 'Kb 14',
-         115200: 'Kb 0a'}
+bauds = {9600: b'Kb 78', 
+         19200: b'Kb 3c',
+         38400: b'Kb 1e',
+         57600: b'Kb 14',
+         115200: b'Kb 0a'}
 
 @labscript_device
 class NovaTechDDS9M(IntermediateDevice):
@@ -41,7 +41,7 @@ class NovaTechDDS9M(IntermediateDevice):
         property_names = {'connection_table_properties': ['com_port', 'update_mode', 'baud_rate', 'default_baud_rate']}
         )
     def __init__(self, name, parent_device, 
-                 com_port = "", baud_rate=115200, default_baud_rate=0, update_mode='synchronous', **kwargs):
+                 com_port = "", baud_rate=115200, default_baud_rate=None, update_mode='synchronous', **kwargs):
 
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
@@ -53,7 +53,7 @@ class NovaTechDDS9M(IntermediateDevice):
             raise LabscriptError('baud_rate must be one of {0}'.format(bauds.keys()))            
 
         if not default_baud_rate in bauds and default_baud_rate != 0:     
-            raise LabscriptError('default_baud_rate must be one of {0} or 0 (to indicate no default)'.format(bauds.keys()))            
+            raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(bauds.keys()))            
 
         self.update_mode = update_mode        
         
@@ -233,11 +233,26 @@ class NovatechDDS9MTab(DeviceTab):
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         connection_table_properties = connection_object.properties
         
-        self.com_port = connection_table_properties['com_port']
-        self.baud_rate = connection_table_properties['baud_rate']
-        self.default_baud_rate = connection_table_properties['default_baud_rate']
-        self.update_mode = connection_table_properties['update_mode']
+        self.com_port = connection_table_properties.get('com_port', None)
+        self.baud_rate = connection_table_properties.get('baud_rate', None)
+        self.default_baud_rate = connection_table_properties.get('default_baud_rate', None)
+        self.update_mode = connection_table_properties.get('update_mode', 'synchronous')
+        self.phase_mode = connection_table_properties.get('phase_mode', 'default')
         
+        # Backward compat:
+        blacs_connection =  str(connection_object.BLACS_connection)
+        if ',' in blacs_connection:
+            com_port, baud_rate = blacs_connection.split(',')
+            if self.com_port is None:
+                self.com_port = com_port
+            if self.baud_rate is None:
+                self.baud_rate = int(baud_rate)
+        else:
+            self.com_port = blacs_connection
+            self.baud_rate = 115200
+        
+
+
         # Create and set the primary worker
         self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port,
                                                               'baud_rate': self.baud_rate,
@@ -257,15 +272,15 @@ class NovatechDDS9mWorker(Worker):
         self.smart_cache = {'STATIC_DATA': None, 'TABLE_DATA': ''}
         
         # if requested start with a default baud rate and update
-        if self.default_baud_rate != 0:
+        if self.default_baud_rate is not None:
             self.connection = serial.Serial(self.com_port, baudrate=self.default_baud_rate, timeout=0.1)
-            self.connection.write('{}\n'.format(bauds[self.baud_rate]))
-            self.connection.baudrate = self.baud_rate
-        else:
-            self.connection = serial.Serial(self.com_port, baudrate=self.baud_rate, timeout=0.1)
+            self.connection.write(b'{}\n'.format(bauds[self.baud_rate]))
+            
+            # Flush any junk from the buffer
+            self.connection.readlines()
+            self.connection.close()
         
-        # Flush any junk from the buffer
-        self.connection.readlines()
+        self.connection = serial.Serial(self.com_port, baudrate=self.baud_rate, timeout=0.1)
         
         self.connection.write('e d\r\n')
         response = self.connection.readline()
@@ -273,7 +288,7 @@ class NovatechDDS9mWorker(Worker):
             # if echo was enabled, then the command to disable it echos back at us!
             response = self.connection.readline()
         if response != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "e d". Cannot connect to the device.')
+            raise Exception('Error: Failed to execute command: "e d", recieved "%s".'%response)
         
         self.connection.write('I a\r\n')
         if self.connection.readline() != "OK\r\n":
@@ -469,7 +484,7 @@ class NovatechDDS9mWorker(Worker):
     def shutdown(self):
         
         # return to the default baud rate
-        if self.default_baud_rate != 0:
+        if self.default_baud_rate is not None:
             self.connection.write('{}\n'.format(bauds[self.default_baud_rate]))
             self.connection.readlines()        
         
