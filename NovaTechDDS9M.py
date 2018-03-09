@@ -52,7 +52,7 @@ class NovaTechDDS9M(IntermediateDevice):
         if not baud_rate in bauds:     
             raise LabscriptError('baud_rate must be one of {0}'.format(bauds.keys()))            
 
-        if not default_baud_rate in bauds and default_baud_rate != 0:     
+        if not default_baud_rate in bauds and default_baud_rate None:     
             raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(bauds.keys()))            
 
         self.update_mode = update_mode        
@@ -237,7 +237,6 @@ class NovatechDDS9MTab(DeviceTab):
         self.baud_rate = connection_table_properties.get('baud_rate', None)
         self.default_baud_rate = connection_table_properties.get('default_baud_rate', None)
         self.update_mode = connection_table_properties.get('update_mode', 'synchronous')
-        self.phase_mode = connection_table_properties.get('phase_mode', 'default')
         
         # Backward compat:
         blacs_connection =  str(connection_object.BLACS_connection)
@@ -485,7 +484,7 @@ class NovatechDDS9mWorker(Worker):
         
         # return to the default baud rate
         if self.default_baud_rate is not None:
-            self.connection.write('{}\n'.format(bauds[self.default_baud_rate]))
+            self.connection.write(b'{}\n'.format(bauds[self.default_baud_rate]))
             self.connection.readlines()        
         
         self.connection.close()
