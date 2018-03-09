@@ -52,7 +52,7 @@ class NovaTechDDS9M(IntermediateDevice):
         if not baud_rate in bauds:     
             raise LabscriptError('baud_rate must be one of {0}'.format(bauds.keys()))            
 
-        if not default_baud_rate in bauds and default_baud_rate None:     
+        if not default_baud_rate in bauds and default_baud_rate is not None:     
             raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(bauds.keys()))            
 
         self.update_mode = update_mode        
