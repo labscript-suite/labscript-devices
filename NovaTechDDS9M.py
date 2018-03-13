@@ -29,8 +29,10 @@ class NovaTechDDS9M(IntermediateDevice):
     @set_passed_properties(
         property_names = {'connection_table_properties': ['update_mode', 'synchronous_first_line_repeat', 'phase_mode']}
         )
-    def __init__(self, name, parent_device, phase_mode='default',
-                 com_port = "", baud_rate=115200, update_mode='synchronous', synchronous_first_line_repeat=False, **kwargs):
+    def __init__(self, name, parent_device, 
+                 com_port = "", baud_rate=115200,
+                 update_mode='synchronous', synchronous_first_line_repeat=False,
+                 phase_mode='default', **kwargs):
 
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
