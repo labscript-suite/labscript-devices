@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/Camera_acqROI.py                                      #
+# /labscript_devices/PythonCamera.py                                #
 #                                                                   #
 # Copyright 2013, Monash University                                 #
 #                                                                   #
@@ -10,6 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import print_function, unicode_literals, absolute_import, division
 
 try:
     from labscript_utils import check_version
@@ -22,32 +23,29 @@ from labscript_devices import labscript_device, BLACS_tab
 from labscript_devices.Camera import Camera, CameraTab
 from labscript import set_passed_properties
 
+
 @labscript_device
-class Camera_acqROI(Camera):
-    description = 'Generic Camera with acquisition_ROI attribute'        
-    
-    # To be set as instantiation arguments:
-    trigger_edge_type = None
-    minimum_recovery_time = None
+class PythonCamera(Camera):
+    description = 'Python camera'        
     
     @set_passed_properties(
         property_names = {
             "device_properties": ["acquisition_ROI"]}
         )
-    def __init__(self, acquisition_ROI=None, *args,
-                 **kwargs):
-                    
-        # not a class attribute, so we don't have to have a subclass for each model of camera:
-        self.acquisition_ROI = acquisition_ROI
-        
+    def __init__(self, *args, **kwargs):
+        self.acquisition_ROI = kwargs.pop('acquisition_ROI', None)
         Camera.__init__(self, *args, **kwargs)
     
-    def set_acquisition_ROI(self, acq_ROI):
-        # acq_ROI is a tuple of form (width, height, offset_X, offset_Y)
-        # This method is used in a script to overwrite a camera's
-        # acquisition_ROI without throwing errors in the connection table.
-        self.set_property('acquisition_ROI', acq_ROI, location='device_properties', overwrite=True)
+    def set_acquisition_ROI(self, acquisition_ROI):
+        # acq_ROI is a tuple of form (width, height, offset_X, offset_Y) This
+        # method can be used in a script to overwrite a camera's acquisition_ROI
+        # after instantiation, so that BlACS does not detect a connection table
+        # change on disk when the same file is being imported by experiment scripts
+        # and used as the lab connection table.
+        self.set_property('acquisition_ROI', acquisition_ROI,
+                          location='device_properties', overwrite=True)
+
 
 @BLACS_tab
-class Camera_acqROITab(CameraTab):
+class PythonCameraTab(CameraTab):
     pass
