@@ -26,6 +26,7 @@ from labscript import set_passed_properties
 
 @labscript_device
 class PythonCamera(Camera):
+    """A class for new features not compatible with the legacy Camera class"""
     description = 'Python camera'        
     
     @set_passed_properties(
