@@ -14,7 +14,7 @@ from __future__ import division, unicode_literals, print_function, absolute_impo
 
 from labscript_utils import check_version
 check_version('labscript', '2.0.1', '3')
-check_version('zprocess', '2.2.5', '3')
+check_version('zprocess', '2.4.8', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
