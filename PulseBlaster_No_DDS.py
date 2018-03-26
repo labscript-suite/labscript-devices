@@ -421,7 +421,7 @@ class PulseblasterNoDDSWorker(Worker):
             # Now we build a dictionary of the final state to send back to the GUI:
             return_values = {}
             # Since we are converting from an integer to a binary string, we need to reverse the string! (see notes above when we create flags variables)
-            return_flags = bin(flags)[2:].rjust(self.num_DO,'0')[::-1]
+            return_flags = str(bin(flags)[2:]).rjust(self.num_DO,'0')[::-1]
             for i in range(self.num_DO):
                 return_values['flag %d'%i] = return_flags[i]
                 
