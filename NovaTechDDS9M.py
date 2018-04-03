@@ -268,18 +268,18 @@ class NovatechDDS9mWorker(Worker):
 
         self.connection.write(b'e d\r\n')
         response = self.connection.readline()
-        if response == 'e d\r\n':
+        if response == b'e d\r\n':
             # if echo was enabled, then the command to disable it echos back at us!
             response = self.connection.readline()
-        if response != "OK\r\n":
+        if response != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "e d". Cannot connect to the device.')
 
         self.connection.write(b'I a\r\n')
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
 
         self.connection.write(b'm 0\r\n')
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "m 0"')
         
         #return self.get_current_values()
@@ -317,17 +317,17 @@ class NovatechDDS9mWorker(Worker):
         if type == 'freq':
             command = b'F%d %.7f\r\n'%(channel,value/10.0**6)
             self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
+            if self.connection.readline() != b"OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'amp':
             command = b'V%d %u\r\n'%(channel,int(value*1023+0.5))
             self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
+            if self.connection.readline() != b"OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'phase':
             command = b'P%d %u\r\n'%(channel,value*16384/360)
             self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
+            if self.connection.readline() != b"OK\r\n":
                 raise Exception('Error: Failed to execute command: %s'%command)
         else:
             raise TypeError(type)
@@ -438,10 +438,10 @@ class NovatechDDS9mWorker(Worker):
     
     def transition_to_manual(self,abort = False):
         self.connection.write(b'm 0\r\n')
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "m 0"')
         self.connection.write(b'I a\r\n')
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         if abort:
             # If we're aborting the run, then we need to reset DDSs 2 and 3 to their initial values.
