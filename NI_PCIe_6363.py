@@ -584,8 +584,8 @@ class NiPCIe6363AcquisitionWorker(Worker):
                     start_time += wait_durations[(wait_times < start_time)].sum()
                     # compare wait times to end_time to allow for waits during an acquisition
                     end_time += wait_durations[(wait_times < end_time)].sum()
-                start_index = numpy.ceil(self.buffered_rate*(start_time-self.ai_start_delay))
-                end_index = numpy.floor(self.buffered_rate*(end_time-self.ai_start_delay))
+                start_index = int(numpy.ceil(self.buffered_rate*(start_time-self.ai_start_delay)))
+                end_index = int(numpy.floor(self.buffered_rate*(end_time-self.ai_start_delay)))
                 # numpy.ceil does what we want above, but float errors can miss the equality
                 if self.ai_start_delay + (start_index-1)/self.buffered_rate - start_time > -2e-16:
                     start_index -= 1
