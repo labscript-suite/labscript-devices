@@ -779,6 +779,11 @@ class NiPCIe6363WaitMonitorWorker(Worker):
             self.timeout_task = Task()
             timeout_chan = '/'.join([self.MAX_name,timeout_connection])
             self.timeout_task.CreateDOChan(timeout_chan,"",DAQmx_Val_ChanForAllLines)
+            # Ensure timeout trigger is armed
+            if self.timeout_trigger_type == 'falling':
+                written = int32()
+                self.timeout_task.WriteDigitalLines(1, True, 1, DAQmx_Val_GroupByChannel, np.array([1], dtype=np.uint8), byref(written), None)
+                assert written.value == 1
             self.task_running = True
                 
             # An array to store the results of counter acquisition:
