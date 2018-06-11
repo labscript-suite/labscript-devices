@@ -1,3 +1,8 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import sys
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser 
 from labscript import Device, LabscriptError, set_passed_properties
