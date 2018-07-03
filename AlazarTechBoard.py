@@ -11,6 +11,7 @@ import signal
 import sys
 import time
 
+
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
 import atsapi as ats
@@ -99,7 +100,7 @@ if __name__ != "__main__":
 
     # Many properties not supported. Examples include:
     # AlazarSetExternalClockLevel, SetDataFormat
-    # Anything to do with onself.board memory
+    # Anything to do with board memory
     # Anything "for scanning"
     
         @set_passed_properties(property_names = {
@@ -110,7 +111,10 @@ if __name__ != "__main__":
                              "trig_engine_id1", "trig_source_id1", "trig_slope_id1",  "trig_level_id1",
                              "trig_engine_id2", "trig_source_id2", "trig_slope_id2", "trig_level_id2",
                              "exttrig_coupling_id", "exttrig_range_id",
-                             "trig_delay_samples", "trig_timeout_10usecs", "input_range"]
+                             "trig_delay_samples", "trig_timeout_10usecs", "input_range",
+                             "chA_coupling_id", "chA_range_id", "chA_impedance_id", "chA_bw_limit",
+                             "chB_coupling_id", "chB_range_id", "chB_impedance_id", "chB_bw_limit",
+                             ]
         })
     
         def __init__(self, name, server,
@@ -135,6 +139,7 @@ if __name__ != "__main__":
                      trig_timeout_10usecs    =0,
                      input_range             =4000):
             Device.__init__(self, name, None, None)
+            #self.name=name
             # self.acquisition_rate = acquisition_rate
             # self.clock_terminal = clock_terminal
             # self.clock_source_id         = clock_source_id         
@@ -193,7 +198,8 @@ if __name__ != "__main__":
     from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED 
     from blacs.device_base_class import DeviceTab
     import os
-    
+    import copy
+
     # A BLACS tab for a purely remote device which does not need configuration of parameters in BLACS
     @BLACS_tab
     class GuilessTab(DeviceTab):
@@ -215,53 +221,39 @@ if __name__ != "__main__":
     class GuilessWorker(Worker):
         def init(self):
             global h5py; import labscript_utils.h5_lock, h5py
-            samplesPerSec = 10000000.0 # 150 MSPS PLL clock
-            zeroToFullScale=800
-            oneM=2**20
-            decimation = 3;
-            
-            # Hardcoded board IDs for now 
-            systemId=1
-            boardId=1
-            self.board = ats.Board(systemId = systemId, boardId = boardId)
-
-            print("Initialised AlazarTech system {:d}, board {:d}.".format(systemId, boardId))
-
-            try:
-                atsInputRange = atsRanges[zeroToFullScale]
-                print("Voltage full-scale set to {:d}".format(zeroToFullScale))
-            except KeyError:
-                print("Voltage setting {:d}mV  is not recognised in atsapi. Make sure you use millivolts.".format(zeroToFullScale))
-
-            # This happens first in LabVIEW...
+            # hard-coded again for now
+            system_id = 1
+            board_id  = 1
+            self.board = ats.Board(systemId = system_id, boardId = board_id)
+            print("Initialised AlazarTech system {:d}, board {:d}.".format(system_id, board_id))
             self.board.abortAsyncRead()
-            self.board.setCaptureClock(ats.INTERNAL_CLOCK, ats.SAMPLE_RATE_10MSPS, ats.CLOCK_EDGE_RISING, 0)
-            #    self.board.setCaptureClock(EXTERNAL_CLOCK_10MHz_REF,
-            #                          samplesPerSec,
-            #                          ats.CLOCK_EDGE_RISING,
-            #                          decimation-1)
-            actualSamplesPerSec = samplesPerSec #/ decimation
-            # Decimates by 4+1=5
+            
+        def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
+            self.h5file = h5file # We'll need this in transition_to_manual
+            with h5py.File(h5file) as hdf5_file:
+                hdf5_filegroup = hdf5_file['devices'][device_name]
+                print("transition_to_buffered: using "+h5file)
+                self.atsparam = dict(hdf5_filegroup.attrs)
+                print("atsparam: " + repr(self.atsparam))
+
+            #    acquisitionLength_sec = globs['hobbs_acquire_time']
+            #    requestedSamplesPerSec  = f['/devices/' + device_name].attrs['requested_acquisition_rate']
+            #    zeroToFullScale  = f['/devices/' + device_name].attrs['input_range']
+            def find_nearest(array, value):
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+                ix = np.abs(array - value).argmin()
+                return array[ix]
+            actualSamplesPerSec = find_nearest(atsSampleRates.keys(), requestedSamplesPerSec)
+            atsSamplesPerSec = atsSampleRates[actualSamplesPerSec]
+            #f['/devices/' + device_name].attrs.create('acquisition_rate', actualSamplesPerSec, dtype='int32')
+            board.setCaptureClock(ats.INTERNAL_CLOCK,
+                              atsSamplesPerSec,
+                              ats.CLOCK_EDGE_RISING,
+                              0)    
+            print('Samples per second {:.0f} ({:4.1f} MS/s)'.format(actualSamplesPerSec,actualSamplesPerSec/1e6))
             print("Capture clock set to ...")
 
-            self.board.inputControl( ats.CHANNEL_A,
-                                ats.AC_COUPLING,
-                                atsInputRange,
-                                #ats.INPUT_RANGE_PM_400_MV,
-                                #ats.IMPEDANCE_1M_OHM)
-                                ats.IMPEDANCE_50_OHM)
-            self.board.setBWLimit(ats.CHANNEL_A, 0)
-            print("Channel A input set to ...")
-
-            # Channel B captures the reference wave
-            self.board.inputControl( ats.CHANNEL_B,
-                                ats.AC_COUPLING,
-                                atsInputRange,
-                                #ats.INPUT_RANGE_PM_400_MV,
-                                #ats.IMPEDANCE_1M_OHM)
-                                ats.IMPEDANCE_50_OHM)
-            self.board.setBWLimit(ats.CHANNEL_B, 0)
-            print("Channel B input set to ...")
 
             # Set 5V-range DC-coupled trigger.
             # ETR_5V means +/-5V, and is 8bit
@@ -304,12 +296,30 @@ if __name__ != "__main__":
                                  0) # Dummy value when AUX_OUT_TRIGGER
             print("Aux output set to trigger.")
 
-        def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
-            self.h5file = h5file # We'll need this in transition_to_manual
-            with h5py.File(h5file) as hdf5_file:
-                group = hdf5_file['/devices/'+device_name]
-                print("transition_to_buffered: using "+h5file)
-                #self.board_attributes = group.attrs.copy()
+            try:
+                atsInputRange = atsRanges[zeroToFullScale]
+                print("Voltage Scale at {:d}".format(zeroToFullScale))
+            except KeyError:
+                print("Voltage setting {:d}mV  is not recognised in atsapi. Make sure you use millivolts.".format(zeroToFullScale))
+            board.inputControl( ats.CHANNEL_A,
+                                ats.AC_COUPLING,
+                                atsInputRange,
+                                #ats.INPUT_RANGE_PM_400_MV,
+                                #ats.IMPEDANCE_1M_OHM)
+                                ats.IMPEDANCE_50_OHM)
+            board.setBWLimit(ats.CHANNEL_A, 0)
+            print("Channel A input set to ...")
+
+            # Channel B captures the reference wave
+            board.inputControl( ats.CHANNEL_B,
+                                ats.AC_COUPLING,
+                                atsInputRange,
+                                #ats.INPUT_RANGE_PM_400_MV,
+                                #ats.IMPEDANCE_1M_OHM)
+                                ats.IMPEDANCE_50_OHM)
+            board.setBWLimit(ats.CHANNEL_B, 0)
+            print("Channel B input set to ...")
+
             return {} # ? Check this
 
         def program_manual(self,values):
