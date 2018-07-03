@@ -112,16 +112,16 @@ if __name__ != "__main__":
                              "trig_engine_id2", "trig_source_id2", "trig_slope_id2", "trig_level_id2",
                              "exttrig_coupling_id", "exttrig_range_id",
                              "trig_delay_samples", "trig_timeout_10usecs", "input_range",
-                             "chA_coupling_id", "chA_range_id", "chA_impedance_id", "chA_bw_limit",
-                             "chB_coupling_id", "chB_range_id", "chB_impedance_id", "chB_bw_limit",
+                             "chA_coupling_id", "chA_input_range", "chA_impedance_id", "chA_bw_limit",
+                             "chB_coupling_id", "chB_input_range", "chB_impedance_id", "chB_bw_limit"
                              ]
         })
-    
         def __init__(self, name, server,
                      ats_system_id=1, ats_board_id=1,
                      requested_acquisition_rate=0, # No default for this, must be calculated and set!
-                     clock_source_id         = ats.INTERNAL_CLOCK,
-                     sample_rate_id_or_value = ats.SAMPLE_RATE_180MSPS,
+                     acquisition_duration    = 1,  # In seconds. This should be set up by .acquire calls, but too bad for now. 
+                     clock_source_id         = ats  .INTERNAL_CLOCK,
+                     sample_rate_id          = ats.SAMPLE_RATE_180MSPS,
                      clock_edge_id           = ats.CLOCK_EDGE_RISING,
                      decimation              = 0, 
                      trig_operation          = ats.TRIG_ENGINE_OP_J,
@@ -135,32 +135,20 @@ if __name__ != "__main__":
                      trig_level_id2          = 128, # 0 mV
                      exttrig_coupling_id     = ats.DC_COUPLING,
                      exttrig_range_id        = ats.ETR_5V,
-                     trig_delay_samples      =0,
-                     trig_timeout_10usecs    =0,
-                     input_range             =4000):
+                     trig_delay_samples      = 0,
+                     trig_timeout_10usecs    = 0,
+                     chA_coupling_id         = ats.AC_COUPLING,
+                     chA_input_range         = 4000,
+                     chA_impedance_id        = ats.IMPEDANCE_1M_OHM,
+                     chA_bw_limit            = 0,
+                     chB_coupling_id         = ats.AC_COUPLING,
+                     chB_input_range         = 4000,
+                     chB_impedance_id        = ats.IMPEDANCE_1M_OHM,
+                     chB_bw_limit            = 0):
             Device.__init__(self, name, None, None)
-            #self.name=name
-            # self.acquisition_rate = acquisition_rate
-            # self.clock_terminal = clock_terminal
-            # self.clock_source_id         = clock_source_id         
-            # self.sample_rate_id_or_value = sample_rate_id_or_value 
-            # self.clock_edge_id           = clock_edge_id           
-            # self.decimation              = decimation              
-            # self.trig_operation          = trig_operation          
-            # self.trig_engine_id1         = trig_engine_id1         
-            # self.trig_source_id1         = trig_source_id1         
-            # self.trig_slope_id1          = trig_slope_id1          
-            # self.trig_level_id1          = trig_level_id1          
-            # self.trig_engine_id2         = trig_engine_id2         
-            # self.trig_source_id2         = trig_source_id2         
-            # self.trig_slope_id2          = trig_slope_id2          
-            # self.trig_level_id2          = trig_level_id2          
-            # self.exttrig_coupling_id     = exttrig_coupling_id     
-            # self.exttrig_range_id        = exttrig_range_id        
-            # self.trig_delay_samples      = trig_delay_samples      
-            # self.trig_timeout_10usecs    = trig_timeout_10usecs    
-            self.BLACS_connection        = server
-
+            self.name = name
+            self.BLACS_connection = server  # This line makes BLACS think the device is connected to something
+            
         def add_device(self, output):
             # TODO: check there are no duplicates, check that connection
             # string is formatted correctly.
@@ -228,54 +216,49 @@ if __name__ != "__main__":
             print("Initialised AlazarTech system {:d}, board {:d}.".format(system_id, board_id))
             self.board.abortAsyncRead()
             
+                
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual
             with h5py.File(h5file) as hdf5_file:
                 hdf5_filegroup = hdf5_file['devices'][device_name]
                 print("transition_to_buffered: using "+h5file)
-                self.atsparam = dict(hdf5_filegroup.attrs)
+                self.atsparam = atsparam = dict(hdf5_filegroup.attrs)
                 print("atsparam: " + repr(self.atsparam))
 
-            #    acquisitionLength_sec = globs['hobbs_acquire_time']
-            #    requestedSamplesPerSec  = f['/devices/' + device_name].attrs['requested_acquisition_rate']
-            #    zeroToFullScale  = f['/devices/' + device_name].attrs['input_range']
             def find_nearest(array, value):
                 if not isinstance(array, np.ndarray):
                     array = np.array(array)
                 ix = np.abs(array - value).argmin()
-                return array[ix]
-            actualSamplesPerSec = find_nearest(atsSampleRates.keys(), requestedSamplesPerSec)
-            atsSamplesPerSec = atsSampleRates[actualSamplesPerSec]
-            #f['/devices/' + device_name].attrs.create('acquisition_rate', actualSamplesPerSec, dtype='int32')
-            board.setCaptureClock(ats.INTERNAL_CLOCK,
-                              atsSamplesPerSec,
-                              ats.CLOCK_EDGE_RISING,
-                              0)    
-            print('Samples per second {:.0f} ({:4.1f} MS/s)'.format(actualSamplesPerSec,actualSamplesPerSec/1e6))
-            print("Capture clock set to ...")
+                return array[ix]   
+            actual_acquisition_rate = find_nearest(atsSampleRates.keys(), atsparam['requested_acquisition_rate'])
+            atsSamplesPerSec = atsSampleRates[actual_acquisition_rate]
 
+            # Store the actual acquisition rate back as an attribute. 
+            # Again, this should be done as an ACQUISITIONS table entry, but not today
+            with h5py.File(h5file) as hdf5_file:
+                hdf5_file['devices'][device_name].attrs.create('acquisition_rate', actual_acquisition_rate, dtype='int32')
 
-            # Set 5V-range DC-coupled trigger.
+            self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec, atsparam['clock_edge_id'],  0)    
+            print('Samples per second {:.0f} ({:4.1f} MS/s)'.format(actual_acquisition_rate,actual_acquisition_rate/1e6))
+            print('Capture clock source_id: {:d}, clock_edge_id: {:d}'.format(atsparam['clock_source_id'], atsparam['clock_edge_id']))
+
             # ETR_5V means +/-5V, and is 8bit
             # So code 150 means (150-128)/128 * 5V = 860mV.
-            self.board.setExternalTrigger(ats.DC_COUPLING,
-                                     ats.ETR_5V)
-            print("Trigger coupling and level set to ...")
-            self.board.setTriggerOperation(ats.TRIG_ENGINE_OP_J,        # Low-to-high
-                                      ats.TRIG_ENGINE_J,           # Use "Engine J"
-                                      ats.TRIG_EXTERNAL,           # External
-                                      ats.TRIGGER_SLOPE_POSITIVE,
-                                      150,                         # Code for 0mV level
-                                      ats.TRIG_ENGINE_K,           # The second trigger engine...
-                                      ats.TRIG_DISABLE,            # ... is turned off
-                                      ats.TRIGGER_SLOPE_POSITIVE,  # Dummy value
-                                      150)                         # Dummy value
-            print("Trigger operation set to ...")
+            self.board.setExternalTrigger(atsparam['exttrig_coupling_id'], atsparam['exttrig_range_id'])
+            print("Trigger coupling_id: {:d}, range_id: {:d}".format(atsparam['exttrig_coupling_id'], atsparam['exttrig_range_id']))
+            
+            self.board.setTriggerOperation( atsparam['trig_operation'], 
+                                            atsparam['trig_engine_id1'], atsparam['trig_source_id1'], atsparam['trig_slope_id1'], atsparam['trig_level_id1'], 
+                                            atsparam['trig_engine_id2'], atsparam['trig_source_id2'], atsparam['trig_slope_id2'], atsparam['trig_level_id2'] )
+            print("Trigger operation set to operation: {:d}".format(atsparam['trig_operation']))
+            print("Trigger engine 1 set to {:d}, source: {:d}, slope: {:d}, level: {:d},".format(
+                        atsparam['trig_engine_id1'], atsparam['trig_source_id1'], atsparam['trig_slope_id1'], atsparam['trig_level_id1']))
+            print("Trigger engine 2 set to {:d}, source: {:d}, slope: {:d}, level: {:d},".format(            
+                        atsparam['trig_engine_id2'], atsparam['trig_source_id2'], atsparam['trig_slope_id2'], atsparam['trig_level_id2']))
 
             # We will deal with trigger delays in labscript!
             triggerDelay_sec = 0
-            triggerDelay_samples = int(triggerDelay_sec * actualSamplesPerSec + 0.5)
-            #self.board.setTriggerDelay(triggerDelay_samples)
+            triggerDelay_samples = int(triggerDelay_sec * actual_acquisition_rate + 0.5)
             self.board.setTriggerDelay(0)
 
             # NOTE: The board will wait for a for this amount of time for a
@@ -285,41 +268,32 @@ if __name__ != "__main__":
             # LDT: We'll leave this set to zero for now
             triggerTimeout_sec = 0
             triggerTimeout_clocks = int(triggerTimeout_sec / 10e-6 + 0.5)
-            #self.board.setTriggerTimeOut(triggerTimeout_clocks)
             self.board.setTriggerTimeOut(0)
             print("Trigger timeout set to infinity")
 
             # Configure AUX I/O connector
-            # By default this emits the sample clock
-            # Not sure if this is before or after decimation
+            # By default this emits the sample clock; not sure if this is before or after decimation
             self.board.configureAuxIO(ats.AUX_OUT_TRIGGER,
                                  0) # Dummy value when AUX_OUT_TRIGGER
-            print("Aux output set to trigger.")
+            print("Aux output set to sample clock.")
 
             try:
-                atsInputRange = atsRanges[zeroToFullScale]
-                print("Voltage Scale at {:d}".format(zeroToFullScale))
+                chA_range_id = atsRanges[atsparam['chA_input_range']]
             except KeyError:
-                print("Voltage setting {:d}mV  is not recognised in atsapi. Make sure you use millivolts.".format(zeroToFullScale))
-            board.inputControl( ats.CHANNEL_A,
-                                ats.AC_COUPLING,
-                                atsInputRange,
-                                #ats.INPUT_RANGE_PM_400_MV,
-                                #ats.IMPEDANCE_1M_OHM)
-                                ats.IMPEDANCE_50_OHM)
-            board.setBWLimit(ats.CHANNEL_A, 0)
-            print("Channel A input set to ...")
+                print("Voltage setting {:d}mV for Channel A is not recognised in atsapi. Make sure you use millivolts.".format(atsparam['chA_input_range']))
+            self.board.inputControl( ats.CHANNEL_A, atsparam['chA_coupling_id'], chA_range_id, atsparam['chA_impedance_id'])
+            self.board.setBWLimit(ats.CHANNEL_A, atsparam['chA_bw_limit'])
+            print("Channel A input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}".format(
+                atsparam['chA_input_range'], atsparam['chA_coupling_id'], atsparam['chA_impedance_id'], atsparam['chA_bw_limit']))
 
-            # Channel B captures the reference wave
-            board.inputControl( ats.CHANNEL_B,
-                                ats.AC_COUPLING,
-                                atsInputRange,
-                                #ats.INPUT_RANGE_PM_400_MV,
-                                #ats.IMPEDANCE_1M_OHM)
-                                ats.IMPEDANCE_50_OHM)
-            board.setBWLimit(ats.CHANNEL_B, 0)
-            print("Channel B input set to ...")
-
+            try:
+                chB_range_id = atsRanges[atsparam['chB_input_range']]
+            except KeyError:
+                print("Voltage setting {:d}mV for Channel B is not recognised in atsapi. Make sure you use millivolts.".format(atsparam['chB_input_range']))
+            self.board.inputControl( ats.CHANNEL_B, atsparam['chB_coupling_id'], chB_range_id, atsparam['chB_impedance_id'])
+            self.board.setBWLimit(ats.CHANNEL_B, atsparam['chB_bw_limit'])
+            print("Channel B input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}".format(
+                atsparam['chB_input_range'], atsparam['chB_coupling_id'], atsparam['chB_impedance_id'], atsparam['chB_bw_limit']))
             return {} # ? Check this
 
         def program_manual(self,values):
