@@ -105,13 +105,14 @@ if __name__ != "__main__":
     
         @set_passed_properties(property_names = {
             "device_properties":["ats_system_id", "ats_board_id",
-                             "requested_acquisition_rate",
+                             "requested_acquisition_rate", "acquisition_duration",
                              "clock_source_id", "sample_rate_id_or_value", "clock_edge_id", "decimation",
                              "trig_operation",
                              "trig_engine_id1", "trig_source_id1", "trig_slope_id1",  "trig_level_id1",
                              "trig_engine_id2", "trig_source_id2", "trig_slope_id2", "trig_level_id2",
                              "exttrig_coupling_id", "exttrig_range_id",
                              "trig_delay_samples", "trig_timeout_10usecs", "input_range",
+                             "channels",
                              "chA_coupling_id", "chA_input_range", "chA_impedance_id", "chA_bw_limit",
                              "chB_coupling_id", "chB_input_range", "chB_impedance_id", "chB_bw_limit"
                              ]
@@ -137,6 +138,7 @@ if __name__ != "__main__":
                      exttrig_range_id        = ats.ETR_5V,
                      trig_delay_samples      = 0,
                      trig_timeout_10usecs    = 0,
+                     channels                = (ats.CHANNEL_A | ats.CHANNEL_B), 
                      chA_coupling_id         = ats.AC_COUPLING,
                      chA_input_range         = 4000,
                      chA_impedance_id        = ats.IMPEDANCE_1M_OHM,
@@ -294,6 +296,93 @@ if __name__ != "__main__":
             self.board.setBWLimit(ats.CHANNEL_B, atsparam['chB_bw_limit'])
             print("Channel B input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}".format(
                 atsparam['chB_input_range'], atsparam['chB_coupling_id'], atsparam['chB_impedance_id'], atsparam['chB_bw_limit']))
+
+            # ====== Acquisition code starts here =====
+            # These are the class variables:  samplesPerAcquisition, buffers, samplesPerBuffer, channelCount, channels, bytesPerDatum
+            def to_volts(buf):
+                global bitsPerSample
+                global zeroToFullScale
+                offset = float(2**(bitsPerSample.value-1))
+                return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
+
+            self.samplesPerBuffer=204800 # This is a magic number and should at the very least move up
+            oneM=2**20
+            timeout = 60000
+
+            # Check which channels we are acquiring
+            #channels = ats.CHANNEL_A | ats.CHANNEL_B
+            self.channels = atsparam['channels']
+            if not (self.channels & ats.CHANNEL_A or self.channels & ats.CHANNEL_B):
+                raise LabscriptError, "You must select either Channel-A or Channel-B, or both. Zero or >2 channels not supported."
+            self.channelCount = 0
+            for c in ats.channels:
+                self.channelCount += (c & self.channels == c)
+
+            # Compute the number of bytes per record and per buffer
+            memorySize_samples, bitsPerSample = self.board.getChannelInfo()
+            self.bytesPerDatum = (bitsPerSample.value + 7) // 8
+
+            # One 'sample' is one datum from each channel
+            print("bytesPerDatum = {:d}. channelcount = {:d}".format(self.bytesPerDatum, self.channelCount))
+            bytesPerBuffer = self.bytesPerDatum * self.channelCount * self.samplesPerBuffer 
+
+            # Calculate the number of buffers in the acquisition
+            self.samplesPerAcquisition = int(actual_acquisition_rate * atsparam['acquisition_duration'] + 0.5)
+            memoryPerAcquisition = self.bytesPerDatum * self.samplesPerAcquisition * self.channelCount
+            buffersPerAcquisition = ((self.samplesPerAcquisition + self.samplesPerBuffer - 1) //
+                                     self.samplesPerBuffer)
+            print('Acquiring for {:5.3f}s generates {:5.3f}MS'.format(atsparam['acquisition_duration'], self.samplesPerAcquisition/1e6))
+            print('Requires {:5.3f}MB total.'.format(memoryPerAcquisition/oneM))
+            print('Buffers are {:5.3f}MS and {:d} bytes, and we need {:d} of them.'.format(self.samplesPerBuffer/1e6,bytesPerBuffer,buffersPerAcquisition))
+            self.board.setRecordSize(0,self.samplesPerBuffer)
+
+            # Allocate buffers
+            # We know that disk can't keep up, so we preallocate all buffers
+            sample_type = ctypes.c_uint16 # It's 16bit, let's not stuff around
+            self.buffers=[]
+            print('Allocating buffers... ',end='')
+            for i in range(buffersPerAcquisition):
+                self.buffers.append(ats.DMABuffer(sample_type, bytesPerBuffer))
+                #print('{:d} '.format(i),end="")
+            print('done.')
+
+            acqflags = ats.ADMA_TRIGGERED_STREAMING | ats.ADMA_ALLOC_BUFFERS | ats.ADMA_FIFO_ONLY_STREAMING
+            #print("Acqflags in decimal: {:d}".format(acqflags))
+
+            # This does not actually start the capture, it just sets it up
+            self.board.beforeAsyncRead(self.channels,
+                                  0,                 # Trig offset, must be 0
+                                  self.samplesPerBuffer,
+                                  1,                 # Must be 1
+                                  0x7FFFFFFF,        # Ignored
+                                  acqflags)
+
+            start = time.clock() # Keep track of when acquisition started
+            try:
+                #board.startCapture() # Start the acquisition
+                print("Capturing {:d} buffers. Press <enter> to abort".format(buffersPerAcquisition))
+                buffersCompleted = 0
+                bytesTransferred = 0
+                print('Read buffer ',end="")
+                while (buffersCompleted < buffersPerAcquisition and not ats.enter_pressed()):
+                    buffer = self.buffers[buffersCompleted]
+                    self.board.waitNextAsyncBufferComplete(buffer.addr, bytesPerBuffer, timeout_ms=timeout)
+                    buffersCompleted += 1
+                    print('{:d} '.format(buffersCompleted),end="")
+                    bytesTransferred += buffer.size_bytes
+            finally:
+                self.board.abortAsyncRead()
+            # Compute the total transfer time, and display performance information.
+            transferTime_sec = time.clock() - start
+            print("Capture completed in {:f} sec".format(transferTime_sec))
+            buffersPerSec = 0
+            bytesPerSec = 0
+            if transferTime_sec > 0:
+                buffersPerSec = buffersCompleted / transferTime_sec
+                bytesPerSec = bytesTransferred / transferTime_sec
+            print("Captured {:d} buffers ({:3.2f} buffers per sec)".format(buffersCompleted, buffersPerSec))
+            print("Transferred {:d} bytes ({:.1f} Mbytes per sec)".format(bytesTransferred, bytesPerSec/oneM))
+
             return {} # ? Check this
 
         def program_manual(self,values):
@@ -301,6 +390,7 @@ if __name__ != "__main__":
 
         def transition_to_manual(self):
             print("transition_to_manual: using " + self.h5file)
+
             return True
 
         def abort(self):
