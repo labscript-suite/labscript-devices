@@ -80,7 +80,7 @@ if __name__ != "__main__":
             # string is formatted correctly.
             Device.add_device(self, output)
 
-        # Has no childern for now so hopefully does nothing
+        # Has no children for now so hopefully does nothing
         def generate_code(self, hdf5_file):
             Device.generate_code(self, hdf5_file)
             inputs = {}
@@ -112,184 +112,52 @@ if __name__ != "__main__":
     from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED 
     from blacs.device_base_class import DeviceTab
     import os
-    from qtutils import UiLoader
     
     # A BLACS tab for a purely remote device which does not need configuration of parameters in BLACS
     @BLACS_tab
-    class RemoteControllerTab(DeviceTab):
+    class GuilessTab(DeviceTab):
         def initialise_GUI(self):
-            layout = self.get_tab_layout()
-            ui_filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'alazar.ui')
-            self.ui = UiLoader().load(ui_filepath)
-            layout.addWidget(self.ui)
-            self.server = str(self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection)
-            self.host, self.port = self.server.split(':')
-            self.ui.port_label.setText(str(self.port)) 
-            self.ui.is_responding.setVisible(False)
-            self.ui.is_not_responding.setVisible(False)
-            self.ui.host_lineEdit.returnPressed.connect(self.update_settings_and_check_connectivity)
-            self.ui.check_connectivity_pushButton.clicked.connect(self.update_settings_and_check_connectivity)
+            pass
 
         def get_save_data(self):
-            return {'host': str(self.ui.host_lineEdit.text())}
+            return {}
 
         def restore_save_data(self, save_data):
-            print 'restore save data running'
-            if save_data:
-                host = save_data['host']
-                self.ui.host_lineEdit.setText(host)
-            else:
-                self.logger.warning('No previous front panel state to restore')
-            if self.primary_worker:
-                self.update_settings_and_check_connectivity()
+            pass
 
         def initialise_workers(self):
             # Create and set the primary worker
-            self.create_worker("main_worker",RemoteControllerWorker,{'server':self.server})
+            self.create_worker("main_worker",GuilessWorker,{})
             self.primary_worker = "main_worker"
-            self.update_settings_and_check_connectivity()
-
-        @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
-        def update_settings_and_check_connectivity(self, *args):
-            self.ui.saying_hello.setVisible(True)
-            self.ui.is_responding.setVisible(False)
-            self.ui.is_not_responding.setVisible(False)
-            kwargs = self.get_save_data()
-            responding = yield(self.queue_work(self.primary_worker, 'update_settings_and_check_connectivity', **kwargs))
-            self.update_responding_indicator(responding)
-
-        def update_responding_indicator(self, responding):
-            self.ui.saying_hello.setVisible(False)
-            if responding:
-                self.ui.is_responding.setVisible(True)
-                self.ui.is_not_responding.setVisible(False)
-            else:
-                self.ui.is_responding.setVisible(False)
-                self.ui.is_not_responding.setVisible(True)
 
     @BLACS_worker    
-    class RemoteControllerWorker(Worker):
+    class GuilessWorker(Worker):
         def init(self):
             global h5py; import labscript_utils.h5_lock, h5py
-            global zprocess; import zprocess
-            self.host, self.port = self.server.split(':')
-            self.update_settings_and_check_connectivity(self.host)
-
-        def send_data(self, data):
-            return zprocess.zmq_get_string(self.port, self.host, data=data, timeout=10)
-
-        # This is necessary for dynamic changing of the host target,
-        # as well as 'ping'.
-        def update_settings_and_check_connectivity(self, host):
-            self.host = host
-            if not self.host:
-                return False
-            response = self.send_data('hello')
-            if response == 'hello':
-                return True
-            raise Exception('invalid response from server: ' + str(response))
 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual
             with h5py.File(h5file) as hdf5_file:
                 group = hdf5_file['/devices/'+device_name]
+                print("transition_to_buffered: using "+h5file)
                 #self.board_attributes = group.attrs.copy()
-            self.qualh5file = shared_drive.path_to_agnostic(h5file)
-            response = self.send_data(self.qualh5file)
-            if response != 'ok':
-                raise Exception('Failed to transition to buffered. Message from server was: %s'%response)
             return {} # ? Check this
 
         def program_manual(self,values):
-            #for now, there is no manual mode
             return values
 
         def transition_to_manual(self):
-            # Shaun uses this in preference to Camera.py's "done". I think this is better.
-            response = self.send_data("transition_to_manual")
-            if response != 'ok':
-                raise Exception('Failed to transition to manual.  Message from server was: %s'%response)
+            print("transition_to_manual: using " + self.h5file)
             return True
 
         def abort(self):
-            response = self.send_data("transition_to_manual")
-            if response != 'ok':
-                raise Exception('Failed to abort.  Message from server was: %s'%response)
+            print("abort: not doing anything about it though!")
             return True
 
         def abort_buffered(self):
+            print("abort_buffered: not doing anything about it though!")
             return self.abort()
 
         def abort_transition_to_buffered(self):
+            print("abort_transition_to_buffered: not doing anything about it though!")
             return self.abort()
-
-
-        
-#####################################################
-#
-# The server code
-#
-#####################################################
-
-if __name__ == "__main__":   
-    from zprocess import zmq_get, ZMQServer
-    # Set up the process which will run during the experiment
-    
-    class RemoteServer(ZMQServer):
-        def __init__(self, *args, **kwargs):
-            ZMQServer.__init__(self, *args, **kwargs)
-            self.buffered = False
-#            self.initialised = False
-
-#        def initialise(self):
-#            print "Initialising"
-#            self.initialised = True
-#            return 'ok'
-
-        def handler(self, message):
-            print message
-            message_parts = message.split(' ')
-            cmd = message_parts[0]
-            
-#            if not self.initialised:
-#                if cmd != 'initialise':
-#                    return 'Server not yet initialised. Please send the initialise command.'
-
-#           if cmd == 'initialise':
-#                self.buffered = False
-#                return self.initialise()              
-            if cmd == 'transition_to_buffered':
-                self.abort.clear()
-                focus = message_parts[1]
-                # first, check that the stages are in the MOT position.
-                lens_position = check_stage_position(lens_stage)
-                mirror_position = check_stage_position(mirror_stage)
-
-                if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
-                    move_to_MOT()
-                # now tell parent that we're ready to go
-                ret_message = 'ok'            
-                self.experiment = threading.Thread(target = self.run_experiment, args = (focus,))
-                self.experiment.daemon = True
-                self.experiment.start()
-                self.buffered = True
-
-            elif cmd == 'transition_to_manual':
-                self.abort.set()
-                self.experiment.join()
-                lens_position = check_stage_position(lens_stage)
-                mirror_position = check_stage_position(mirror_stage)
-                if lens_position != lens_mot_position or mirror_position != mirror_mot_position:
-                    move_to_MOT()
-                self.buffered = False
-                ret_message = 'ok'
-
-            else:
-                ret_message = 'Unknown command %s'%cmd
-                
-            return ret_message
-
-    experiment_server = ExperimentServer(42522)
-    while True:
-        time.sleep(1)
-        
