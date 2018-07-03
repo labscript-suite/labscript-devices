@@ -1,13 +1,94 @@
 # A labscript device class for data acquisition boards made by Alazar Technologies Inc (ATS)
-# Hacked up from NIBoard.py by LDT 2017-01-26
+# Hacked up from NIboard.py by LDT 2017-01-26
 #
 # Copyright (c) Monash University 2017
+from __future__ import division
+# from __future__ import  unicode_literals # seems oddly problematic
+from __future__ import print_function
+import ctypes
+import numpy as np
+import signal
+import sys
+import time
+
+# Install atsapi.py into site-packages for this to work
+# or keep in local directory.
+import atsapi as ats
+
+# This little tangle was needed to make auto zlocking work right,
+# but now that this is in BLACS we should be fine with usual h5lock imported below
+#import h5_lock  # The local one in source directory! Not the system one which lives in labscript_utils.h5_lock
+#h5_lock.init(host='beclogger.physics.monash.edu.au', port=7339, shared_drive_prefix='Z:', lock_timeout=60)
+#import h5py
+
+# Define some globals
+#samplesPerSec = None
+#actualSamplesPerSec=None
+#samplesPerAcquisition=None
+#samplesPerBuffer = None
+#bitsPerSample = None
+#channelCount = None
+#zeroToFullScale = None
+#buffers = []
+#channels = None
+
+# Talk mv to card set range
+# All ATS ranges given below,
+# but have commented out the ones that don't work with our ATS9462
+atsRanges={
+#40: ats.INPUT_RANGE_PM_40_MV,
+# 50: ats.INPUT_RANGE_PM_50_MV,
+# 80: ats.INPUT_RANGE_PM_80_MV,
+#100: ats.INPUT_RANGE_PM_100_MV,
+200: ats.INPUT_RANGE_PM_200_MV,
+400: ats.INPUT_RANGE_PM_400_MV,
+#500: ats.INPUT_RANGE_PM_500_MV,
+800: ats.INPUT_RANGE_PM_800_MV,
+#1000: ats.INPUT_RANGE_PM_1_V,
+2000: ats.INPUT_RANGE_PM_2_V,
+4000: ats.INPUT_RANGE_PM_4_V,
+#5000: ats.INPUT_RANGE_PM_5_V,
+#8000: ats.INPUT_RANGE_PM_8_V,
+#10000: ats.INPUT_RANGE_PM_10_V, 
+#20000: ats.INPUT_RANGE_PM_20_V,
+#40000: ats.INPUT_RANGE_PM_40_V, 
+#16000: ats.INPUT_RANGE_PM_16_V,
+#1250: ats.INPUT_RANGE_PM_1_V_25, 
+#2500: ats.INPUT_RANGE_PM_2_V_5,  
+#125: ats.INPUT_RANGE_PM_125_MV, 
+#250: ats.INPUT_RANGE_PM_250_MV
+}
+
+
+atsSampleRates={
+1000:      ats.SAMPLE_RATE_1KSPS,
+2000:      ats.SAMPLE_RATE_2KSPS,
+5000:      ats.SAMPLE_RATE_5KSPS,
+10000:     ats.SAMPLE_RATE_10KSPS,
+20000:     ats.SAMPLE_RATE_20KSPS,
+50000:     ats.SAMPLE_RATE_50KSPS,
+100000:    ats.SAMPLE_RATE_100KSPS,
+200000:    ats.SAMPLE_RATE_200KSPS,
+500000:    ats.SAMPLE_RATE_500KSPS,
+1000000:   ats.SAMPLE_RATE_1MSPS,
+2000000:   ats.SAMPLE_RATE_2MSPS,
+5000000:   ats.SAMPLE_RATE_5MSPS,
+10000000:  ats.SAMPLE_RATE_10MSPS,
+20000000:  ats.SAMPLE_RATE_20MSPS,
+25000000:  ats.SAMPLE_RATE_25MSPS,
+50000000:  ats.SAMPLE_RATE_50MSPS,
+100000000: ats.SAMPLE_RATE_100MSPS,
+125000000: ats.SAMPLE_RATE_125MSPS,
+160000000: ats.SAMPLE_RATE_160MSPS,
+180000000: ats.SAMPLE_RATE_180MSPS
+}
+
 
 if __name__ != "__main__":
-    import numpy as np
+    import numpy as np #Done above
     from labscript_devices import labscript_device
     from labscript import Device, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
-    import labscript_utils.h5_lock, h5py
+    import labscript_utils.h5_lock, h5py  
     import labscript_utils.properties
     import labscript_utils.shared_drive as shared_drive
     import atsapi as ats
@@ -18,7 +99,7 @@ if __name__ != "__main__":
 
     # Many properties not supported. Examples include:
     # AlazarSetExternalClockLevel, SetDataFormat
-    # Anything to do with onboard memory
+    # Anything to do with onself.board memory
     # Anything "for scanning"
     
         @set_passed_properties(property_names = {
@@ -134,6 +215,94 @@ if __name__ != "__main__":
     class GuilessWorker(Worker):
         def init(self):
             global h5py; import labscript_utils.h5_lock, h5py
+            samplesPerSec = 10000000.0 # 150 MSPS PLL clock
+            zeroToFullScale=800
+            oneM=2**20
+            decimation = 3;
+            
+            # Hardcoded board IDs for now 
+            systemId=1
+            boardId=1
+            self.board = ats.Board(systemId = systemId, boardId = boardId)
+
+            print("Initialised AlazarTech system {:d}, board {:d}.".format(systemId, boardId))
+
+            try:
+                atsInputRange = atsRanges[zeroToFullScale]
+                print("Voltage full-scale set to {:d}".format(zeroToFullScale))
+            except KeyError:
+                print("Voltage setting {:d}mV  is not recognised in atsapi. Make sure you use millivolts.".format(zeroToFullScale))
+
+            # This happens first in LabVIEW...
+            self.board.abortAsyncRead()
+            self.board.setCaptureClock(ats.INTERNAL_CLOCK, ats.SAMPLE_RATE_10MSPS, ats.CLOCK_EDGE_RISING, 0)
+            #    self.board.setCaptureClock(EXTERNAL_CLOCK_10MHz_REF,
+            #                          samplesPerSec,
+            #                          ats.CLOCK_EDGE_RISING,
+            #                          decimation-1)
+            actualSamplesPerSec = samplesPerSec #/ decimation
+            # Decimates by 4+1=5
+            print("Capture clock set to ...")
+
+            self.board.inputControl( ats.CHANNEL_A,
+                                ats.AC_COUPLING,
+                                atsInputRange,
+                                #ats.INPUT_RANGE_PM_400_MV,
+                                #ats.IMPEDANCE_1M_OHM)
+                                ats.IMPEDANCE_50_OHM)
+            self.board.setBWLimit(ats.CHANNEL_A, 0)
+            print("Channel A input set to ...")
+
+            # Channel B captures the reference wave
+            self.board.inputControl( ats.CHANNEL_B,
+                                ats.AC_COUPLING,
+                                atsInputRange,
+                                #ats.INPUT_RANGE_PM_400_MV,
+                                #ats.IMPEDANCE_1M_OHM)
+                                ats.IMPEDANCE_50_OHM)
+            self.board.setBWLimit(ats.CHANNEL_B, 0)
+            print("Channel B input set to ...")
+
+            # Set 5V-range DC-coupled trigger.
+            # ETR_5V means +/-5V, and is 8bit
+            # So code 150 means (150-128)/128 * 5V = 860mV.
+            self.board.setExternalTrigger(ats.DC_COUPLING,
+                                     ats.ETR_5V)
+            print("Trigger coupling and level set to ...")
+            self.board.setTriggerOperation(ats.TRIG_ENGINE_OP_J,        # Low-to-high
+                                      ats.TRIG_ENGINE_J,           # Use "Engine J"
+                                      ats.TRIG_EXTERNAL,           # External
+                                      ats.TRIGGER_SLOPE_POSITIVE,
+                                      150,                         # Code for 0mV level
+                                      ats.TRIG_ENGINE_K,           # The second trigger engine...
+                                      ats.TRIG_DISABLE,            # ... is turned off
+                                      ats.TRIGGER_SLOPE_POSITIVE,  # Dummy value
+                                      150)                         # Dummy value
+            print("Trigger operation set to ...")
+
+            # We will deal with trigger delays in labscript!
+            triggerDelay_sec = 0
+            triggerDelay_samples = int(triggerDelay_sec * actualSamplesPerSec + 0.5)
+            #self.board.setTriggerDelay(triggerDelay_samples)
+            self.board.setTriggerDelay(0)
+
+            # NOTE: The board will wait for a for this amount of time for a
+            # trigger event.  If a trigger event does not arrive, then the
+            # board will automatically trigger. Set the trigger timeout value
+            # to 0 to force the board to wait forever for a trigger event.
+            # LDT: We'll leave this set to zero for now
+            triggerTimeout_sec = 0
+            triggerTimeout_clocks = int(triggerTimeout_sec / 10e-6 + 0.5)
+            #self.board.setTriggerTimeOut(triggerTimeout_clocks)
+            self.board.setTriggerTimeOut(0)
+            print("Trigger timeout set to infinity")
+
+            # Configure AUX I/O connector
+            # By default this emits the sample clock
+            # Not sure if this is before or after decimation
+            self.board.configureAuxIO(ats.AUX_OUT_TRIGGER,
+                                 0) # Dummy value when AUX_OUT_TRIGGER
+            print("Aux output set to trigger.")
 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual

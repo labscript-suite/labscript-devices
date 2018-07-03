@@ -505,188 +505,188 @@ def boardsInSystemBySystemID(sid):
     ats.AlazarBoardsInSystemBySystemID.argtypes = [U32]
     return ats.AlazarBoardsInSystemBySystemID(sid)
 
-ats.AlazarDSPGenerateWindowFunction.restype = U32
-ats.AlazarDSPGenerateWindowFunction.argtypes = [U32, POINTER(c_float), U32, U32]
-def dspGenerateWindowFunction(windowType,
-                              windowLength_samples,
-                              paddingLength_samples):
-    '''
-    Fills an array with a generated window function and pads it with zeros
-    '''
-    window = np.zeros(windowLength_samples+paddingLength_samples, dtype=np.float32)
-    ats.AlazarDSPGenerateWindowFunction(windowType,
-                                        window.ctypes.data_as(POINTER(c_float)),
-                                        windowLength_samples,
-                                        paddingLength_samples)
-    return window
+#ats.AlazarDSPGenerateWindowFunction.restype = U32
+#ats.AlazarDSPGenerateWindowFunction.argtypes = [U32, POINTER(c_float), U32, U32]
+#def dspGenerateWindowFunction(windowType,
+#                              windowLength_samples,
+#                              paddingLength_samples):
+#    '''
+#    Fills an array with a generated window function and pads it with zeros
+#    '''
+#    window = np.zeros(windowLength_samples+paddingLength_samples, dtype=np.float32)
+#    ats.AlazarDSPGenerateWindowFunction(windowType,
+#                                        window.ctypes.data_as(POINTER(c_float)),
+#                                        windowLength_samples,
+#                                        paddingLength_samples)
+#    return window
 
 
-ats.AlazarExtractNPTFooters.restype = U32
-ats.AlazarExtractNPTFooters.argtypes = [c_void_p,
-                                        c_uint32,
-                                        c_uint32,
-                                        POINTER(NPTFooter),
-                                        c_uint32]
-ats.AlazarExtractNPTFooters.errcheck = returnCodeCheck
-def extractNPTFooters(buffer,
-                      recordSize_bytes,
-                      bufferSize_bytes,
-                      footersArray,
-                      numFootersToExtract):
-    ats.AlazarExtractNPTFooters(buffer,
-                                recordSize_bytes,
-                                bufferSize_bytes,
-                                footersArray,
-                                numFootersToExtract)
+# ats.AlazarExtractNPTFooters.restype = U32
+# ats.AlazarExtractNPTFooters.argtypes = [c_void_p,
+#                                         c_uint32,
+#                                         c_uint32,
+#                                         POINTER(NPTFooter),
+#                                         c_uint32]
+# ats.AlazarExtractNPTFooters.errcheck = returnCodeCheck
+# def extractNPTFooters(buffer,
+#                       recordSize_bytes,
+#                       bufferSize_bytes,
+#                       footersArray,
+#                       numFootersToExtract):
+#     ats.AlazarExtractNPTFooters(buffer,
+#                                 recordSize_bytes,
+#                                 bufferSize_bytes,
+#                                 footersArray,
+#                                 numFootersToExtract)
 
-class DspModule:
-    def __init__(self, dspHandle):
-        self.handle = dspHandle
+# class DspModule:
+#     def __init__(self, dspHandle):
+#         self.handle = dspHandle
 
-    ats.AlazarDSPGetInfo.restype = U32
-    ats.AlazarDSPGetInfo.argtypes = [U32, c_void_p, c_void_p, c_void_p,
-                                     c_void_p, c_void_p, c_void_p]
-    ats.AlazarDSPGetInfo.errcheck = returnCodeCheck
-    def dspGetInfo(self):
-        '''Get informations related to the DSP module:
-         - Identifier
-         - Major version number
-         - Minor version number
-         - Max length
-        '''
-        id = U32(0)
-        major = U16(0)
-        minor = U16(0)
-        maxLength = U32(0)
+#     ats.AlazarDSPGetInfo.restype = U32
+#     ats.AlazarDSPGetInfo.argtypes = [U32, c_void_p, c_void_p, c_void_p,
+#                                      c_void_p, c_void_p, c_void_p]
+#     ats.AlazarDSPGetInfo.errcheck = returnCodeCheck
+#     def dspGetInfo(self):
+#         '''Get informations related to the DSP module:
+#          - Identifier
+#          - Major version number
+#          - Minor version number
+#          - Max length
+#         '''
+#         id = U32(0)
+#         major = U16(0)
+#         minor = U16(0)
+#         maxLength = U32(0)
 
-        ats.AlazarDSPGetInfo(self.handle, byref(id), byref(major),
-                             byref(minor), byref(maxLength), 0, 0)
-        return (id.value, major.value, minor.value, maxLength.value)
+#         ats.AlazarDSPGetInfo(self.handle, byref(id), byref(major),
+#                              byref(minor), byref(maxLength), 0, 0)
+#         return (id.value, major.value, minor.value, maxLength.value)
 
-    ats.AlazarFFTGetMaxTriggerRepeatRate.restype = U32
-    ats.AlazarFFTGetMaxTriggerRepeatRate.argtypes = [c_void_p, U32, POINTER(c_double)]
-    ats.AlazarFFTGetMaxTriggerRepeatRate.errcheck = returnCodeCheck
-    def fftGetMaxTriggerRepeatRate(self, fftSize):
-        rate = c_double(0)
-        ats.AlazarFFTGetMaxTriggerRepeatRate(self.handle, fftSize, rate)
-        return rate
+#     ats.AlazarFFTGetMaxTriggerRepeatRate.restype = U32
+#     ats.AlazarFFTGetMaxTriggerRepeatRate.argtypes = [c_void_p, U32, POINTER(c_double)]
+#     ats.AlazarFFTGetMaxTriggerRepeatRate.errcheck = returnCodeCheck
+#     def fftGetMaxTriggerRepeatRate(self, fftSize):
+#         rate = c_double(0)
+#         ats.AlazarFFTGetMaxTriggerRepeatRate(self.handle, fftSize, rate)
+#         return rate
 
-    ats.AlazarFFTSetWindowFunction.restype = U32
-    ats.AlazarFFTSetWindowFunction.argtypes = [U32, U32, POINTER(c_float), POINTER(c_float)]
-    ats.AlazarFFTSetWindowFunction.errcheck = returnCodeCheck
-    def fftSetWindowFunction(self, samplesPerRecord, realWindowArray,
-                             imagWindowArray):
-        ats.AlazarFFTSetWindowFunction(self.handle, samplesPerRecord,
-                                       realWindowArray, imagWindowArray)
+#     ats.AlazarFFTSetWindowFunction.restype = U32
+#     ats.AlazarFFTSetWindowFunction.argtypes = [U32, U32, POINTER(c_float), POINTER(c_float)]
+#     ats.AlazarFFTSetWindowFunction.errcheck = returnCodeCheck
+#     def fftSetWindowFunction(self, samplesPerRecord, realWindowArray,
+#                              imagWindowArray):
+#         ats.AlazarFFTSetWindowFunction(self.handle, samplesPerRecord,
+#                                        realWindowArray, imagWindowArray)
 
-    ats.AlazarFFTSetup.restype = U32
-    ats.AlazarFFTSetup.argtypes = [U32, U16, U32, U32, U32, U32, U32, POINTER(c_uint32)]
-    ats.AlazarFFTSetup.errcheck = returnCodeCheck
-    def fftSetup(self, inputChannelMask, recordLength_samples,
-                 fftLength_samples, outputFormat, footer, reserved):
-        '''
-        Configures the on-FPGA FFT, and returns the size of each record
-        output from the FFT module in bytes.
-        '''
-        bytesPerOutRecord = c_uint32(0)
-        ats.AlazarFFTSetup(self.handle,
-                           inputChannelMask,
-                           recordLength_samples,
-                           fftLength_samples,
-                           outputFormat,
-                           footer,
-                           reserved,
-                           byref(bytesPerOutRecord))
-        return bytesPerOutRecord.value
+#     ats.AlazarFFTSetup.restype = U32
+#     ats.AlazarFFTSetup.argtypes = [U32, U16, U32, U32, U32, U32, U32, POINTER(c_uint32)]
+#     ats.AlazarFFTSetup.errcheck = returnCodeCheck
+#     def fftSetup(self, inputChannelMask, recordLength_samples,
+#                  fftLength_samples, outputFormat, footer, reserved):
+#         '''
+#         Configures the on-FPGA FFT, and returns the size of each record
+#         output from the FFT module in bytes.
+#         '''
+#         bytesPerOutRecord = c_uint32(0)
+#         ats.AlazarFFTSetup(self.handle,
+#                            inputChannelMask,
+#                            recordLength_samples,
+#                            fftLength_samples,
+#                            outputFormat,
+#                            footer,
+#                            reserved,
+#                            byref(bytesPerOutRecord))
+#         return bytesPerOutRecord.value
 
-    ats.AlazarFFTVerificationMode.restype = U32
-    ats.AlazarFFTVerificationMode.argtypes = [U32, U32,
-                                              POINTER(c_int16),
-                                              POINTER(c_int16), c_size_t]
-    ats.AlazarFFTVerificationMode.errcheck = returnCodeCheck
-    def fftVerificationMode(self, enable, realArray, imagArray, recordLength):
-        ats.AlazarFFTVerificationMode(self.handle,
-                                      1 if enable else 0,
-                                      realArray.ctypes.data_as(POINTER(c_int16)),
-                                      imagArray.ctypes.data_as(POINTER(c_int16)),
-                                      recordLength)
+#     ats.AlazarFFTVerificationMode.restype = U32
+#     ats.AlazarFFTVerificationMode.argtypes = [U32, U32,
+#                                               POINTER(c_int16),
+#                                               POINTER(c_int16), c_size_t]
+#     ats.AlazarFFTVerificationMode.errcheck = returnCodeCheck
+#     def fftVerificationMode(self, enable, realArray, imagArray, recordLength):
+#         ats.AlazarFFTVerificationMode(self.handle,
+#                                       1 if enable else 0,
+#                                       realArray.ctypes.data_as(POINTER(c_int16)),
+#                                       imagArray.ctypes.data_as(POINTER(c_int16)),
+#                                       recordLength)
 
 
-    ats.AlazarFFTSetScalingAndSlicing.restype = U32
-    ats.AlazarFFTSetScalingAndSlicing.argtypes = [U32, U8, c_float]
-    ats.AlazarFFTSetScalingAndSlicing.errcheck = returnCodeCheck
-    def fftSetScalingAndSlicing(self, u52_slice_pos, loge_ampl_mult):
-        '''
-        Configure the scaling and slicing parameters of the on-FPGA FFT.
-        '''
-        ats.AlazarFFTSetScalingAndSlicing(self.handle,
-                                          u52_slice_pos,
-                                          loge_ampl_mult)
+#     ats.AlazarFFTSetScalingAndSlicing.restype = U32
+#     ats.AlazarFFTSetScalingAndSlicing.argtypes = [U32, U8, c_float]
+#     ats.AlazarFFTSetScalingAndSlicing.errcheck = returnCodeCheck
+#     def fftSetScalingAndSlicing(self, u52_slice_pos, loge_ampl_mult):
+#         '''
+#         Configure the scaling and slicing parameters of the on-FPGA FFT.
+#         '''
+#         ats.AlazarFFTSetScalingAndSlicing(self.handle,
+#                                           u52_slice_pos,
+#                                           loge_ampl_mult)
 
-    ats.AlazarDSPOutputSnoopConfig.restype = U32
-    ats.AlazarDSPOutputSnoopConfig.argtypes = [U32, U32, U32, U32]
-    ats.AlazarDSPOutputSnoopConfig.errcheck = returnCodeCheck
-    def dspOutputSnoopConfig(self, wraparound, oneShot, freeze):
-        ats.AlazarDSPOutputSnoopConfig(self.handle,
-                                       1 if wraparound else 0,
-                                       1 if oneShot else 0,
-                                       1 if freeze else 0)
+#     ats.AlazarDSPOutputSnoopConfig.restype = U32
+#     ats.AlazarDSPOutputSnoopConfig.argtypes = [U32, U32, U32, U32]
+#     ats.AlazarDSPOutputSnoopConfig.errcheck = returnCodeCheck
+#     def dspOutputSnoopConfig(self, wraparound, oneShot, freeze):
+#         ats.AlazarDSPOutputSnoopConfig(self.handle,
+#                                        1 if wraparound else 0,
+#                                        1 if oneShot else 0,
+#                                        1 if freeze else 0)
 
-    ats.AlazarDSPOutputSnoopStatus.restype = U32
-    ats.AlazarDSPOutputSnoopStatus.argtypes = [U32, c_void_p, c_void_p, c_void_p]
-    ats.AlazarDSPOutputSnoopStatus.errcheck = returnCodeCheck
-    def dspOutputSnoopStatus(self):
-        outFrozen = U32(0)
-        outMaxRecSize_u32 = U32(0)
-        outLastRecSize_u32 = U32(0)
-        ats.AlazarDSPOutputSnoopStatus(self.handle,
-                                       byref(outFrozen),
-                                       byref(outMaxRecSize_u32),
-                                       byref(outLastRecSize_u32))
-        return (True if outFrozen else False,
-                outMaxRecSize_u32,
-                outLastRecSize_u32)
+#     ats.AlazarDSPOutputSnoopStatus.restype = U32
+#     ats.AlazarDSPOutputSnoopStatus.argtypes = [U32, c_void_p, c_void_p, c_void_p]
+#     ats.AlazarDSPOutputSnoopStatus.errcheck = returnCodeCheck
+#     def dspOutputSnoopStatus(self):
+#         outFrozen = U32(0)
+#         outMaxRecSize_u32 = U32(0)
+#         outLastRecSize_u32 = U32(0)
+#         ats.AlazarDSPOutputSnoopStatus(self.handle,
+#                                        byref(outFrozen),
+#                                        byref(outMaxRecSize_u32),
+#                                        byref(outLastRecSize_u32))
+#         return (True if outFrozen else False,
+#                 outMaxRecSize_u32,
+#                 outLastRecSize_u32)
 
-    restype = U32
-    argtypes = [U32, U32, c_void_p, U32, c_void_p]
-    errcheck = returnCodeCheck
-    def dspOutputSnoopRead(self, bytesPerSample,
-                           outputArray, outputArraySize_samples):
-        writtenSamples = U32(0)
-        ats.AlazarDSPOutputSnoopRead(self.handle, bytesPerSample,
-                                     outputArray, outputArraySize_samples,
-                                     byref(writtenSamples))
-        return writtenSamples.value
+#     restype = U32
+#     argtypes = [U32, U32, c_void_p, U32, c_void_p]
+#     errcheck = returnCodeCheck
+#     def dspOutputSnoopRead(self, bytesPerSample,
+#                            outputArray, outputArraySize_samples):
+#         writtenSamples = U32(0)
+#         ats.AlazarDSPOutputSnoopRead(self.handle, bytesPerSample,
+#                                      outputArray, outputArraySize_samples,
+#                                      byref(writtenSamples))
+#         return writtenSamples.value
 
-    ats.AlazarDSPGetParameterU32.restype = U32
-    ats.AlazarDSPGetParameterU32.argtypes = [U32, U32, c_void_p]    
-    ats.AlazarDSPGetParameterU32.errcheck = returnCodeCheck
-    def dspGetParameterU32(self, parameter):
-        ''' Generic interface to retrieve U32-typed parameters '''
-        result = c_uint32(0)
-        ats.AlazarDSPGetParameterU32(self.handle, parameter, byref(result))
-        return result.value
+#     ats.AlazarDSPGetParameterU32.restype = U32
+#     ats.AlazarDSPGetParameterU32.argtypes = [U32, U32, c_void_p]    
+#     ats.AlazarDSPGetParameterU32.errcheck = returnCodeCheck
+#     def dspGetParameterU32(self, parameter):
+#         ''' Generic interface to retrieve U32-typed parameters '''
+#         result = c_uint32(0)
+#         ats.AlazarDSPGetParameterU32(self.handle, parameter, byref(result))
+#         return result.value
         
-    ats.AlazarFFTBackgroundSubtractionSetEnabled.restype = U32
-    ats.AlazarFFTBackgroundSubtractionSetEnabled.argtypes = [U32, U32]
-    ats.AlazarFFTBackgroundSubtractionSetEnabled.errcheck = returnCodeCheck
-    def fftBackgroundSubtractionSetEnabled(self, enabled):
-        ''' Controls the activation of the background subtraction feature '''
-        ats.AlazarFFTBackgroundSubtractionSetEnabled(self.handle, 1 if enabled else 0)
+#     ats.AlazarFFTBackgroundSubtractionSetEnabled.restype = U32
+#     ats.AlazarFFTBackgroundSubtractionSetEnabled.argtypes = [U32, U32]
+#     ats.AlazarFFTBackgroundSubtractionSetEnabled.errcheck = returnCodeCheck
+#     def fftBackgroundSubtractionSetEnabled(self, enabled):
+#         ''' Controls the activation of the background subtraction feature '''
+#         ats.AlazarFFTBackgroundSubtractionSetEnabled(self.handle, 1 if enabled else 0)
         
-    ats.AlazarFFTBackgroundSubtractionGetRecordS16.restype = U32
-    ats.AlazarFFTBackgroundSubtractionGetRecordS16.argtypes = [U32, POINTER(c_int16), U32]
-    ats.AlazarFFTBackgroundSubtractionGetRecordS16.errcheck = returnCodeCheck
-    def fftBackgroundSubtractionGetRecordS16(self, backgroundRecord, size_samples):
-        ''' Reads the background subtraction record from a board '''
-        ats.AlazarFFTBackgroundSubtractionGetRecordS16(self.handle, backgroundRecord, size_samples)
+#     ats.AlazarFFTBackgroundSubtractionGetRecordS16.restype = U32
+#     ats.AlazarFFTBackgroundSubtractionGetRecordS16.argtypes = [U32, POINTER(c_int16), U32]
+#     ats.AlazarFFTBackgroundSubtractionGetRecordS16.errcheck = returnCodeCheck
+#     def fftBackgroundSubtractionGetRecordS16(self, backgroundRecord, size_samples):
+#         ''' Reads the background subtraction record from a board '''
+#         ats.AlazarFFTBackgroundSubtractionGetRecordS16(self.handle, backgroundRecord, size_samples)
         
-    ats.AlazarFFTBackgroundSubtractionSetRecordS16.restype = U32
-    ats.AlazarFFTBackgroundSubtractionSetRecordS16.argtypes = [U32, POINTER(c_int16), U32]
-    ats.AlazarFFTBackgroundSubtractionSetRecordS16.errcheck = returnCodeCheck
-    def fftBackgroundSubtractionSetRecordS16(self, record, size_samples):
-        ''' Download the record for the background subration feature to a board '''
-        ats.AlazarFFTBackgroundSubtractionSetRecordS16(self.handle, record, size_samples)
+#     ats.AlazarFFTBackgroundSubtractionSetRecordS16.restype = U32
+#     ats.AlazarFFTBackgroundSubtractionSetRecordS16.argtypes = [U32, POINTER(c_int16), U32]
+#     ats.AlazarFFTBackgroundSubtractionSetRecordS16.errcheck = returnCodeCheck
+#     def fftBackgroundSubtractionSetRecordS16(self, record, size_samples):
+#         ''' Download the record for the background subration feature to a board '''
+#         ats.AlazarFFTBackgroundSubtractionSetRecordS16(self.handle, record, size_samples)
 
 
 class Board:
@@ -759,12 +759,12 @@ class Board:
         '''Configures the auxiliary output.'''
         ats.AlazarConfigureAuxIO(self.handle, mode, parameter)
 
-    ats.AlazarConfigureLSB.restype = U32
-    ats.AlazarConfigureLSB.argtypes = [U32, U32, U32]
-    ats.AlazarConfigureLSB.errcheck = returnCodeCheck
-    def configureLSB(self, valueLSB0, valueLSB1):
-        '''Change unused bits to digital outputs.'''
-        ats.AlazarConfigureLSB(self.handle, valueLSB0, valueLSB1)
+    # ats.AlazarConfigureLSB.restype = U32
+    # ats.AlazarConfigureLSB.argtypes = [U32, U32, U32]
+    # ats.AlazarConfigureLSB.errcheck = returnCodeCheck
+    # def configureLSB(self, valueLSB0, valueLSB1):
+    #     '''Change unused bits to digital outputs.'''
+    #     ats.AlazarConfigureLSB(self.handle, valueLSB0, valueLSB1)
 
     ats.AlazarConfigureRecordAverage.restype = U32
     ats.AlazarConfigureRecordAverage.argtypes = [U32, U32, U32, U32, U32]
@@ -773,47 +773,47 @@ class Board:
         '''Co-add ADC samples into accumulator record.'''
         ats.AlazarConfigureRecordAverage(self.handle, mode, samplesPerRecord, recordsPerAverage, options)
 
-    ats.AlazarDSPAbortCapture.restype = U32
-    ats.AlazarDSPAbortCapture.argtypes = [U32]
-    ats.AlazarDSPAbortCapture.errcheck = returnCodeCheck
-    def dspAbortCapture(self):
-        ''' 
-        Aborts any in-progress DMA transfer, cancels any pending
-        transfers and does DSP-related cleanup 
-        '''
-        ats.AlazarDSPAbortCapture(self.handle)
+    # ats.AlazarDSPAbortCapture.restype = U32
+    # ats.AlazarDSPAbortCapture.argtypes = [U32]
+    # ats.AlazarDSPAbortCapture.errcheck = returnCodeCheck
+    # def dspAbortCapture(self):
+    #     ''' 
+    #     Aborts any in-progress DMA transfer, cancels any pending
+    #     transfers and does DSP-related cleanup 
+    #     '''
+    #     ats.AlazarDSPAbortCapture(self.handle)
 
-    ats.AlazarDSPGetBuffer.restype = U32
-    ats.AlazarDSPGetBuffer.argtypes = [U32, c_void_p, U32]
-    ats.AlazarDSPGetBuffer.errcheck = returnCodeCheck
-    def dspGetBuffer(self, buffer, timeout_ms):
-        ''' Waits until a buffer becomes available or an error occurs '''
-        ats.AlazarDSPGetBuffer(self.handle, buffer, timeout_ms)
+    # ats.AlazarDSPGetBuffer.restype = U32
+    # ats.AlazarDSPGetBuffer.argtypes = [U32, c_void_p, U32]
+    # ats.AlazarDSPGetBuffer.errcheck = returnCodeCheck
+    # def dspGetBuffer(self, buffer, timeout_ms):
+    #     ''' Waits until a buffer becomes available or an error occurs '''
+    #     ats.AlazarDSPGetBuffer(self.handle, buffer, timeout_ms)
 
-    ats.AlazarDSPGetNextBuffer.restype = U32
-    ats.AlazarDSPGetNextBuffer.argtypes = [U32, c_void_p, U32, U32]
-    ats.AlazarDSPGetNextBuffer.errcheck = returnCodeCheck
-    def dspGetNextBuffer(self, buffer, bytesToCopy, timeout_ms):
-        ''' Equivalent of AlazarDSPGetBuffer() to call with ADMA_ALLOC_BUFFERS '''
-        ats.AlazarDSPGetNextBuffer(self.handle, buffer, bytesToCopy, timeout_ms)
+    # ats.AlazarDSPGetNextBuffer.restype = U32
+    # ats.AlazarDSPGetNextBuffer.argtypes = [U32, c_void_p, U32, U32]
+    # ats.AlazarDSPGetNextBuffer.errcheck = returnCodeCheck
+    # def dspGetNextBuffer(self, buffer, bytesToCopy, timeout_ms):
+    #     ''' Equivalent of AlazarDSPGetBuffer() to call with ADMA_ALLOC_BUFFERS '''
+    #     ats.AlazarDSPGetNextBuffer(self.handle, buffer, bytesToCopy, timeout_ms)
 
-    ats.AlazarDSPGetModules.restype = U32
-    ats.AlazarDSPGetModules.argtypes = [U32, U32, POINTER(c_void_p), c_void_p]
-    ats.AlazarDSPGetModules.errcheck = returnCodeCheck
-    def dspGetModules(self):
-        '''Returns a list of DSP modules for this board'''
-        numModules = U32(0)
-        ats.AlazarDSPGetModules(self.handle, 0, c_void_p(0), byref(numModules))
-        moduleHandlesArrayType = c_void_p * numModules.value
-        moduleHandlesArray = moduleHandlesArrayType()
-        ats.AlazarDSPGetModules(self.handle,
-                                numModules,
-                                moduleHandlesArray,
-                                c_void_p(0))
-        modulesArray = []
-        for i in moduleHandlesArray:
-            modulesArray.append(DspModule(i))
-        return modulesArray
+    # ats.AlazarDSPGetModules.restype = U32
+    # ats.AlazarDSPGetModules.argtypes = [U32, U32, POINTER(c_void_p), c_void_p]
+    # ats.AlazarDSPGetModules.errcheck = returnCodeCheck
+    # def dspGetModules(self):
+    #     '''Returns a list of DSP modules for this board'''
+    #     numModules = U32(0)
+    #     ats.AlazarDSPGetModules(self.handle, 0, c_void_p(0), byref(numModules))
+    #     moduleHandlesArrayType = c_void_p * numModules.value
+    #     moduleHandlesArray = moduleHandlesArrayType()
+    #     ats.AlazarDSPGetModules(self.handle,
+    #                             numModules,
+    #                             moduleHandlesArray,
+    #                             c_void_p(0))
+    #     modulesArray = []
+    #     for i in moduleHandlesArray:
+    #         modulesArray.append(DspModule(i))
+    #     return modulesArray
 
     ats.AlazarForceTrigger.restype = U32
     ats.AlazarForceTrigger.argtypes = [U32]
@@ -1009,15 +1009,25 @@ class Board:
         '''Blocks until the board confirms that buffer is filled with data.'''
         ats.AlazarWaitAsyncBufferComplete(self.handle, buffer, timeout_ms)
 
-    ats.AlazarOCTIgnoreBadClock.restype = U32
-    ats.AlazarOCTIgnoreBadClock.argtypes = [U32, U32, DOUBLE, DOUBLE, POINTER(DOUBLE), POINTER(DOUBLE)]
-    ats.AlazarOCTIgnoreBadClock.errcheck = returnCodeCheck
-    def octIgnoreBadClock(self, enable, goodClockDuration, badClockDuration, triggerCycleTime, triggerPulseWidth):
-        '''Configure OCT Ignore Bad Clock.'''
-        ats.AlazarOCTIgnoreBadClock(self.handle, enable, goodClockDuration, badClockDuration, triggerCycleTime, triggerPulseWidth)
+# LDT hacking...
+    ats.AlazarWaitNextAsyncBufferComplete.restype = U32
+    ats.AlazarWaitNextAsyncBufferComplete.argtypes = [U32, c_void_p, U32, U32]
+    ats.AlazarWaitNextAsyncBufferComplete.errcheck = returnCodeCheck
+    def waitNextAsyncBufferComplete(self, buffer, bytes_to_copy, timeout_ms):
+        '''Blocks until the board confirms that buffer is filled with data.'''
+        ats.AlazarWaitNextAsyncBufferComplete(self.handle, buffer, bytes_to_copy, timeout_ms)
 
-    ats.AlazarEnableFFT.restype = U32
-    ats.AlazarEnableFFT.argtypes = [U32, c_int]
-    ats.AlazarEnableFFT.errcheck = returnCodeCheck
-    def enableFFT(self, enable):
-        ats.AlazarEnableFFT(self.handle, 1 if enable else 0)
+
+
+    # ats.AlazarOCTIgnoreBadClock.restype = U32
+    # ats.AlazarOCTIgnoreBadClock.argtypes = [U32, U32, DOUBLE, DOUBLE, POINTER(DOUBLE), POINTER(DOUBLE)]
+    # ats.AlazarOCTIgnoreBadClock.errcheck = returnCodeCheck
+    # def octIgnoreBadClock(self, enable, goodClockDuration, badClockDuration, triggerCycleTime, triggerPulseWidth):
+    #     '''Configure OCT Ignore Bad Clock.'''
+    #     ats.AlazarOCTIgnoreBadClock(self.handle, enable, goodClockDuration, badClockDuration, triggerCycleTime, triggerPulseWidth)
+
+    # ats.AlazarEnableFFT.restype = U32
+    # ats.AlazarEnableFFT.argtypes = [U32, c_int]
+    # ats.AlazarEnableFFT.errcheck = returnCodeCheck
+    # def enableFFT(self, enable):
+    #     ats.AlazarEnableFFT(self.handle, 1 if enable else 0)
