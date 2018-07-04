@@ -304,12 +304,7 @@ if __name__ != "__main__":
 
             # ====== Acquisition code starts here =====
             # These are the class variables:  samplesPerAcquisition, buffers, samplesPerBuffer, channelCount, channels, bytesPerDatum
-            def to_volts(buf):
-                global bitsPerSample
-                global zeroToFullScale
-                offset = float(2**(bitsPerSample.value-1))
-                return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
-
+            
             self.samplesPerBuffer=204800 # This is a magic number and should at the very least move up
             self.oneM=2**20
             self.timeout = 60000
@@ -324,8 +319,8 @@ if __name__ != "__main__":
                 self.channelCount += (c & self.channels == c)
 
             # Compute the number of bytes per record and per buffer
-            memorySize_samples, bitsPerSample = self.board.getChannelInfo()
-            self.bytesPerDatum = (bitsPerSample.value + 7) // 8
+            memorySize_samples, self.bitsPerSample = self.board.getChannelInfo()
+            self.bytesPerDatum = (self.bitsPerSample.value + 7) // 8
 
             # One 'sample' is one datum from each channel
             print("bytesPerDatum = {:d}. channelcount = {:d}".format(self.bytesPerDatum, self.channelCount))
@@ -399,8 +394,44 @@ if __name__ != "__main__":
         def program_manual(self,values):
             return values
 
+        def to_volts(self, zeroToFullScale, buf):
+            offset = float(2**(self.bitsPerSample.value-1))
+            return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
+
         def transition_to_manual(self):
             print("transition_to_manual: using " + self.h5file)
+            # Write data to HDF5 file
+            with h5py.File(self.h5file) as hdf5_file:
+                grp = hdf5_file.create_group('/data/traces/faraday')
+                if self.channels & ats.CHANNEL_A:
+                    dsetA    = grp.create_dataset('channelA',    (self.samplesPerAcquisition,), dtype='float32')
+                    dsetAraw = grp.create_dataset('rawsamplesA', (self.samplesPerAcquisition,), dtype='uint16')
+                if self.channels & ats.CHANNEL_B:
+                    dsetB    = grp.create_dataset('channelB',    (self.samplesPerAcquisition,), dtype='float32')
+                    dsetBraw = grp.create_dataset('rawsamplesB', (self.samplesPerAcquisition,), dtype='uint16')        
+                i = 0
+                print('writing buffers to HDF5... ',end="")
+                samplesToProcess = self.samplesPerAcquisition
+                # This slightly silly logic assumes that if you are acquiring only one channel then it's chA. 
+                # This should be redone
+                for buf in self.buffers:
+                    bufferData = buf.buffer
+                    #lastI shortens the buffer aquisition at the end of a sample, ie last buffer.
+                    #Apologies to whoever has to read the following and the use of 'channelCount'...
+                    lastI = samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer
+                    if self.channels & ats.CHANNEL_A:
+                        dsetAraw[i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = bufferData[0:lastI*self.channelCount:self.channelCount]
+                        dsetA[   i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = self.to_volts(self.atsparam['chA_input_range'],bufferData[0:lastI*self.channelCount:self.channelCount])
+                    if self.channels & ats.CHANNEL_B:
+                        dsetBraw[i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = bufferData[1:lastI*self.channelCount:self.channelCount]
+                        dsetB[   i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1:lastI*self.channelCount:self.channelCount])
+                    samplesToProcess -= self.samplesPerBuffer
+                    i +=1
+                print('done.')
+            print("Freeing buffers... ",end="")
+            for buf in self.buffers: buf.__exit__()
+            self.buffers = []
+            print('done.')
             return True
 
         def abort(self):
