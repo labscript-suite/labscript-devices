@@ -211,20 +211,25 @@ if __name__ != "__main__":
     class GuilessWorker(Worker):
         def init(self):
             global h5py; import labscript_utils.h5_lock, h5py
+            from Queue import Queue # TODO: Python 3 compat required
+            import threading
             # hard-coded again for now
             system_id = 1
             board_id  = 1
             self.board = ats.Board(systemId = system_id, boardId = board_id)
             print("Initialised AlazarTech system {:d}, board {:d}.".format(system_id, board_id))
             self.board.abortAsyncRead()
+            self.acquisition_queue = Queue()
+            self.acquisition_thread = threading.Thread(target=self.acquisition_loop)
+            self.acquisition_thread.daemon = True
+            self.acquisition_thread.start()
             
                 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual
             with h5py.File(h5file) as hdf5_file:
-                hdf5_filegroup = hdf5_file['devices'][device_name]
                 print("transition_to_buffered: using "+h5file)
-                self.atsparam = atsparam = dict(hdf5_filegroup.attrs)
+                self.atsparam = atsparam = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
                 print("atsparam: " + repr(self.atsparam))
 
             def find_nearest(array, value):
@@ -306,8 +311,8 @@ if __name__ != "__main__":
                 return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
 
             self.samplesPerBuffer=204800 # This is a magic number and should at the very least move up
-            oneM=2**20
-            timeout = 60000
+            self.oneM=2**20
+            self.timeout = 60000
 
             # Check which channels we are acquiring
             #channels = ats.CHANNEL_A | ats.CHANNEL_B
@@ -324,16 +329,16 @@ if __name__ != "__main__":
 
             # One 'sample' is one datum from each channel
             print("bytesPerDatum = {:d}. channelcount = {:d}".format(self.bytesPerDatum, self.channelCount))
-            bytesPerBuffer = self.bytesPerDatum * self.channelCount * self.samplesPerBuffer 
+            self.bytesPerBuffer = self.bytesPerDatum * self.channelCount * self.samplesPerBuffer 
 
             # Calculate the number of buffers in the acquisition
             self.samplesPerAcquisition = int(actual_acquisition_rate * atsparam['acquisition_duration'] + 0.5)
             memoryPerAcquisition = self.bytesPerDatum * self.samplesPerAcquisition * self.channelCount
-            buffersPerAcquisition = ((self.samplesPerAcquisition + self.samplesPerBuffer - 1) //
-                                     self.samplesPerBuffer)
+            self.buffersPerAcquisition = ((self.samplesPerAcquisition + self.samplesPerBuffer - 1) //
+                                           self.samplesPerBuffer)
             print('Acquiring for {:5.3f}s generates {:5.3f}MS'.format(atsparam['acquisition_duration'], self.samplesPerAcquisition/1e6))
-            print('Requires {:5.3f}MB total.'.format(memoryPerAcquisition/oneM))
-            print('Buffers are {:5.3f}MS and {:d} bytes, and we need {:d} of them.'.format(self.samplesPerBuffer/1e6,bytesPerBuffer,buffersPerAcquisition))
+            print('Requires {:5.3f}MB total.'.format(memoryPerAcquisition/self.oneM))
+            print('Buffers are {:5.3f}MS and {:d} bytes, and we need {:d} of them.'.format(self.samplesPerBuffer/1e6,self.bytesPerBuffer,self.buffersPerAcquisition))
             self.board.setRecordSize(0,self.samplesPerBuffer)
 
             # Allocate buffers
@@ -341,8 +346,8 @@ if __name__ != "__main__":
             sample_type = ctypes.c_uint16 # It's 16bit, let's not stuff around
             self.buffers=[]
             print('Allocating buffers... ',end='')
-            for i in range(buffersPerAcquisition):
-                self.buffers.append(ats.DMABuffer(sample_type, bytesPerBuffer))
+            for i in range(self.buffersPerAcquisition):
+                self.buffers.append(ats.DMABuffer(sample_type, self.bytesPerBuffer))
                 #print('{:d} '.format(i),end="")
             print('done.')
 
@@ -357,40 +362,45 @@ if __name__ != "__main__":
                                   0x7FFFFFFF,        # Ignored
                                   acqflags)
 
-            start = time.clock() # Keep track of when acquisition started
-            try:
-                #board.startCapture() # Start the acquisition
-                print("Capturing {:d} buffers. Press <enter> to abort".format(buffersPerAcquisition))
-                buffersCompleted = 0
-                bytesTransferred = 0
-                print('Read buffer ',end="")
-                while (buffersCompleted < buffersPerAcquisition and not ats.enter_pressed()):
-                    buffer = self.buffers[buffersCompleted]
-                    self.board.waitNextAsyncBufferComplete(buffer.addr, bytesPerBuffer, timeout_ms=timeout)
-                    buffersCompleted += 1
-                    print('{:d} '.format(buffersCompleted),end="")
-                    bytesTransferred += buffer.size_bytes
-            finally:
-                self.board.abortAsyncRead()
-            # Compute the total transfer time, and display performance information.
-            transferTime_sec = time.clock() - start
-            print("Capture completed in {:f} sec".format(transferTime_sec))
-            buffersPerSec = 0
-            bytesPerSec = 0
-            if transferTime_sec > 0:
-                buffersPerSec = buffersCompleted / transferTime_sec
-                bytesPerSec = bytesTransferred / transferTime_sec
-            print("Captured {:d} buffers ({:3.2f} buffers per sec)".format(buffersCompleted, buffersPerSec))
-            print("Transferred {:d} bytes ({:.1f} Mbytes per sec)".format(bytesTransferred, bytesPerSec/oneM))
-
+            self.acquisition_queue.put('start')
             return {} # ? Check this
 
+        def acquisition_loop(self):
+            while True:
+                command = self.acquisition_queue.get()
+                assert command == 'start'
+                start = time.clock() # Keep track of when acquisition started
+                try:
+                    #board.startCapture() # Start the acquisition
+                    print("Capturing {:d} buffers. Press <enter> to abort".format(self.buffersPerAcquisition))
+                    buffersCompleted = 0
+                    bytesTransferred = 0
+                    print('Read buffer ',end="")
+                    while (buffersCompleted < self.buffersPerAcquisition and not ats.enter_pressed()):
+                        buffer = self.buffers[buffersCompleted]
+                        self.board.waitNextAsyncBufferComplete(buffer.addr, self.bytesPerBuffer, timeout_ms=self.timeout)
+                        buffersCompleted += 1
+                        print('{:d} '.format(buffersCompleted),end="")
+                        bytesTransferred += buffer.size_bytes
+                finally:
+                    self.board.abortAsyncRead()
+                # Compute the total transfer time, and display performance information.
+                transferTime_sec = time.clock() - start
+                print("Capture completed in {:f} sec".format(transferTime_sec))
+                buffersPerSec = 0
+                bytesPerSec = 0
+                if transferTime_sec > 0:
+                    buffersPerSec = buffersCompleted / transferTime_sec
+                    bytesPerSec = bytesTransferred / transferTime_sec
+                print("Captured {:d} buffers ({:3.2f} buffers per sec)".format(buffersCompleted, buffersPerSec))
+                print("Transferred {:d} bytes ({:.1f} Mbytes per sec)".format(bytesTransferred, bytesPerSec/self.oneM))
+
+           
         def program_manual(self,values):
             return values
 
         def transition_to_manual(self):
             print("transition_to_manual: using " + self.h5file)
-
             return True
 
         def abort(self):
