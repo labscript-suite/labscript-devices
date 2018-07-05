@@ -418,14 +418,14 @@ if __name__ != "__main__":
                     bufferData = buf.buffer
                     #lastI shortens the buffer aquisition at the end of a sample, ie last buffer.
                     #Apologies to whoever has to read the following and the use of 'channelCount'...
-
                     lastI = (samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer) * self.channelCount
+                    end = start+len(bufferData[0:lastI])//self.channelCount
                     if self.channels & ats.CHANNEL_A:
-                        dsetAraw[start:start+len(bufferData[0:lastI])//self.channelCount] = bufferData[0:lastI:self.channelCount]
-                        dsetA[   start:start+len(bufferData[0:lastI])//self.channelCount] = self.to_volts(self.atsparam['chA_input_range'],bufferData[0:lastI:self.channelCount])
+                        dsetAraw[start:end] = bufferData[0:lastI:self.channelCount]
+                        dsetA[   start:end] = self.to_volts(self.atsparam['chA_input_range'],bufferData[0:lastI:self.channelCount])
                     if self.channels & ats.CHANNEL_B:
-                        dsetBraw[start:start+len(bufferData[0:lastI])//self.channelCount] = bufferData[1:lastI:self.channelCount]
-                        dsetB[   start:start+len(bufferData[0:lastI])//self.channelCount] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1:lastI:self.channelCount])
+                        dsetBraw[start:end] = bufferData[1:lastI:self.channelCount]
+                        dsetB[   start:end] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1:lastI:self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
                     start += self.samplesPerBuffer
                 print('done.')
