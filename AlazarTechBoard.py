@@ -409,7 +409,7 @@ if __name__ != "__main__":
                 if self.channels & ats.CHANNEL_B:
                     dsetB    = grp.create_dataset('channelB',    (self.samplesPerAcquisition,), dtype='float32')
                     dsetBraw = grp.create_dataset('rawsamplesB', (self.samplesPerAcquisition,), dtype='uint16')        
-                i = 0
+                start = 0
                 print('writing buffers to HDF5... ',end="")
                 samplesToProcess = self.samplesPerAcquisition
                 # This slightly silly logic assumes that if you are acquiring only one channel then it's chA. 
@@ -418,15 +418,16 @@ if __name__ != "__main__":
                     bufferData = buf.buffer
                     #lastI shortens the buffer aquisition at the end of a sample, ie last buffer.
                     #Apologies to whoever has to read the following and the use of 'channelCount'...
-                    lastI = samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer
+
+                    lastI = (samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer) * self.channelCount
                     if self.channels & ats.CHANNEL_A:
-                        dsetAraw[i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = bufferData[0:lastI*self.channelCount:self.channelCount]
-                        dsetA[   i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = self.to_volts(self.atsparam['chA_input_range'],bufferData[0:lastI*self.channelCount:self.channelCount])
+                        dsetAraw[start:start+len(bufferData[0:lastI])//self.channelCount] = bufferData[0:lastI:self.channelCount]
+                        dsetA[   start:start+len(bufferData[0:lastI])//self.channelCount] = self.to_volts(self.atsparam['chA_input_range'],bufferData[0:lastI:self.channelCount])
                     if self.channels & ats.CHANNEL_B:
-                        dsetBraw[i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = bufferData[1:lastI*self.channelCount:self.channelCount]
-                        dsetB[   i*self.samplesPerBuffer:i*self.samplesPerBuffer+len(bufferData[0:lastI*self.channelCount])//self.channelCount] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1:lastI*self.channelCount:self.channelCount])
+                        dsetBraw[start:start+len(bufferData[0:lastI])//self.channelCount] = bufferData[1:lastI:self.channelCount]
+                        dsetB[   start:start+len(bufferData[0:lastI])//self.channelCount] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1:lastI:self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
-                    i +=1
+                    start += self.samplesPerBuffer
                 print('done.')
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
