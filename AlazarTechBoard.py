@@ -11,27 +11,9 @@ import signal
 import sys
 import time
 
-
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
 import atsapi as ats
-
-# This little tangle was needed to make auto zlocking work right,
-# but now that this is in BLACS we should be fine with usual h5lock imported below
-#import h5_lock  # The local one in source directory! Not the system one which lives in labscript_utils.h5_lock
-#h5_lock.init(host='beclogger.physics.monash.edu.au', port=7339, shared_drive_prefix='Z:', lock_timeout=60)
-#import h5py
-
-# Define some globals
-#samplesPerSec = None
-#actualSamplesPerSec=None
-#samplesPerAcquisition=None
-#samplesPerBuffer = None
-#bitsPerSample = None
-#channelCount = None
-#zeroToFullScale = None
-#buffers = []
-#channels = None
 
 # Talk mv to card set range
 # All ATS ranges given below,
@@ -102,7 +84,6 @@ if __name__ != "__main__":
     # AlazarSetExternalClockLevel, SetDataFormat
     # Anything to do with board memory
     # Anything "for scanning"
-    
         @set_passed_properties(property_names = {
             "device_properties":["ats_system_id", "ats_board_id",
                              "requested_acquisition_rate", "acquisition_duration",
@@ -249,21 +230,21 @@ if __name__ != "__main__":
                 hdf5_file['devices'][device_name].attrs.create('acquisition_rate', actual_acquisition_rate, dtype='int32')
 
             self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec, atsparam['clock_edge_id'],  0)    
-            print('Samples per second {:.0f} ({:4.1f} MS/s)'.format(actual_acquisition_rate,actual_acquisition_rate/1e6))
-            print('Capture clock source_id: {:d}, clock_edge_id: {:d}'.format(atsparam['clock_source_id'], atsparam['clock_edge_id']))
+            print('Actual samples per second: {:.0f} ({:.1f} MS/s).'.format(actual_acquisition_rate,actual_acquisition_rate/1e6))
+            print('Capture clock source_id: {:d}, clock_edge_id: {:d}.'.format(atsparam['clock_source_id'], atsparam['clock_edge_id']))
 
             # ETR_5V means +/-5V, and is 8bit
             # So code 150 means (150-128)/128 * 5V = 860mV.
             self.board.setExternalTrigger(atsparam['exttrig_coupling_id'], atsparam['exttrig_range_id'])
-            print("Trigger coupling_id: {:d}, range_id: {:d}".format(atsparam['exttrig_coupling_id'], atsparam['exttrig_range_id']))
+            print("Trigger coupling_id: {:d}, range_id: {:d}.".format(atsparam['exttrig_coupling_id'], atsparam['exttrig_range_id']))
             
             self.board.setTriggerOperation( atsparam['trig_operation'], 
                                             atsparam['trig_engine_id1'], atsparam['trig_source_id1'], atsparam['trig_slope_id1'], atsparam['trig_level_id1'], 
                                             atsparam['trig_engine_id2'], atsparam['trig_source_id2'], atsparam['trig_slope_id2'], atsparam['trig_level_id2'] )
             print("Trigger operation set to operation: {:d}".format(atsparam['trig_operation']))
-            print("Trigger engine 1 set to {:d}, source: {:d}, slope: {:d}, level: {:d},".format(
+            print("Trigger engine 1 set to {:d}, source: {:d}, slope: {:d}, level: {:d}.".format(
                         atsparam['trig_engine_id1'], atsparam['trig_source_id1'], atsparam['trig_slope_id1'], atsparam['trig_level_id1']))
-            print("Trigger engine 2 set to {:d}, source: {:d}, slope: {:d}, level: {:d},".format(            
+            print("Trigger engine 2 set to {:d}, source: {:d}, slope: {:d}, level: {:d}.".format(            
                         atsparam['trig_engine_id2'], atsparam['trig_source_id2'], atsparam['trig_slope_id2'], atsparam['trig_level_id2']))
 
             # We will deal with trigger delays in labscript!
@@ -271,21 +252,17 @@ if __name__ != "__main__":
             triggerDelay_samples = int(triggerDelay_sec * actual_acquisition_rate + 0.5)
             self.board.setTriggerDelay(0)
 
-            # NOTE: The board will wait for a for this amount of time for a
-            # trigger event.  If a trigger event does not arrive, then the
-            # board will automatically trigger. Set the trigger timeout value
-            # to 0 to force the board to wait forever for a trigger event.
-            # LDT: We'll leave this set to zero for now
-            triggerTimeout_sec = 0
-            triggerTimeout_clocks = int(triggerTimeout_sec / 10e-6 + 0.5)
+            # NOTE: The board will wait for a for this amount of time for a trigger event.  If a trigger event does not arrive, then the
+            # board will automatically trigger. Set the trigger timeout value to 0 to force the board to wait forever for a trigger event.
+            # LDT: We'll leave this set to zero for now. We timeout on the readout, not on the trigger. 
+            # But we should probably check if we ever got a trigger!
             self.board.setTriggerTimeOut(0)
-            print("Trigger timeout set to infinity")
+            #print("Trigger timeout set to infinity")
 
-            # Configure AUX I/O connector
+            # Configure AUX I/O connector.
             # By default this emits the sample clock; not sure if this is before or after decimation
-            self.board.configureAuxIO(ats.AUX_OUT_TRIGGER,
-                                 0) # Dummy value when AUX_OUT_TRIGGER
-            print("Aux output set to sample clock.")
+            self.board.configureAuxIO(ats.AUX_OUT_TRIGGER, 0) # Second param is a dummy value when AUX_OUT_TRIGGER
+            #print("Aux output set to sample clock.")
 
             try:
                 chA_range_id = atsRanges[atsparam['chA_input_range']]
@@ -293,7 +270,7 @@ if __name__ != "__main__":
                 print("Voltage setting {:d}mV for Channel A is not recognised in atsapi. Make sure you use millivolts.".format(atsparam['chA_input_range']))
             self.board.inputControl( ats.CHANNEL_A, atsparam['chA_coupling_id'], chA_range_id, atsparam['chA_impedance_id'])
             self.board.setBWLimit(ats.CHANNEL_A, atsparam['chA_bw_limit'])
-            print("Channel A input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}".format(
+            print("Channel A input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}.".format(
                 atsparam['chA_input_range'], atsparam['chA_coupling_id'], atsparam['chA_impedance_id'], atsparam['chA_bw_limit']))
 
             try:
@@ -302,15 +279,13 @@ if __name__ != "__main__":
                 print("Voltage setting {:d}mV for Channel B is not recognised in atsapi. Make sure you use millivolts.".format(atsparam['chB_input_range']))
             self.board.inputControl( ats.CHANNEL_B, atsparam['chB_coupling_id'], chB_range_id, atsparam['chB_impedance_id'])
             self.board.setBWLimit(ats.CHANNEL_B, atsparam['chB_bw_limit'])
-            print("Channel B input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}".format(
+            print("Channel B input full scale: {:d}, coupling: {:d}, impedance: {:d}, bandwidth limit: {:d}.".format(
                 atsparam['chB_input_range'], atsparam['chB_coupling_id'], atsparam['chB_impedance_id'], atsparam['chB_bw_limit']))
 
-            # ====== Acquisition code starts here =====
-            # These are the class variables:  samplesPerAcquisition, buffers, samplesPerBuffer, channelCount, channels, bytesPerDatum
-            
+            # ====== Acquisition code starts here =====         
             self.samplesPerBuffer=204800 # This is a magic number and should at the very least move up
             self.oneM=2**20
-            self.timeout = 60000
+            self.timeout = 60000 # This should be determined by experiment run time. 
 
             # Check which channels we are acquiring
             #channels = ats.CHANNEL_A | ats.CHANNEL_B
@@ -326,7 +301,7 @@ if __name__ != "__main__":
             self.bytesPerDatum = (self.bitsPerSample.value + 7) // 8
 
             # One 'sample' is one datum from each channel
-            print("bytesPerDatum = {:d}. channelcount = {:d}".format(self.bytesPerDatum, self.channelCount))
+            print("bytesPerDatum = {:d}. channelcount = {:d}.".format(self.bytesPerDatum, self.channelCount))
             self.bytesPerBuffer = self.bytesPerDatum * self.channelCount * self.samplesPerBuffer 
 
             # Calculate the number of buffers in the acquisition
@@ -334,16 +309,15 @@ if __name__ != "__main__":
             memoryPerAcquisition = self.bytesPerDatum * self.samplesPerAcquisition * self.channelCount
             self.buffersPerAcquisition = ((self.samplesPerAcquisition + self.samplesPerBuffer - 1) //
                                            self.samplesPerBuffer)
-            print('Acquiring for {:5.3f}s generates {:5.3f}MS'.format(atsparam['acquisition_duration'], self.samplesPerAcquisition/1e6))
-            print('Requires {:5.3f}MB total.'.format(memoryPerAcquisition/self.oneM))
-            print('Buffers are {:5.3f}MS and {:d} bytes, and we need {:d} of them.'.format(self.samplesPerBuffer/1e6,self.bytesPerBuffer,self.buffersPerAcquisition))
+            print('Acquiring for {:5.3f}s generates {:5.3f} MS ({:5.3f} MB total)'.format(
+                atsparam['acquisition_duration'], self.samplesPerAcquisition/1e6, memoryPerAcquisition/self.oneM))
+            print('Buffers are {:5.3f} MS and {:d} bytes. Allocating {:d} buffers... '.format(self.samplesPerBuffer/1e6,self.bytesPerBuffer,self.buffersPerAcquisition),end='')
             self.board.setRecordSize(0,self.samplesPerBuffer)
 
             # Allocate buffers
             # We know that disk can't keep up, so we preallocate all buffers
             sample_type = ctypes.c_uint16 # It's 16bit, let's not stuff around
             self.buffers=[]
-            print('Allocating buffers... ',end='')
             for i in range(self.buffersPerAcquisition):
                 self.buffers.append(ats.DMABuffer(sample_type, self.bytesPerBuffer))
                 #print('{:d} '.format(i),end="")
@@ -372,41 +346,37 @@ if __name__ != "__main__":
                 assert command == 'start'
                 start = time.clock() # Keep track of when acquisition started
                 try:
-                    print("Capturing {:d} buffers. Press <enter> to abort".format(self.buffersPerAcquisition))
+                    print("Capturing {:d} buffers. ".format(self.buffersPerAcquisition), end="")
                     buffersCompleted = 0; bytesTransferred = 0
-                    print('Read buffer ',end="")
+                    print('Read buffer:',end="")
                     while (buffersCompleted < self.buffersPerAcquisition and not ats.enter_pressed()):
                         buffer = self.buffers[buffersCompleted]
                         self.board.waitNextAsyncBufferComplete(buffer.addr, self.bytesPerBuffer, timeout_ms=self.timeout)
                         buffersCompleted += 1
-                        print('{:d} '.format(buffersCompleted),end="")
+                        print(' {:d}'.format(buffersCompleted),end="")
                         bytesTransferred += buffer.size_bytes
                 except ats.AlazarException as e:
                     # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
-                    # Really should make class AlazarException...
-                    # If it's just a timeout we 
                     errstring, funcname, arguments, retCode = e.args
                     print("API error string is: {:s}".format(errstring))
                     self.acquisition_exception = sys.exc_info() # if retCode != "abort" else "abort" (or AbortException)
-                    continue
+                    continue # Next iteration of the infinite loop, wait for next acquisition, or have the main thread decide to die
                 except Exception as e:
                     print("Got some other exception {:s}".format(e))
                     self.acquisition_exception = sys.exc_info()
-                    continue
+                    continue # Next iteration of the infinite loop, wait for next acquisition, or have the main thread decide to die
                 finally:
                     self.board.abortAsyncRead()
                     self.acquisition_done.set()
-                self.acquisition_exception = None
-                # Compute the total transfer time, and display performance information.
-                transferTime_sec = time.clock() - start
-                print("Capture completed in {:f} sec".format(transferTime_sec))
-                buffersPerSec = 0
-                bytesPerSec = 0
+                self.acquisition_exception = None       # If we made it this far then there was no exception
+                transferTime_sec = time.clock() - start # Compute the total transfer time, and display performance information.
+                print(". Capture completed in {:3.2f}s.".format(transferTime_sec))
+                buffersPerSec = 0; bytesPerSec = 0
                 if transferTime_sec > 0:
                     buffersPerSec = buffersCompleted / transferTime_sec
                     bytesPerSec = bytesTransferred / transferTime_sec
-                print("Captured {:d} buffers ({:3.2f} buffers per sec)".format(buffersCompleted, buffersPerSec))
-                print("Transferred {:d} bytes ({:.1f} Mbytes per sec)".format(bytesTransferred, bytesPerSec/self.oneM))
+                print("Captured {:d} buffers ({:3.2f} buffers/s), transferred {:d} bytes ({:.1f} MB/s).".format(
+                    buffersCompleted, buffersPerSec, bytesTransferred, bytesPerSec/self.oneM))
 
            
         def program_manual(self,values):
@@ -416,9 +386,14 @@ if __name__ != "__main__":
             offset = float(2**(self.bitsPerSample.value-1))
             return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
 
+        # This helper function waits for the acquisition_loop thread to finish the acquisition,
+        # either successfully or after an exception.
+        # It is used by transition_to_manual() and abort().
+        # The acquisition_done flag should already be set, 
+        # if it can't get this after a brief delay then something has gone wrong with acquisition overrun and it will complain.
         def wait_acquisition_complete(self):
             try:
-                if not self.acquisition_done.wait(timeout=5):
+                if not self.acquisition_done.wait(timeout=2):
                     raise Exception('Waiting for acquisition to complete timed out')
                 if self.acquisition_exception is not None:
                     raise self.acquisition_exception
@@ -427,7 +402,7 @@ if __name__ != "__main__":
                 self.acquisition_exception = None
 
         def transition_to_manual(self):
-            print("transition_to_manual: using " + self.h5file)
+            #print("transition_to_manual: using " + self.h5file)
             # Write data to HDF5 file
             self.wait_acquisition_complete()
             with h5py.File(self.h5file) as hdf5_file:
@@ -439,7 +414,7 @@ if __name__ != "__main__":
                     dsetB    = grp.create_dataset('channelB',    (self.samplesPerAcquisition,), dtype='float32')
                     dsetBraw = grp.create_dataset('rawsamplesB', (self.samplesPerAcquisition,), dtype='uint16')        
                 start = 0
-                print('writing buffers to HDF5... ',end="")
+                print('Writing buffers to HDF5... ',end='')
                 samplesToProcess = self.samplesPerAcquisition
                 # This slightly silly logic assumes that if you are acquiring only one channel then it's chA. 
                 # This should be redone
@@ -456,11 +431,11 @@ if __name__ != "__main__":
                         dsetB[   start : end] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1 : lastI : self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
                     start += self.samplesPerBuffer
-                print('done.')
+                print('done. ',end='')
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
             self.buffers = []
-            print('done.')
+            print('done.',end="\n\n")
             return True
 
         def abort(self):
