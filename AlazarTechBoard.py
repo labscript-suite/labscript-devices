@@ -222,15 +222,18 @@ if __name__ != "__main__":
             self.acquisition_queue = Queue()
             self.acquisition_thread = threading.Thread(target=self.acquisition_loop)
             self.acquisition_thread.daemon = True
+            self.acquisition_exception = None
+            self.acquisition_done = threading.Event()
             self.acquisition_thread.start()
             
                 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual
+            self.device_name = device_name
             with h5py.File(h5file) as hdf5_file:
                 print("transition_to_buffered: using "+h5file)
                 self.atsparam = atsparam = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
-                print("atsparam: " + repr(self.atsparam))
+                #print("atsparam: " + repr(self.atsparam))
 
             def find_nearest(array, value):
                 if not isinstance(array, np.ndarray):
@@ -346,6 +349,7 @@ if __name__ != "__main__":
                 #print('{:d} '.format(i),end="")
             print('done.')
 
+            # This works but ADMA_ALLOC_BUFFERS is questionable because we have allocated the buffers (well atsapi.py buffer class has)
             acqflags = ats.ADMA_TRIGGERED_STREAMING | ats.ADMA_ALLOC_BUFFERS | ats.ADMA_FIFO_ONLY_STREAMING
             #print("Acqflags in decimal: {:d}".format(acqflags))
 
@@ -360,16 +364,16 @@ if __name__ != "__main__":
             self.acquisition_queue.put('start')
             return {} # ? Check this
 
+        # This becomes a long-running thread which fills the buffers allocated in the main thread.
+        # Buffers are saved and freed in transition_to_manual().
         def acquisition_loop(self):
             while True:
                 command = self.acquisition_queue.get()
                 assert command == 'start'
                 start = time.clock() # Keep track of when acquisition started
                 try:
-                    #board.startCapture() # Start the acquisition
                     print("Capturing {:d} buffers. Press <enter> to abort".format(self.buffersPerAcquisition))
-                    buffersCompleted = 0
-                    bytesTransferred = 0
+                    buffersCompleted = 0; bytesTransferred = 0
                     print('Read buffer ',end="")
                     while (buffersCompleted < self.buffersPerAcquisition and not ats.enter_pressed()):
                         buffer = self.buffers[buffersCompleted]
@@ -377,8 +381,22 @@ if __name__ != "__main__":
                         buffersCompleted += 1
                         print('{:d} '.format(buffersCompleted),end="")
                         bytesTransferred += buffer.size_bytes
+                except ats.AlazarException as e:
+                    # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
+                    # Really should make class AlazarException...
+                    # If it's just a timeout we 
+                    errstring, funcname, arguments, retCode = e.args
+                    print("API error string is: {:s}".format(errstring))
+                    self.acquisition_exception = sys.exc_info() # if retCode != "abort" else "abort" (or AbortException)
+                    continue
+                except Exception as e:
+                    print("Got some other exception {:s}".format(e))
+                    self.acquisition_exception = sys.exc_info()
+                    continue
                 finally:
                     self.board.abortAsyncRead()
+                    self.acquisition_done.set()
+                self.acquisition_exception = None
                 # Compute the total transfer time, and display performance information.
                 transferTime_sec = time.clock() - start
                 print("Capture completed in {:f} sec".format(transferTime_sec))
@@ -398,11 +416,22 @@ if __name__ != "__main__":
             offset = float(2**(self.bitsPerSample.value-1))
             return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
 
+        def wait_acquisition_complete(self):
+            try:
+                if not self.acquisition_done.wait(timeout=5):
+                    raise Exception('Waiting for acquisition to complete timed out')
+                if self.acquisition_exception is not None:
+                    raise self.acquisition_exception
+            finally:
+                self.acquisition_done.clear()
+                self.acquisition_exception = None
+
         def transition_to_manual(self):
             print("transition_to_manual: using " + self.h5file)
             # Write data to HDF5 file
+            self.wait_acquisition_complete()
             with h5py.File(self.h5file) as hdf5_file:
-                grp = hdf5_file.create_group('/data/traces/faraday')
+                grp = hdf5_file.create_group('/data/traces/'+self.device_name)
                 if self.channels & ats.CHANNEL_A:
                     dsetA    = grp.create_dataset('channelA',    (self.samplesPerAcquisition,), dtype='float32')
                     dsetAraw = grp.create_dataset('rawsamplesA', (self.samplesPerAcquisition,), dtype='uint16')
@@ -436,6 +465,8 @@ if __name__ != "__main__":
 
         def abort(self):
             print("abort: not doing anything about it though!")
+            self.board.abortAsyncRead()
+            self.wait_acquisition_complete()
             return True
 
         def abort_buffered(self):

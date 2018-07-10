@@ -484,16 +484,23 @@ U32 = c_uint32
 U8  = c_byte
 DOUBLE = c_double
 
+class AlazarException(RuntimeError):
+    pass
+
 ats.AlazarErrorToText.restype = c_char_p
 ats.AlazarErrorToText.argtypes = [U32]
 def returnCodeCheck(result, func, arguments):
     '''Function used internally to check the return code of the C ATS-SDK
     functions.'''
     if (result != 512):
-        raise Exception("Error calling function %s with arguments %s : %s" %
-                        (func.__name__,
-                         str(arguments),
-                         str(ats.AlazarErrorToText(result))))
+        raise AlazarException("Error calling function %s with arguments %s : %s" %
+                              (func.__name__,
+                               str(arguments),
+                               str(ats.AlazarErrorToText(result))),    # Extended here by LDT
+                              func.__name__,
+                              arguments,
+                              result
+                              )
 
 def numOfSystems():
     ats.AlazarNumOfSystems.restype = U32
