@@ -188,6 +188,32 @@ if __name__ != "__main__":
             self.create_worker("main_worker",GuilessWorker,{})
             self.primary_worker = "main_worker"
 
+# As a substitute for real documentation, here's an outline for what the Alazar worker does. 
+# This should be sphinx'ed or whatever.
+# The main thread in init() kicks off a long-lived (as long as the main thread) "acquisition thread", running acquisition_loop()
+# The acquisition thread is an infinite loop, at the top of which it immediately waits on the acquisition_queue.
+# This is where we are when BLACS is 'idle'.
+# *** How it SHOULD operate:
+# At transition_to_buffered, the main thread sets up the card params and the acquisition buffers, and just before returning sends a 'start' down the queue to the acq thread.
+# The acquisition thread proceeds to the blocking waitNextAsyncBufferComplete() call, which waits for the first buffer to be filled.
+# All being well, the buffers are filled in sequence and the acquisition thread set the acqusition_done flag, 
+# and continues to the top of its loop, waiting for the next 'start' command down the queue.
+# Eventually it's transition_to_manual time, and starts by checking the 'acquisition_done' flag via wait_acquisition_complete(), with a short timeout of 2 seconds.
+# If the acquisition is actually done, the flag is cleared, and it proceeds to write the buffers into the h5 file and free them, returning.
+# We are back in BLACS-idle, with the acquisition thread waiting for a 'start' command again.
+# *** What happens if the trigger isn't sent
+# In the acquisition thread, the call to waitNextAsyncBufferComplete() eventually times out, generating an exception.
+# This timout is set to 60s (and should be set to experiment_duration), but has no way of knowing when in the experiment the acquisition started, so it will likely
+# not time out until well after transition_to_manual is called.
+# Transition_to_manual gets called, finds the acquisition_done flag is low, times out quickly (2s) waiting for this, and raises an exception 'Waiting for acquisition to complete timed out'
+# This exception kills the main thread, which should lead to the death of the acquisition thread too, but it is still blocking.
+# Eventually the acquisition thread would time out and die with an AlazarException (code ApiWaitTimeout). But rather than waiting for this, we call abortAsyncRead() from the main thread.
+# This forces the waitNextAsyncBufferComplete() to return, with an ApiDmaCalled error code in the AlazarException. This is caught and the acquisition thread continues, but not for long...
+# Unless this was caused by an abort, the demise of the main thread causes the acquisition thread to be collected. 
+# At this point, everything in the worker is dead and restart is clean.
+# *** What happens if an abort is sent:
+
+
     @BLACS_worker    
     class GuilessWorker(Worker):
         def init(self):
@@ -206,7 +232,7 @@ if __name__ != "__main__":
             self.acquisition_exception = None
             self.acquisition_done = threading.Event()
             self.acquisition_thread.start()
-            
+            self.aborting = False
                 
         def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
             self.h5file = h5file # We'll need this in transition_to_manual
@@ -344,12 +370,13 @@ if __name__ != "__main__":
             while True:
                 command = self.acquisition_queue.get()
                 assert command == 'start'
-                start = time.clock() # Keep track of when acquisition started
+                start = time.clock()               # Keep track of when acquisition started
+                self.acquisition_exception = None  # This is a fresh trip through the acquisition loop, no exception has occurred yet!
                 try:
                     print("Capturing {:d} buffers. ".format(self.buffersPerAcquisition), end="")
                     buffersCompleted = 0; bytesTransferred = 0
                     print('Read buffer:',end="")
-                    while (buffersCompleted < self.buffersPerAcquisition and not ats.enter_pressed()):
+                    while (buffersCompleted < self.buffersPerAcquisition and not self.aborting):
                         buffer = self.buffers[buffersCompleted]
                         self.board.waitNextAsyncBufferComplete(buffer.addr, self.bytesPerBuffer, timeout_ms=self.timeout)
                         buffersCompleted += 1
@@ -359,7 +386,7 @@ if __name__ != "__main__":
                     # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
                     errstring, funcname, arguments, retCode = e.args
                     print("API error string is: {:s}".format(errstring))
-                    self.acquisition_exception = sys.exc_info() # if retCode != "abort" else "abort" (or AbortException)
+                    self.acquisition_exception = sys.exc_info() # Even if in an abort, we still process this exception up to the main thread via shared state
                     continue # Next iteration of the infinite loop, wait for next acquisition, or have the main thread decide to die
                 except Exception as e:
                     print("Got some other exception {:s}".format(e))
@@ -368,7 +395,9 @@ if __name__ != "__main__":
                 finally:
                     self.board.abortAsyncRead()
                     self.acquisition_done.set()
-                self.acquisition_exception = None       # If we made it this far then there was no exception
+                if self.aborting:
+                    print("acquisition thread: capture aborted.")
+                    continue
                 transferTime_sec = time.clock() - start # Compute the total transfer time, and display performance information.
                 print(". Capture completed in {:3.2f}s.".format(transferTime_sec))
                 buffersPerSec = 0; bytesPerSec = 0
@@ -377,7 +406,6 @@ if __name__ != "__main__":
                     bytesPerSec = bytesTransferred / transferTime_sec
                 print("Captured {:d} buffers ({:3.2f} buffers/s), transferred {:d} bytes ({:.1f} MB/s).".format(
                     buffersCompleted, buffersPerSec, bytesTransferred, bytesPerSec/self.oneM))
-
            
         def program_manual(self,values):
             return values
@@ -390,21 +418,23 @@ if __name__ != "__main__":
         # either successfully or after an exception.
         # It is used by transition_to_manual() and abort().
         # The acquisition_done flag should already be set, 
-        # if it can't get this after a brief delay then something has gone wrong with acquisition overrun and it will complain.
+        # if it can't get this after a brief delay then something has gone wrong with acquisition overrun and it will complain and die in the main thread,
+        # causing the whole lot to die. 
         def wait_acquisition_complete(self):
             try:
-                if not self.acquisition_done.wait(timeout=2):
+                if not self.acquisition_done.wait(timeout=2) and not self.aborting:
                     raise Exception('Waiting for acquisition to complete timed out')
-                if self.acquisition_exception is not None:
+                if self.acquisition_exception is not None and not self.aborting:
                     raise self.acquisition_exception
             finally:
+                self.board.abortAsyncRead()      # This ensures that the blocking call in the acquisition thread is aborted.
                 self.acquisition_done.clear()
                 self.acquisition_exception = None
 
         def transition_to_manual(self):
             #print("transition_to_manual: using " + self.h5file)
+            self.wait_acquisition_complete()  # Waits on the acquisition thread, and manages the lock
             # Write data to HDF5 file
-            self.wait_acquisition_complete()
             with h5py.File(self.h5file) as hdf5_file:
                 grp = hdf5_file.create_group('/data/traces/'+self.device_name)
                 if self.channels & ats.CHANNEL_A:
@@ -431,7 +461,7 @@ if __name__ != "__main__":
                         dsetB[   start : end] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1 : lastI : self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
                     start += self.samplesPerBuffer
-                print('done. ',end='')
+                print('finished with HDF5. ',end='')
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
             self.buffers = []
@@ -439,15 +469,17 @@ if __name__ != "__main__":
             return True
 
         def abort(self):
-            print("abort: not doing anything about it though!")
-            self.board.abortAsyncRead()
+            print("aborting! ... ")
+            self.aborting = True
             self.wait_acquisition_complete()
+            self.aborting = False
+            print("abort complete.")
             return True
 
         def abort_buffered(self):
-            print("abort_buffered: not doing anything about it though!")
+            print("abort_buffered: ...")
             return self.abort()
 
         def abort_transition_to_buffered(self):
-            print("abort_transition_to_buffered: not doing anything about it though!")
+            print("abort_transition_to_buffered: ...")
             return self.abort()
