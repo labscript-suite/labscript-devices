@@ -370,6 +370,7 @@ if __name__ != "__main__":
             while True:
                 command = self.acquisition_queue.get()
                 assert command == 'start'
+                print("acquisition thread: starting new acquisition")
                 start = time.clock()               # Keep track of when acquisition started
                 self.acquisition_exception = None  # This is a fresh trip through the acquisition loop, no exception has occurred yet!
                 try:
@@ -385,8 +386,9 @@ if __name__ != "__main__":
                 except ats.AlazarException as e:
                     # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
                     errstring, funcname, arguments, retCode = e.args
-                    print("API error string is: {:s}".format(errstring))
+                    print("\n\nAPI error string is: {:s}".format(errstring))
                     self.acquisition_exception = sys.exc_info() # Even if in an abort, we still process this exception up to the main thread via shared state
+                    print("acquisition thread: acquisition_exception is {:s}".format(self.acquisition_exception))
                     continue # Next iteration of the infinite loop, wait for next acquisition, or have the main thread decide to die
                 except Exception as e:
                     print("Got some other exception {:s}".format(e))
@@ -424,6 +426,7 @@ if __name__ != "__main__":
             try:
                 if not self.acquisition_done.wait(timeout=2) and not self.aborting:
                     raise Exception('Waiting for acquisition to complete timed out')
+                print("acquisition_exception is {:s}".format(self.acquisition_exception))
                 if self.acquisition_exception is not None and not self.aborting:
                     raise self.acquisition_exception
             finally:
