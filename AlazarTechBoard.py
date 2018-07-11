@@ -373,6 +373,7 @@ if __name__ != "__main__":
                 print("acquisition thread: starting new acquisition")
                 start = time.clock()               # Keep track of when acquisition started
                 self.acquisition_exception = None  # This is a fresh trip through the acquisition loop, no exception has occurred yet!
+                self.acquisition_done.clear()      # I don't understand why this is needed here!
                 try:
                     print("Capturing {:d} buffers. ".format(self.buffersPerAcquisition), end="")
                     buffersCompleted = 0; bytesTransferred = 0
