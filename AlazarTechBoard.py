@@ -447,11 +447,11 @@ if __name__ != "__main__":
                     dsetB    = grp.create_dataset('channelB',    (self.samplesPerAcquisition,), dtype='float32')
                     dsetBraw = grp.create_dataset('rawsamplesB', (self.samplesPerAcquisition,), dtype='uint16')        
                 start = 0
-                print('Writing buffers to HDF5... ',end='')
+                print('Writing buffers to HDF5...',end='')
                 samplesToProcess = self.samplesPerAcquisition
                 # This slightly silly logic assumes that if you are acquiring only one channel then it's chA. 
                 # This should be redone
-                for buf in self.buffers:
+                for buf, counter in zip( self.buffers, range(1,len(self.buffers)+1) ):
                     bufferData = buf.buffer
                     #lastI shortens the buffer aquisition at the end of a sample, ie last buffer. I'm sure this could be nicer!
                     lastI = (samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer) * self.channelCount
@@ -464,7 +464,8 @@ if __name__ != "__main__":
                         dsetB[   start : end] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1 : lastI : self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
                     start += self.samplesPerBuffer
-                print('finished with HDF5. ',end='')
+                    if counter % 10 == 0: print(' {:d}'.format(counter),end="")
+                print(' finished with HDF5. ',end='')
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
             self.buffers = []
