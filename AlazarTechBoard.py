@@ -212,7 +212,11 @@ if __name__ != "__main__":
 # Unless this was caused by an abort, the demise of the main thread causes the acquisition thread to be collected. 
 # At this point, everything in the worker is dead and restart is clean.
 # *** What happens if an abort is sent:
-
+# The sets the flag self.aborting and immediately calls wait_acquisition_complete(). This gives the acquisition thread a chance to fall through the acquisition loop,
+# which checks the aborting flag and then continue to top of is infinite loop. But if it is stuck waiting for a trigger, or in a long acquisition buffer, then it falls
+# through to abortAsyncRead in the finally-block, which causes the buffer-read to abort. But we are already passed the exception check in the main thread, so nothing is 
+# raised. In any case the re-raise is conditional on the aborting flag not being set. This logic is probably overkill, and could be simplified, but it does lead
+# to aborts never seeming to raise exceptions and the acquisition thread continuing on.
 
     @BLACS_worker    
     class GuilessWorker(Worker):
@@ -238,7 +242,7 @@ if __name__ != "__main__":
             self.h5file = h5file # We'll need this in transition_to_manual
             self.device_name = device_name
             with h5py.File(h5file) as hdf5_file:
-                print("transition_to_buffered: using "+h5file)
+                print("\nUsing "+h5file)
                 self.atsparam = atsparam = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
                 #print("atsparam: " + repr(self.atsparam))
 
@@ -470,7 +474,7 @@ if __name__ != "__main__":
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
             self.buffers = []
-            print('done.',end="\n\n")
+            print('done.')
             return True
 
         def abort(self):
