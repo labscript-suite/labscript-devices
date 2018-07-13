@@ -493,13 +493,13 @@ def returnCodeCheck(result, func, arguments):
     '''Function used internally to check the return code of the C ATS-SDK
     functions.'''
     if (result != 512):
-        raise AlazarException("Error calling function %s with arguments %s : %s" %
-                              (func.__name__,
+        raise AlazarException("Error calling function %s with arguments %s : %s" % (func.__name__,
                                str(arguments),
-                               str(ats.AlazarErrorToText(result))),    # Extended here by LDT
+                               str(ats.AlazarErrorToText(result)) ),    # Extended here by LDT
                               func.__name__,
                               arguments,
-                              result
+                              result,
+                              str(ats.AlazarErrorToText(result))
                               )
 
 def numOfSystems():

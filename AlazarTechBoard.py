@@ -324,8 +324,11 @@ if __name__ != "__main__":
             # The clock_edge_id parameter is not needed for INTERNAL_CLOCK and EXTERNAL_CLOCK_10MHz_REF modes but is here for future extension
             try:
                 self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec_or_id, clock_edge_id, decimation)    
-            except AlazarException as e:
-                pass
+            except ats.AlazarException as e:
+                errstring, funcname, arguments, retCode, retText = e.args
+                if retText == 'ApiPllNotLocked':
+                    print("PLL not locked! Is the 10MHz reference attached and the right number of mV/dBm??")
+                    raise
             finally:
                 pass
             
@@ -461,7 +464,7 @@ if __name__ != "__main__":
                         bytesTransferred += buffer.size_bytes
                 except ats.AlazarException as e:
                     # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
-                    errstring, funcname, arguments, retCode = e.args
+                    errstring, funcname, arguments, retCode, retText = e.args
                     print("\n\nAPI error string is: {:s}".format(errstring))
                     self.acquisition_exception = sys.exc_info() # Even if in an abort, we still process this exception up to the main thread via shared state
                     print("acquisition thread: acquisition_exception is {:s}".format(self.acquisition_exception))
