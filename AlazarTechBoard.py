@@ -205,7 +205,7 @@ if __name__ != "__main__":
         divisors, remainders = divmod(clocks,f)
         opts = np.core.records.fromarrays(
             [remainders, divisors, clocks],
-            names = 'rem, div, clock')
+            names = 'rem, div, clock', formats='i4,i4,i4')
         opts.sort(order='rem')
         minrem = opts['rem'][0]
         # This gets the option with minimum remainder and maximum divisor
@@ -293,14 +293,22 @@ if __name__ != "__main__":
 
             clock_source_id            = atsparam['clock_source_id']
             requested_acquisition_rate = atsparam['requested_acquisition_rate']
+            clock_edge_id              = atsparam['clock_edge_id']
             if clock_source_id == ats.INTERNAL_CLOCK:
                 # Actually we should find smallest internal clock faster than the one asked for. Next time.
                 actual_acquisition_rate = find_nearest_internal_clock(atsSampleRates.keys(), requested_acquisition_rate)
                 atsSamplesPerSec_or_id = atsSampleRates[actual_acquisition_rate] # This is an ID not a sample per sec. It takes both.
                 decimation = 0 # Must be zero for internal clocking
+                clock_edge_id = ats.CLOCK_EDGE_RISING
+                print('Internal clocking at {:.0f} samples per second ({:.1f} MS/s), from internal reference.'.\
+                    format(actual_acquisition_rate,actual_acquisition_rate/1e6))
             elif clock_source_id == ats.EXTERNAL_CLOCK_10MHz_REF:
-                atsSamplesPerSec_or_id, divider = ats9462_clock(requested_acquisition_rate)
-                decimation = divider - 1 
+                atsSamplesPerSec_or_id, divisor = ats9462_clock(requested_acquisition_rate)
+                actual_acquisition_rate = atsSamplesPerSec_or_id // divisor
+                decimation = divisor - 1 
+                clock_edge_id = ats.CLOCK_EDGE_RISING
+                print('Internally clock at {:.0f} samples per second ({:.1f} MS/s), from external 10MHz reference ({:d}MHz PLL divided by {:d}).'.\
+                    format(actual_acquisition_rate,actual_acquisition_rate/1e6, atsSamplesPerSec_or_id//1000000, divisor))
             elif clock_source_id == ats.FAST_EXTERNAL_CLOCK:
                 raise LabscriptError, "Requested capture clock type FAST_EXTERNAL_CLOCK is not implemented"           
             elif clock_source_id == ats.MEDIUM_EXTERNAL_CLOCK:
@@ -313,17 +321,18 @@ if __name__ != "__main__":
                 raise LabscriptError, "Requested capture clock type EXTERNAL_CLOCK_DC is not implemented"
             else:
                 raise LabscriptError, "Requested capture clock type with code {:d} is not recognised".format(atsparam['clock_source_id'])
-            # The clock_edge_id parameter is not needed for INTERNAL_CLOCK and EXTERNAL_CLOCK_10MHz_REF modes but is hear for future extension
-            self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec_or_id, atsparam['clock_edge_id'],  decimation)    
-
+            # The clock_edge_id parameter is not needed for INTERNAL_CLOCK and EXTERNAL_CLOCK_10MHz_REF modes but is here for future extension
+            try:
+                self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec_or_id, clock_edge_id, decimation)    
+            except AlazarException as e:
+                pass
+            finally:
+                pass
+            
             # Store the actual acquisition rate back as an attribute. 
             # Again, this should be done as an ACQUISITIONS table entry, but not today
             with h5py.File(h5file) as hdf5_file:
                 hdf5_file['devices'][device_name].attrs.create('acquisition_rate', actual_acquisition_rate, dtype='int32')
-
-            
-            print('Actual samples per second: {:.0f} ({:.1f} MS/s).'.format(actual_acquisition_rate,actual_acquisition_rate/1e6))
-            print('Capture clock source_id: {:d}, clock_edge_id: {:d}.'.format(atsparam['clock_source_id'], atsparam['clock_edge_id']))
 
             # ETR_5V means +/-5V, and is 8bit
             # So code 150 means (150-128)/128 * 5V = 860mV.
