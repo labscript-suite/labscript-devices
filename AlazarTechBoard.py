@@ -191,6 +191,45 @@ if __name__ != "__main__":
             self.create_worker("main_worker",GuilessWorker,{})
             self.primary_worker = "main_worker"
 
+    # Helper functions that don't need to be class methods
+    def find_nearest_internal_clock(array, value):
+                    if not isinstance(array, np.ndarray):
+                        array = np.array(array)
+                    ix = np.abs(array - value).argmin()
+                    return array[ix]   
+
+    def find_clock_and_r(f, clocks):
+        # Given a frequency f, find clock frequency fc from restricted set clocks
+        # and decimator r from natural numbers to give the smallest sample rate
+        # that exceeds the requested frequency f.
+        divisors, remainders = divmod(clocks,f)
+        opts = np.core.records.fromarrays(
+            [remainders, divisors, clocks],
+            names = 'rem, div, clock')
+        opts.sort(order='rem')
+        minrem = opts['rem'][0]
+        # This gets the option with minimum remainder and maximum divisor
+        bestopt = np.sort(opts[opts['rem']==minrem],order='div')[-1]
+        return bestopt['clock'],bestopt['div']
+
+    def ats9462_clock(f):
+        # Finds the clock and divider settings to best achieve sample rate f
+        # If it can't be achieved, find nearest possible clock that is faster
+        # ... and warn the user that we have done this.
+        # Returns (PLL clock, divider)
+        meg = 1000000
+        rlimit = 10000
+        clocks_allowed = np.arange(150*meg, 181*meg, 1*meg)
+        clock, divider = find_clock_and_r(f, clocks_allowed)
+        if divider > rlimit:
+            raise LabscriptError,\
+                "Required clock divisor {:d} exceeds maximum value of {:d}".\
+                format(div, rlimit)
+        if clock % divider != 0:
+            warning = "Warning: Couldn't match requested sample rate {:d} SPS! Using the slightly greater value of {:d} SPS...".format(f, clock//divider)
+            print(warning, file=sys.stderr)
+        return clock, divider
+
 # As a substitute for real documentation, here's an outline for what the Alazar worker does. 
 # This should be sphinx'ed or whatever.
 # The main thread in init() kicks off a long-lived (as long as the main thread) "acquisition thread", running acquisition_loop()
@@ -220,7 +259,6 @@ if __name__ != "__main__":
 # through to abortAsyncRead in the finally-block, which causes the buffer-read to abort. But we are already passed the exception check in the main thread, so nothing is 
 # raised. In any case the re-raise is conditional on the aborting flag not being set. This logic is probably overkill, and could be simplified, but it does lead
 # to aborts never seeming to raise exceptions and the acquisition thread continuing on.
-
     @BLACS_worker    
     class GuilessWorker(Worker):
         def init(self):
@@ -253,20 +291,37 @@ if __name__ != "__main__":
                 self.atsparam = atsparam = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
                 #print("atsparam: " + repr(self.atsparam))
 
-            def find_nearest(array, value):
-                if not isinstance(array, np.ndarray):
-                    array = np.array(array)
-                ix = np.abs(array - value).argmin()
-                return array[ix]   
-            actual_acquisition_rate = find_nearest(atsSampleRates.keys(), atsparam['requested_acquisition_rate'])
-            atsSamplesPerSec = atsSampleRates[actual_acquisition_rate]
+            clock_source_id            = atsparam['clock_source_id']
+            requested_acquisition_rate = atsparam['requested_acquisition_rate']
+            if clock_source_id == ats.INTERNAL_CLOCK:
+                # Actually we should find smallest internal clock faster than the one asked for. Next time.
+                actual_acquisition_rate = find_nearest_internal_clock(atsSampleRates.keys(), requested_acquisition_rate)
+                atsSamplesPerSec_or_id = atsSampleRates[actual_acquisition_rate] # This is an ID not a sample per sec. It takes both.
+                decimation = 0 # Must be zero for internal clocking
+            elif clock_source_id == ats.EXTERNAL_CLOCK_10MHz_REF:
+                atsSamplesPerSec_or_id, divider = ats9462_clock(requested_acquisition_rate)
+                decimation = divider - 1 
+            elif clock_source_id == ats.FAST_EXTERNAL_CLOCK:
+                raise LabscriptError, "Requested capture clock type FAST_EXTERNAL_CLOCK is not implemented"           
+            elif clock_source_id == ats.MEDIUM_EXTERNAL_CLOCK:
+                raise LabscriptError, "Requested capture clock type MEDIUM_EXTERNAL_CLOCK is not implemented"
+            elif clock_source_id == ats.SLOW_EXTERNAL_CLOCK:
+                raise LabscriptError, "Requested capture clock type SLOW_EXTERNAL_CLOCK is not implemented"
+            elif clock_source_id == ats.EXTERNAL_CLOCK_AC:
+                raise LabscriptError, "Requested capture clock type EXTERNAL_CLOCK_AC is not implemented"
+            elif clock_source_id == ats.EXTERNAL_CLOCK_DC:
+                raise LabscriptError, "Requested capture clock type EXTERNAL_CLOCK_DC is not implemented"
+            else:
+                raise LabscriptError, "Requested capture clock type with code {:d} is not recognised".format(atsparam['clock_source_id'])
+            # The clock_edge_id parameter is not needed for INTERNAL_CLOCK and EXTERNAL_CLOCK_10MHz_REF modes but is hear for future extension
+            self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec_or_id, atsparam['clock_edge_id'],  decimation)    
 
             # Store the actual acquisition rate back as an attribute. 
             # Again, this should be done as an ACQUISITIONS table entry, but not today
             with h5py.File(h5file) as hdf5_file:
                 hdf5_file['devices'][device_name].attrs.create('acquisition_rate', actual_acquisition_rate, dtype='int32')
 
-            self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec, atsparam['clock_edge_id'],  0)    
+            
             print('Actual samples per second: {:.0f} ({:.1f} MS/s).'.format(actual_acquisition_rate,actual_acquisition_rate/1e6))
             print('Capture clock source_id: {:d}, clock_edge_id: {:d}.'.format(atsparam['clock_source_id'], atsparam['clock_edge_id']))
 
