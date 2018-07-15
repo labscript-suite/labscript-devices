@@ -15,6 +15,9 @@ import time
 # or keep in local directory.
 import atsapi as ats
 
+# Workaround for compound dtypes (numpy issue #10672)
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
+
 # Talk mv to card set range
 # All ATS ranges given below,
 # but have commented out the ones that don't work with our ATS9462
@@ -156,7 +159,7 @@ if __name__ != "__main__":
                     acquisitions.append((connection,acq['label'],acq['start_time'],acq['end_time'],acq['wait_label'],acq['scale_factor'],acq['units']))
             acquisitions_table_dtypes = [('connection','a256'), ('label','a256'), ('start',float),
                                          ('stop',float), ('wait label','a256'),('scale factor',float), ('units','a256')]
-            acquisition_table= np.empty(len(acquisitions), dtype=acquisitions_table_dtypes)
+            acquisition_table= np.empty(len(acquisitions), dtype=dtype_workaround(acquisitions_table_dtypes))
             for i, acq in enumerate(acquisitions):
                 acquisition_table[i] = acq
                 grp = self.init_device_group(hdf5_file)
@@ -222,7 +225,11 @@ if __name__ != "__main__":
     class GuilessWorker(Worker):
         def init(self):
             global h5py; import labscript_utils.h5_lock, h5py
-            from Queue import Queue # TODO: Python 3 compat required
+            from labscript_utils import PY2
+            if PY2:
+                from Queue import Queue
+            else:
+                from queue import Queue
             import threading
             # hard-coded again for now
             system_id = 1
