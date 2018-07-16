@@ -434,7 +434,7 @@ if __name__ != "__main__":
 
             # Compute the number of bytes per record and per buffer
             memorySize_samples, self.bitsPerSample = self.board.getChannelInfo()
-            self.bytesPerDatum = (self.bitsPerSample.value + 7) // 8
+            self.bytesPerDatum = (self.bitsPerSample + 7) // 8
 
             # One 'sample' is one datum from each channel
             print("bytesPerDatum = {:d}. channelcount = {:d}.".format(self.bytesPerDatum, self.channelCount))
@@ -524,7 +524,7 @@ if __name__ != "__main__":
             return values
 
         def to_volts(self, zeroToFullScale, buf):
-            offset = float(2**(self.bitsPerSample.value-1))
+            offset = float(2**(self.bitsPerSample-1))
             return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001 
 
         # This helper function waits for the acquisition_loop thread to finish the acquisition,
