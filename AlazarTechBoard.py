@@ -69,6 +69,11 @@ atsSampleRates={
 180000000: ats.SAMPLE_RATE_180MSPS
 }
 
+atsExternalClockAdvice = {
+    'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
+}
+
+
 
 if __name__ != "__main__":
     import numpy as np #Done above
@@ -269,12 +274,36 @@ if __name__ != "__main__":
             else:
                 from queue import Queue
             import threading
-            # hard-coded again for now
-            system_id = 1
-            board_id  = 1
-            self.board = ats.Board(systemId = system_id, boardId = board_id)
-            print("Initialised AlazarTech system {:d}, board {:d}.".format(system_id, board_id))
-            self.board.abortAsyncRead()
+            
+            # SDK startup
+            self.sdk_version = ats.getSDKVersion()
+            self.sdk_version_string = '.'.join(map(str, self.sdk_version))
+            print("AlazarTech SDK version {:s}".format(self.sdk_version_string))
+            
+            # Board init, hard-coded again for now
+            system_id = 1; board_id  = 1
+            self.board = board = ats.Board(systemId = system_id, boardId = board_id)
+            #self.driver_version = ats.getDriverVersion()
+            #self.driver_version_string = '.'.join(map(str, self.driver_version))
+            self.driver_version_string = '(unknown)'
+
+            self.board_name = ats.boardNames[self.board.type]
+            assert self.board_name == "ATS9462",\
+                "This labscript device driver only supports the ATS9462 board at present."
+            assert board.num_channels == 2,\
+                "This labscript device driver only support two channel boards at present."
+
+            print("Initialised AlazarTech {:s} (SN {:d}) connected as system {:d}, board {:d}.".\
+                format(self.board_name, board.serial_number, system_id, board_id))
+            print("Hardware revision {:s}, driver version {:s}, CPLD version {:s}.".\
+                format(board.revision_string, self.driver_version_string, board.cpld_version_string))
+            #For some reason can't make the API return these from queryCapability, but can get all the others. 
+            #Particularly odd because it works in C!
+            #print("PCIe connection width {:d}, speed {:d}".format(board.pcie_link_speed, board.pcie_link_width))
+            print("{:d} channels. Board memory {:d}, quantising {:d} bits per sample.".format(board.num_channels, board.memorysize_samples, board.bits_per_sample))
+            board.abortAsyncRead()
+            
+            # Multiprocessing init
             self.acquisition_queue = Queue()
             self.acquisition_thread = threading.Thread(target=self.acquisition_loop)
             self.acquisition_thread.daemon = True
@@ -327,10 +356,13 @@ if __name__ != "__main__":
             except ats.AlazarException as e:
                 errstring, funcname, arguments, retCode, retText = e.args
                 if retText == 'ApiPllNotLocked':
-                    print("PLL not locked! Is the 10MHz reference attached and the right number of mV/dBm??")
-                    raise
-            finally:
-                pass
+                    print("Error: PLL not locked! ")
+                    try:
+                        print("Error: For this {:s} board, the ext reference should be {:s}".format(self.board_name, \
+                        atsExternalClockAdvice[self.board_name]))
+                    except KeyError:
+                        print("Error: I don't have any advice for you on clocking the {:s} board".format(self.board_name))
+                raise ats.AlazarException(e)
             
             # Store the actual acquisition rate back as an attribute. 
             # Again, this should be done as an ACQUISITIONS table entry, but not today

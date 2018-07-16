@@ -376,6 +376,76 @@ FFT_FOOTER_NPT = 0x1
 DSP_RAW_PLUS_FFT_SUPPORTED = 0
 DSP_FFT_SUBTRACTOR_SUPPORTED = 1
 
+'''Get/Set/Query'''
+NUMBER_OF_RECORDS              = 0x10000001
+PRETRIGGER_AMOUNT              = 0x10000002
+RECORD_LENGTH                  = 0x10000003
+TRIGGER_ENGINE                 = 0x10000004
+TRIGGER_DELAY                  = 0x10000005
+TRIGGER_TIMEOUT                = 0x10000006
+SAMPLE_RATE                    = 0x10000007
+CONFIGURATION_MODE             = 0x10000008
+DATA_WIDTH                     = 0x10000009
+AUTO_CALIBRATE                 = 0x1000000A
+TRIGGER_XXXXX                  = 0x1000000B
+CLOCK_SOURCE                   = 0x1000000C
+CLOCK_SLOPE                    = 0x1000000D
+IMPEDANCE                      = 0x1000000E
+INPUT_RANGE                    = 0x1000000F
+COUPLING                       = 0x10000010
+MAX_TIMEOUTS_ALLOWED           = 0x10000011
+ATS_OPERATING_MODE             = 0x10000012
+OPERATING_MODE                 = 0x10000012 #Single, Dual, Quad etc...
+CLOCK_DECIMATION_EXTERNAL      = 0x10000013
+LED_CONTROL                    = 0x10000014
+ATTENUATOR_RELAY               = 0x10000018
+EXT_TRIGGER_COUPLING           = 0x1000001A
+EXT_TRIGGER_ATTENUATOR_RELAY   = 0x1000001C
+TRIGGER_ENGINE_SOURCE          = 0x1000001E
+TRIGGER_ENGINE_SLOPE           = 0x10000020
+SEND_DAC_VALUE                 = 0x10000021
+SLEEP_DEVICE                   = 0x10000022
+GET_DAC_VALUE                  = 0x10000023
+GET_SERIAL_NUMBER              = 0x10000024
+GET_FIRST_CAL_DATE             = 0x10000025
+GET_LATEST_CAL_DATE            = 0x10000026
+GET_LATEST_TEST_DATE           = 0x10000027
+SEND_RELAY_VALUE               = 0x10000028
+GET_LATEST_CAL_DATE_MONTH      = 0x1000002D
+GET_LATEST_CAL_DATE_DAY        = 0x1000002E
+GET_LATEST_CAL_DATE_YEAR       = 0x1000002F
+GET_PCIE_LINK_SPEED            = 0x10000030
+GET_PCIE_LINK_WIDTH            = 0x10000031
+GET_PCI_CONFIG_HEADER          = 0x10000033
+SETGET_ASYNC_BUFFSIZE_BYTES    = 0x10000039
+SETGET_ASYNC_BUFFCOUNT         = 0x10000040
+SET_DATA_FORMAT                = 0x10000041
+GET_DATA_FORMAT                = 0x10000042
+DATA_FORMAT_UNSIGNED           = 0
+DATA_FORMAT_SIGNED             = 1
+SET_SINGLE_CHANNEL_MODE        = 0x10000043
+GET_SAMPLES_PER_TIMESTAMP_CLOCK= 0x10000044
+GET_RECORDS_CAPTURED           = 0x10000045
+GET_MAX_PRETRIGGER_SAMPLES     = 0x10000046
+SET_ADC_MODE                   = 0x10000047
+ADC_MODE_DEFAULT               = 0
+ADC_MODE_DES                   = 1
+ADC_MODE_DES_WIDEBAND          = 2
+ADC_MODE_RESET_ENABLE          = 0x8001
+ADC_MODE_RESET_DISABLE         = 0x8002
+ECC_MODE                       = 0x10000048
+ECC_DISABLE                    = 0
+ECC_ENABLE                     = 1
+GET_AUX_INPUT_LEVEL            = 0x10000049
+AUX_INPUT_LOW                  = 0
+AUX_INPUT_HIGH                 = 1
+EXT_TRIGGER_IMPEDANCE          = 0x10000065
+EXT_TRIG_50_OHMS               = 0
+EXT_TRIG_300_OHMS              = 1
+GET_CHANNELS_PER_BOARD         = 0x10000070
+ASOPC_TYPE                     = 0x1000002C
+
+
 def enter_pressed():
     try:
         from msvcrt import getch
@@ -511,6 +581,12 @@ def boardsInSystemBySystemID(sid):
     ats.AlazarBoardsInSystemBySystemID.restype = U32
     ats.AlazarBoardsInSystemBySystemID.argtypes = [U32]
     return ats.AlazarBoardsInSystemBySystemID(sid)
+
+#HANDLE EXPORT AlazarGetSystemHandle(U32 sid);
+def getSystemHandle(sid):
+    ats.AlazarGetSystemHandle.restype = U32
+    ats.AlazarGetSystemHandle.argtypes = [U32]
+    return ats.AlazarGetSystemHandle(sid)
 
 #ats.AlazarDSPGenerateWindowFunction.restype = U32
 #ats.AlazarDSPGenerateWindowFunction.argtypes = [U32, POINTER(c_float), U32, U32]
@@ -695,6 +771,27 @@ def boardsInSystemBySystemID(sid):
 #         ''' Download the record for the background subration feature to a board '''
 #         ats.AlazarFFTBackgroundSubtractionSetRecordS16(self.handle, record, size_samples)
 
+#RETURN_CODE EXPORT AlazarGetSDKVersion(U8 *Major, U8 *Minor, U8 *Revision);
+ats.AlazarGetSDKVersion.restype = U32
+ats.AlazarGetSDKVersion.argtypes = [c_void_p, c_void_p, c_void_p]
+ats.AlazarGetSDKVersion.errcheck = returnCodeCheck
+def getSDKVersion():
+    major    = U8(0)
+    minor    = U8(0)
+    revision = U8(0)
+    ats.AlazarGetSDKVersion(byref(major), byref(minor), byref(revision))
+    return (major.value, minor.value, revision.value)
+
+#RETURN_CODE EXPORT AlazarGetDriverVersion(U8 *Major, U8 *Minor, U8 *Revision);
+ats.AlazarGetDriverVersion.restype = U32
+ats.AlazarGetDriverVersion.argtypes = [c_void_p, c_void_p, c_void_p]
+ats.AlazarGetDriverVersion.errcheck = returnCodeCheck
+def getDriverVersion():
+    major    = U8(0)
+    minor    = U8(0)
+    revision = U8(0)
+    ats.AlazarGetDriverVersion(byref(major), byref(minor), byref(revision))
+    return (major.value, minor.value, revision.value)
 
 class Board:
     '''Interface to an AlazarTech digitizer.
@@ -715,6 +812,13 @@ class Board:
 
     '''
     def __init__(self, systemId=1, boardId=1):
+        systems = numOfSystems()
+        boards = boardsInSystemBySystemID(systemId)
+        #syshandle = getSystemHandle(systemId)
+        ats.AlazarGetBoardKind.restype = U32
+        ats.AlazarGetBoardKind.argtypes = [U32]
+        #self.type = ats.AlazarGetBoardKind(syshandle)
+        #print("Machine contains {:d} Alazar systems. System #{:d} contains {:d} boards".format(systems, systemId, boards))
         ats.AlazarGetBoardBySystemID.restype = U32
         ats.AlazarGetBoardBySystemID.argtypes = [U32, U32]
         self.systemId = systemId
@@ -722,12 +826,61 @@ class Board:
         self.handle = ats.AlazarGetBoardBySystemID(systemId, boardId)
         if self.handle == 0:
             raise Exception("Board %d.%d not found" % (systemId, boardId))
-
-
-        ats.AlazarGetBoardKind.restype = U32
-        ats.AlazarGetBoardKind.argtypes = [U32]
         self.type = ats.AlazarGetBoardKind(self.handle)
 
+        self.revision = self.getBoardRevision()
+        self.revision_string = '{:d}.{:d}'.format(*self.revision)
+        self.cpld_version = self.getCPLDVersion()
+        self.cpld_version_string = '{:d}.{:d}'.format(*self.cpld_version)
+        self.num_channels = self.getChannelsPerBoard()
+        self.memorysize_samples, self.bits_per_sample = self.getChannelInfo()
+        self.lastest_cal_date   = self.queryCapability(GET_LATEST_CAL_DATE) # These work fine
+        self.serial_number      = self.queryCapability(GET_SERIAL_NUMBER)   # These work fine
+        self.asopc_type         = self.queryCapability(ASOPC_TYPE)
+        self.pcie_link_speed    = self.queryCapability(GET_PCIE_LINK_SPEED) # This doesn't work!!?
+        self.pcie_link_width    = self.queryCapability(GET_PCIE_LINK_WIDTH) # This doesn't work!!?
+        
+    #RETURN_CODE EXPORT AlazarGetBoardRevision(HANDLE hBoard, U8 *Major, U8 *Minor);
+    def getBoardRevision(self):
+        major    = U8(0)
+        minor    = U8(0)
+        ats.AlazarGetBoardRevision(self.handle, byref(major), byref(minor))
+        return (major.value, minor.value)
+   
+    # AlazarGetParameter(HANDLE h, U8 Channel, U32 Parameter, long *RetValue)
+    ats.AlazarGetParameter.restype = U32
+    ats.AlazarGetParameter.argtypes = [U32, U8, U32, POINTER(c_long)]
+    ats.AlazarGetParameter.errcheck = returnCodeCheck
+    def getParameter(self, channel, request):
+        retvalue = c_long(0)
+        ats.AlazarGetParameter(self.handle, channel, request, byref(retvalue))
+        return retvalue.value
+
+    # This didn't work, returning APIFailed (513)...
+    #RETURN_CODE EXPORT AlazarQueryCapability(HANDLE h, U32 request, U32 value, U32 *retValue);
+    ats.AlazarQueryCapability.restype = U32
+    ats.AlazarQueryCapability.argtypes = [U32, U32, U32, POINTER(c_uint32)]
+    ats.AlazarQueryCapability.errcheck = returnCodeCheck
+    def queryCapability(self, request):
+        retvalue = c_uint32(0)
+        ats.AlazarQueryCapability(self.handle, request, 0, byref(retvalue))
+        return retvalue.value
+
+    def getChannelsPerBoard(self):
+        return self.getParameter(1, GET_CHANNELS_PER_BOARD)
+
+    def getPCIeStats(self):
+        link_speed = self.queryCapability(GET_PCIE_LINK_SPEED)
+        link_width = self.queryCapability(GET_PCIE_LINK_WIDTH)
+        return link_speed, link_width
+
+    #RETURN_CODE EXPORT AlazarGetCPLDVersion(HANDLE h, U8 *Major, U8 *Minor);
+    def getCPLDVersion(self):
+        major    = U8(0)
+        minor    = U8(0)
+        ats.AlazarGetCPLDVersion(self.handle, byref(major), byref(minor))
+        return (major.value, minor.value)
+   
     ats.AlazarAbortAsyncRead.restype = U32
     ats.AlazarAbortAsyncRead.argtypes = [U32]
     ats.AlazarAbortAsyncRead.errcheck = returnCodeCheck
@@ -741,8 +894,6 @@ class Board:
     def abortCapture(self):
         '''Abort an acquisition to on-board memory.'''
         ats.AlazarAbortCapture(self.handle)
-
-
 
     ats.AlazarBeforeAsyncRead.restype = U32
     ats.AlazarBeforeAsyncRead.argtypes = [U32, U32, c_long, U32, U32, U32, U32]
@@ -843,7 +994,7 @@ class Board:
         memorySize_samples = U32(0)
         bitsPerSample = U8(0)
         ats.AlazarGetChannelInfo(self.handle, byref(memorySize_samples), byref(bitsPerSample))
-        return (memorySize_samples, bitsPerSample)
+        return (memorySize_samples.value, bitsPerSample.value)
 
     ats.AlazarInputControl.restype = U32
     ats.AlazarInputControl.argtypes = [U32, U8, U32, U32, U32]
