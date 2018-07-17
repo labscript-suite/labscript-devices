@@ -10,6 +10,7 @@ import numpy as np
 import signal
 import sys
 import time
+from tqdm import tqdm
 
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
@@ -17,6 +18,9 @@ import atsapi as ats
 
 # Workaround for compound dtypes (numpy issue #10672)
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
+
+# TDQM progress indicator defaults
+tqdm_kwargs= {'file': sys.stdout, 'ascii': False, 'ncols': 80}
 
 # Talk mv to card set range
 # All ATS ranges given below,
@@ -45,7 +49,6 @@ atsRanges={
 #250: ats.INPUT_RANGE_PM_250_MV
 }
 
-
 atsSampleRates={
 1000:      ats.SAMPLE_RATE_1KSPS,
 2000:      ats.SAMPLE_RATE_2KSPS,
@@ -58,7 +61,7 @@ atsSampleRates={
 500000:    ats.SAMPLE_RATE_500KSPS,
 1000000:   ats.SAMPLE_RATE_1MSPS,
 2000000:   ats.SAMPLE_RATE_2MSPS,
-5000000:   ats.SAMPLE_RATE_5MSPS,
+5000000:   ats.SAMPLE_RATE_5MSPS,   
 10000000:  ats.SAMPLE_RATE_10MSPS,
 20000000:  ats.SAMPLE_RATE_20MSPS,
 25000000:  ats.SAMPLE_RATE_25MSPS,
@@ -72,8 +75,6 @@ atsSampleRates={
 atsExternalClockAdvice = {
     'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
 }
-
-
 
 if __name__ != "__main__":
     import numpy as np #Done above
@@ -480,7 +481,7 @@ if __name__ != "__main__":
             while True:
                 command = self.acquisition_queue.get()
                 assert command == 'start'
-                print("acquisition thread: starting new acquisition")
+                #print("acquisition thread: starting new acquisition")
                 start = time.clock()               # Keep track of when acquisition started
                 self.acquisition_exception = None  # This is a fresh trip through the acquisition loop, no exception has occurred yet!
                 self.acquisition_done.clear()      # I don't understand why this is needed here!
@@ -488,12 +489,14 @@ if __name__ != "__main__":
                     print("Capturing {:d} buffers. ".format(self.buffersPerAcquisition), end="")
                     buffersCompleted = 0; bytesTransferred = 0
                     print('Read buffer:',end="")
-                    while (buffersCompleted < self.buffersPerAcquisition and not self.aborting):
-                        buffer = self.buffers[buffersCompleted]
-                        self.board.waitNextAsyncBufferComplete(buffer.addr, self.bytesPerBuffer, timeout_ms=self.timeout)
-                        buffersCompleted += 1
-                        print(' {:d}'.format(buffersCompleted),end="")
-                        bytesTransferred += buffer.size_bytes
+                    with tqdm(total=self.buffersPerAcquisition, unit='buffers', desc='Capturing buffers', **tqdm_kwargs) as pbar:
+                        while (buffersCompleted < self.buffersPerAcquisition and not self.aborting):
+                            buffer = self.buffers[buffersCompleted]
+                            self.board.waitNextAsyncBufferComplete(buffer.addr, self.bytesPerBuffer, timeout_ms=self.timeout)
+                            buffersCompleted += 1
+                            #print(' {:d}'.format(buffersCompleted),end="")
+                            pbar.update(1)
+                            bytesTransferred += buffer.size_bytes
                 except ats.AlazarException as e:
                     # Assume that if we got here it was due to an exception in waitNextAsyncBufferComplete. 
                     errstring, funcname, arguments, retCode, retText = e.args
@@ -511,14 +514,7 @@ if __name__ != "__main__":
                 if self.aborting:
                     print("acquisition thread: capture aborted.")
                     continue
-                transferTime_sec = time.clock() - start # Compute the total transfer time, and display performance information.
-                print(". Capture completed in {:3.2f}s.".format(transferTime_sec))
-                buffersPerSec = 0; bytesPerSec = 0
-                if transferTime_sec > 0:
-                    buffersPerSec = buffersCompleted / transferTime_sec
-                    bytesPerSec = bytesTransferred / transferTime_sec
-                print("Captured {:d} buffers ({:3.2f} buffers/s), transferred {:d} bytes ({:.1f} MB/s).".format(
-                    buffersCompleted, buffersPerSec, bytesTransferred, bytesPerSec/self.oneM))
+                
            
         def program_manual(self,values):
             return values
@@ -537,7 +533,7 @@ if __name__ != "__main__":
             try:
                 if not self.acquisition_done.wait(timeout=2) and not self.aborting:
                     raise Exception('Waiting for acquisition to complete timed out')
-                print("acquisition_exception is {:s}".format(self.acquisition_exception))
+                #print("acquisition_exception is {:s}".format(self.acquisition_exception))
                 if self.acquisition_exception is not None and not self.aborting:
                     raise self.acquisition_exception
             finally:
@@ -558,11 +554,11 @@ if __name__ != "__main__":
                     dsetB    = grp.create_dataset('channelB',    (self.samplesPerAcquisition,), dtype='float32')
                     dsetBraw = grp.create_dataset('rawsamplesB', (self.samplesPerAcquisition,), dtype='uint16')        
                 start = 0
-                print('Writing buffers to HDF5...',end='')
                 samplesToProcess = self.samplesPerAcquisition
                 # This slightly silly logic assumes that if you are acquiring only one channel then it's chA. 
                 # This should be redone
-                for buf, counter in zip( self.buffers, range(1,len(self.buffers)+1) ):
+                for buf, counter in tqdm(zip(self.buffers, range(1,len(self.buffers)+1)), 
+                        unit='buffers', desc='Writing buffers to HDF5', **tqdm_kwargs):
                     bufferData = buf.buffer
                     #lastI shortens the buffer aquisition at the end of a sample, ie last buffer. I'm sure this could be nicer!
                     lastI = (samplesToProcess if (samplesToProcess < self.samplesPerBuffer) else self.samplesPerBuffer) * self.channelCount
@@ -575,8 +571,6 @@ if __name__ != "__main__":
                         dsetB[   start : end] = self.to_volts(self.atsparam['chB_input_range'],bufferData[1 : lastI : self.channelCount])
                     samplesToProcess -= self.samplesPerBuffer
                     start += self.samplesPerBuffer
-                    if counter % 10 == 0: print(' {:d}'.format(counter),end="")
-                print(' finished with HDF5. ',end='')
             print("Freeing buffers... ",end="")
             for buf in self.buffers: buf.__exit__()
             self.buffers = []
