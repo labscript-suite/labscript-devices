@@ -56,12 +56,7 @@ class NovaTechDDS9M(IntermediateDevice):
         as the argument) to check if there are certain unit calibration
         classes that they should apply to their outputs, if the user has
         not otherwise specified a calibration class"""
-        if device.connection in ['channel 0', 'channel 1']:
-            # Default calibration classes for the non-static channels:
-            return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
-        else:
-            return None, None, None
-        
+        return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
         
     def quantise_freq(self, data, device):
         if not isinstance(data, np.ndarray):
@@ -350,6 +345,18 @@ class NovatechDDS9mWorker(Worker):
         self.smart_cache['STATIC_DATA'] = None
      
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
+
+        # Pretty please reset your memory pointer to zero:
+
+        # Transition to table mode:
+        self.connection.write(b'm t\r\n')
+        self.connection.readline()
+        # And back to manual mode
+        self.connection.write(b'm 0\r\n')
+        if self.connection.readline() != b"OK\r\n":
+            raise Exception('Error: Failed to execute command: "m 0"')
+
+
         # Store the initial values in case we have to abort and restore them:
         self.initial_values = initial_values
         # Store the final values to for use during transition_to_static:
@@ -538,5 +545,4 @@ class RunviewerClass(object):
                     add_trace(subchnl.name, data[connection], self.name, connection)
         
         return {}
-    
 
