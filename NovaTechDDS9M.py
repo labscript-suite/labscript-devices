@@ -315,16 +315,14 @@ class NovatechDDS9mWorker(Worker):
      
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
 
-
         # Pretty please reset your memory pointer to zero:
 
         # Transition to table mode:
-        self.connection.write('m t\r\n')
+        self.connection.write(b'm t\r\n')
         self.connection.readline()
-
         # And back to manual mode
-        self.connection.write('m 0\r\n')
-        if self.connection.readline() != "OK\r\n":
+        self.connection.write(b'm 0\r\n')
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "m 0"')
 
 
