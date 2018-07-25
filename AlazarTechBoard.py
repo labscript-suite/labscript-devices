@@ -3,7 +3,7 @@
 #
 # Copyright (c) Monash University 2017
 from __future__ import division
-# from __future__ import  unicode_literals # seems oddly problematic
+from __future__ import  unicode_literals
 from __future__ import print_function
 import ctypes
 import numpy as np
@@ -12,6 +12,10 @@ import sys
 import time
 from tqdm import tqdm
 
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+    
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
 import atsapi as ats
@@ -228,9 +232,7 @@ if __name__ != "__main__":
         clocks_allowed = np.arange(150*meg, 181*meg, 1*meg)
         clock, divider = find_clock_and_r(f, clocks_allowed)
         if divider > rlimit:
-            raise LabscriptError,\
-                "Required clock divisor {:d} exceeds maximum value of {:d}".\
-                format(div, rlimit)
+            raise LabscriptError( "Required clock divisor {:d} exceeds maximum value of {:d}".format(div, rlimit))
         if clock % divider != 0:
             warning = "Warning: Couldn't match requested sample rate {:d} SPS! Using the slightly greater value of {:d} SPS...".format(f, clock//divider)
             print(warning, file=sys.stderr)
@@ -340,17 +342,17 @@ if __name__ != "__main__":
                 print('Internally clock at {:.0f} samples per second ({:.1f} MS/s), from external 10MHz reference ({:d}MHz PLL divided by {:d}).'.\
                     format(actual_acquisition_rate,actual_acquisition_rate/1e6, atsSamplesPerSec_or_id//1000000, divisor))
             elif clock_source_id == ats.FAST_EXTERNAL_CLOCK:
-                raise LabscriptError, "Requested capture clock type FAST_EXTERNAL_CLOCK is not implemented"           
+                raise LabscriptError("Requested capture clock type FAST_EXTERNAL_CLOCK is not implemented")          
             elif clock_source_id == ats.MEDIUM_EXTERNAL_CLOCK:
-                raise LabscriptError, "Requested capture clock type MEDIUM_EXTERNAL_CLOCK is not implemented"
+                raise LabscriptError("Requested capture clock type MEDIUM_EXTERNAL_CLOCK is not implemented")
             elif clock_source_id == ats.SLOW_EXTERNAL_CLOCK:
-                raise LabscriptError, "Requested capture clock type SLOW_EXTERNAL_CLOCK is not implemented"
+                raise LabscriptError("Requested capture clock type SLOW_EXTERNAL_CLOCK is not implemented")
             elif clock_source_id == ats.EXTERNAL_CLOCK_AC:
-                raise LabscriptError, "Requested capture clock type EXTERNAL_CLOCK_AC is not implemented"
+                raise LabscriptError("Requested capture clock type EXTERNAL_CLOCK_AC is not implemented")
             elif clock_source_id == ats.EXTERNAL_CLOCK_DC:
-                raise LabscriptError, "Requested capture clock type EXTERNAL_CLOCK_DC is not implemented"
+                raise LabscriptError("Requested capture clock type EXTERNAL_CLOCK_DC is not implemented")
             else:
-                raise LabscriptError, "Requested capture clock type with code {:d} is not recognised".format(atsparam['clock_source_id'])
+                raise LabscriptError("Requested capture clock type with code {:d} is not recognised".format(atsparam['clock_source_id']))
             # The clock_edge_id parameter is not needed for INTERNAL_CLOCK and EXTERNAL_CLOCK_10MHz_REF modes but is here for future extension
             try:
                 self.board.setCaptureClock(atsparam['clock_source_id'], atsSamplesPerSec_or_id, clock_edge_id, decimation)    
@@ -428,7 +430,7 @@ if __name__ != "__main__":
             #channels = ats.CHANNEL_A | ats.CHANNEL_B
             self.channels = atsparam['channels']
             if not (self.channels & ats.CHANNEL_A or self.channels & ats.CHANNEL_B):
-                raise LabscriptError, "You must select either Channel-A or Channel-B, or both. Zero or >2 channels not supported."
+                raise LabscriptError("You must select either Channel-A or Channel-B, or both. Zero or >2 channels not supported.")
             self.channelCount = 0
             for c in ats.channels:
                 self.channelCount += (c & self.channels == c)
