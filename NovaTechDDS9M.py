@@ -50,12 +50,7 @@ class NovaTechDDS9M(IntermediateDevice):
         as the argument) to check if there are certain unit calibration
         classes that they should apply to their outputs, if the user has
         not otherwise specified a calibration class"""
-        if device.connection in ['channel 0', 'channel 1']:
-            # Default calibration classes for the non-static channels:
-            return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
-        else:
-            return None, None, None
-        
+        return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
         
     def quantise_freq(self, data, device):
         if not isinstance(data, np.ndarray):
