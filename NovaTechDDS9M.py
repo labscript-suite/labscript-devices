@@ -352,7 +352,7 @@ class NovatechDDS9mWorker(Worker):
         self.connection.write(b'm t\r\n')
         self.connection.readline()
         # And back to manual mode
-        self.connection.write('%s\r\n'%self.phase_mode_command)
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
 
