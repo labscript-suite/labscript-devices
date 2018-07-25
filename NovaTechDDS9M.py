@@ -270,8 +270,8 @@ class NovatechDDS9mWorker(Worker):
             self.phase_mode_command = b'm 0'
         elif self.phase_mode == 'aligned':
             self.phase_mode_command = b'm a'
-        elif self.phase_mode == b'continuous':
-            self.phase_mode_command = 'm n'
+        elif self.phase_mode == 'continuous':
+            self.phase_mode_command = b'm n'
         else:
             self.phase_mode_command = b'm 0'
             raise Exception('Error: invalid phase_mode "%s".'%self.phase_mode)
@@ -288,9 +288,9 @@ class NovatechDDS9mWorker(Worker):
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         
-        self.connection.write('%s\r\n'%self.phase_mode_command)
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode)
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode.decode('utf8'))
         
         #return self.get_current_values()
         
@@ -352,9 +352,9 @@ class NovatechDDS9mWorker(Worker):
         self.connection.write(b'm t\r\n')
         self.connection.readline()
         # And back to manual mode
-        self.connection.write(b'm 0\r\n')
-        if self.connection.readline() != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "m 0"')
+        self.connection.write('%s\r\n'%self.phase_mode_command)
+        if self.connection.readline() != "OK\r\n":
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
 
 
         # Store the initial values in case we have to abort and restore them:
@@ -459,9 +459,9 @@ class NovatechDDS9mWorker(Worker):
         return self.transition_to_manual(True)
     
     def transition_to_manual(self,abort = False):
-        self.connection.write('%s\r\n'%self.phase_mode_command)
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command)
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
         self.connection.write('I a\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
