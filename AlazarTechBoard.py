@@ -2,9 +2,7 @@
 # Hacked up from NIboard.py by LDT 2017-01-26
 #
 # Copyright (c) Monash University 2017
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
+from __future__ import division, unicode_literals, print_function
 import ctypes
 import numpy as np
 import signal
@@ -18,7 +16,7 @@ if PY2:
 
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
-import atsapi as ats
+import labscript_devices.atsapi as ats
 
 # Workaround for compound dtypes (numpy issue #10672)
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
@@ -80,15 +78,11 @@ atsExternalClockAdvice = {
     'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
 }
 
-import numpy as np  # Done above
 from labscript_devices import labscript_device
 from labscript import Device, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock
 import h5py
 import labscript_utils.properties
-import labscript_utils.shared_drive as shared_drive
-import atsapi as ats
-
 
 class AlazarTechBoard(Device):
     allowed_children = [AnalogIn]
@@ -161,8 +155,7 @@ class AlazarTechBoard(Device):
                 inputs[device.connection] = device
             else:
                 raise Exception('Got unexpected device.')
-        input_connections = inputs.keys()
-        input_connections.sort()
+        input_connections = sorted(inputs)
         input_attrs = []
         acquisitions = []
         for connection in input_connections:
@@ -223,13 +216,12 @@ def find_clock_and_r(f, clocks):
     # and decimator r from natural numbers to give the smallest sample rate
     # that exceeds the requested frequency f.
     divisors, remainders = divmod(clocks, f)
-    opts = np.core.records.fromarrays(
-        [remainders, divisors, clocks],
-        names=b'rem, div, clock', formats='i4,i4,i4')
-    opts.sort(order=b'rem')
+    opts_dtypes = [('rem', 'i4'), ('div', 'i4'), ('clock', 'i4')]
+    opts = np.array(list(zip(remainders, divisors, clocks)), dtype=dtype_workaround(opts_dtypes))
+    opts.sort(order=b'rem' if PY2 else 'rem')
     minrem = opts['rem'][0]
     # This gets the option with minimum remainder and maximum divisor
-    bestopt = np.sort(opts[opts['rem'] == minrem], order=b'div')[-1]
+    bestopt = np.sort(opts[opts['rem'] == minrem], order=b'div' if PY2 else 'div')[-1]
     return bestopt['clock'], bestopt['div']
 
 
@@ -244,7 +236,7 @@ def ats9462_clock(f):
     clock, divider = find_clock_and_r(f, clocks_allowed)
     if divider > rlimit:
         raise LabscriptError(
-            "Required clock divisor {:d} exceeds maximum value of {:d}".format(div, rlimit))
+            "Required clock divisor {:d} exceeds maximum value of {:d}".format(divider, rlimit))
     if clock % divider != 0:
         warning = "Warning: Couldn't match requested sample rate {:f} SPS! Using the slightly greater value of {:d} SPS...".format(
             f, clock//divider)
@@ -662,3 +654,13 @@ class GuilessWorker(Worker):
     def abort_transition_to_buffered(self):
         print("abort_transition_to_buffered: ...")
         return self.abort()
+
+    def shutdown(self):
+        if self.aborting:
+            print('Shutdown requested during abort; waiting 10 seconds.')
+            start = time.clock()
+            while self.aborting and time.clock() - start < 10:
+                time.sleep(0.5)
+        if self.aborting:
+            print('Proceeding in lieu of complete abort.')
+        return
