@@ -215,11 +215,11 @@ if __name__ != "__main__":
         divisors, remainders = divmod(clocks,f)
         opts = np.core.records.fromarrays(
             [remainders, divisors, clocks],
-            names = 'rem, div, clock', formats='i4,i4,i4')
-        opts.sort(order='rem')
+            names = b'rem, div, clock', formats='i4,i4,i4')
+        opts.sort(order=b'rem')
         minrem = opts['rem'][0]
         # This gets the option with minimum remainder and maximum divisor
-        bestopt = np.sort(opts[opts['rem']==minrem],order='div')[-1]
+        bestopt = np.sort(opts[opts['rem']==minrem],order=b'div')[-1]
         return bestopt['clock'],bestopt['div']
 
     def ats9462_clock(f):
@@ -234,7 +234,7 @@ if __name__ != "__main__":
         if divider > rlimit:
             raise LabscriptError( "Required clock divisor {:d} exceeds maximum value of {:d}".format(div, rlimit))
         if clock % divider != 0:
-            warning = "Warning: Couldn't match requested sample rate {:d} SPS! Using the slightly greater value of {:d} SPS...".format(f, clock//divider)
+            warning = "Warning: Couldn't match requested sample rate {:f} SPS! Using the slightly greater value of {:d} SPS...".format(f, clock//divider)
             print(warning, file=sys.stderr)
         return clock, divider
 
