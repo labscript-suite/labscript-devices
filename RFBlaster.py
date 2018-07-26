@@ -10,7 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
+from __future__ import division, print_function, absolute_import
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -164,7 +164,7 @@ class RFBlaster(PseudoclockDevice):
                                  jump_to_start=(i == 0),
                                  jump_from_end=False,
                                  close_end=(i == len(diff_tables) - 1),
-                                 local_loop_pre = bytes(i), # need to look at CompileD to know if this will be ok on Python 3
+                                 local_loop_pre = bytes(i) if PY2 else str(i),
                                  set_defaults = (i==0))
                 # Save the assembly to the h5 file:
                 with open(temp_assembly_filepath,) as assembly_file:
@@ -324,7 +324,7 @@ class MultiPartForm(object):
         self.boundary = uuid.uuid4().hex.encode('utf8')
     
     def get_content_type(self):
-        return 'multipart/form-data; boundary=%s' % self.boundary
+        return b'multipart/form-data; boundary=%s' % self.boundary
 
     def add_field(self, name, value):
         """Add a simple field to the form data."""
@@ -387,8 +387,8 @@ class RFBlasterWorker(Worker):
             form.add_field("a_ch%d_in"%i,str(values['dds %d'%i]['amp']*values['dds %d'%i]['gate']))
             form.add_field("f_ch%d_in"%i,str(values['dds %d'%i]['freq']*1e-6)) # method expects MHz
             form.add_field("p_ch%d_in"%i,str(values['dds %d'%i]['phase']))
-            
-        form.add_field("set_dds","Set device")
+        
+        form.add_field("set_dds", "Set device")
 
         return_vals = self.get_web_values(self.http_request(form))
             
@@ -423,14 +423,14 @@ class RFBlasterWorker(Worker):
         form = MultiPartForm()
         #tell the rfblaster to stop
         form.add_field("halt","Halt execution")
-        http_request(form)
+        self.http_request(form)
         return True
     
     def abort_buffered(self):
         form = MultiPartForm()
         #tell the rfblaster to stop
         form.add_field("halt","Halt execution")
-        http_request(form)
+        self.http_request(form)
         return True
      
     def transition_to_manual(self):
