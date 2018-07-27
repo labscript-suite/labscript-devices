@@ -266,15 +266,12 @@ class NovatechDDS9mWorker(Worker):
         self.connection.readlines()
         
         # Set phase mode method
-        if self.phase_mode == 'default':
-            self.phase_mode_command = b'm 0'
-        elif self.phase_mode == 'aligned':
-            self.phase_mode_command = b'm a'
-        elif self.phase_mode == 'continuous':
-            self.phase_mode_command = b'm n'
-        else:
-            self.phase_mode_command = b'm 0'
-            raise Exception('Error: invalid phase_mode "%s".'%self.phase_mode)
+        phase_mode_commands = {
+            'default': b'm 0',
+            'aligned': b'm a',
+            'continuous': b'm n',
+        }
+        self.phase_mode_command = phase_mode_commands[self.phase_mode]
 
         self.connection.write('e d\r\n')
         response = self.connection.readline()
