@@ -10,7 +10,13 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
@@ -542,7 +548,7 @@ class PulseBlaster(PseudoclockDevice):
                     ('dds_en1', np.int32), ('phase_reset1', np.int32),
                     ('flags', np.int32), ('inst', np.int32),
                     ('inst_data', np.int32), ('length', np.float64)]
-        pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
+        pb_inst_table = np.empty(len(pb_inst),dtype = dtype_workaround(pb_dtype))
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
@@ -699,7 +705,7 @@ class PulseBlasterTab(DeviceTab):
         # PulseBlasterDirectOutputs
         if parent_device_name == self.device_name:
             device = self.connection_table.find_by_name(self.device_name)
-            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            pseudoclock = device.child_list[list(device.child_list.keys())[0]] # there should always be one (and only one) child, the Pseudoclock
             clockline = None
             for child_name, child in pseudoclock.child_list.items():
                 # store a reference to the internal clockline
@@ -711,7 +717,7 @@ class PulseBlasterTab(DeviceTab):
                 
             if clockline is not None:
                 # There should only be one child of this clock line, the direct outputs
-                direct_outputs = clockline.child_list[clockline.child_list.keys()[0]] 
+                direct_outputs = clockline.child_list[list(clockline.child_list.keys())[0]]
                 # look to see if the port is used by a child of the direct outputs
                 return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
             else:
@@ -788,7 +794,7 @@ class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
         check_version('spinapi', '3.1.1', '4')
-        exec 'from spinapi import *' in globals()
+        exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
@@ -1003,7 +1009,7 @@ class PulseblasterWorker(Worker):
                              'dds 1':{'freq':finalfreq1, 'amp':finalamp1, 'phase':finalphase1, 'gate':en1},
                             }
             # Since we are converting from an integer to a binary string, we need to reverse the string! (see notes above when we create flags variables)
-            return_flags = bin(flags)[2:].rjust(12,'0')[::-1]
+            return_flags = str(bin(flags)[2:]).rjust(12,'0')[::-1]
             for i in range(12):
                 return_values['flag %d'%i] = return_flags[i]
                 
@@ -1171,7 +1177,7 @@ class PulseBlasterParser(object):
                     
             else: # Continue
                 if row['inst'] == 8: #WAIT
-                    print 'Wait at %.9f'%t
+                    print('Wait at %.9f'%t)
                     pass
                 clock.append(t)
                 self._add_pulse_program_row_to_traces(traces,row,dds)
@@ -1184,7 +1190,7 @@ class PulseBlasterParser(object):
             
             i += 1            
                 
-        print 'Stop time: %.9f'%t 
+        print('Stop time: %.9f'%t)
         # now put together the traces
         to_return = {}
         clock = np.array(clock, dtype=np.float64)

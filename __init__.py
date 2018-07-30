@@ -1,15 +1,25 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+try:
+    from labscript_utils import check_version
+except ImportError:
+    raise ImportError('Require labscript_utils > 2.1.0')
+    
+check_version('labscript_utils', '2.6', '3')
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import os
 import sys
 import importlib
 
 __version__ = '2.1.0'
 
-from labscript_utils import check_version
-
 check_version('qtutils', '2.0.0', '3.0.0')
-check_version('labscript_utils', '2.2', '3')
+check_version('labscript_utils', '2.6', '3')
 check_version('labscript', '2.1', '3')
 check_version('blacs', '2.1', '3')
+check_version('zprocess', '2.2.7', '3')
 
 
 class ClassRegister(object):
@@ -47,7 +57,7 @@ class ClassRegister(object):
         try:
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
-            print 'imported', name, 'ok!'
+            print('imported', name, 'ok!')
         except ImportError:
             sys.stderr.write('Error importing module %s.%s whilst looking for classes for device %s. '%(__name__, name, name) +
                              'Check that the module exists, is named correctly, and can be imported with no errors. ' +
