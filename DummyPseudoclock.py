@@ -10,6 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 # This file represents a dummy labscript device for purposes of testing BLACS
 # and labscript. The device is a PseudoclockDevice, and can be the sole device
