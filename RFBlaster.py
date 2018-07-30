@@ -10,7 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, print_function, absolute_import
+from __future__ import division, unicode_literals, print_function, absolute_import
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -452,10 +452,10 @@ class RFBlasterWorker(Worker):
             req.data = body
 
         page = b''.join(urlopen(req, timeout=self.timeout).readlines())
-        page = page.decode('utf8')
         return page
 
-    def get_web_values(self,page): 
+    def get_web_values(self, page): 
+        page = page.decode('utf8')
         import re
         #prepare regular expressions for finding the values:
         search = re.compile(r'name="([fap])_ch(\d+?)_in"\s*?value="([0-9.]+?)"')
