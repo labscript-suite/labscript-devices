@@ -24,24 +24,6 @@ import numpy as np
 
 import time
 
-def check_version(module_name, at_least, less_than, version=None):
-
-    class VersionException(Exception):
-        pass
-
-    def get_version_tuple(version_string):
-        version_tuple = [int(v.replace('+', '-').split('-')[0]) for v in version_string.split('.')]
-        while len(version_tuple) < 3:
-            version_tuple += (0,)
-        return version_tuple
-
-    if version is None:
-        version = __import__(module_name).__version__
-    at_least_tuple, less_than_tuple, version_tuple = [get_version_tuple(v) for v in [at_least, less_than, version]]
-    if not at_least_tuple <= version_tuple < less_than_tuple:
-        raise VersionException(
-            '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
-            
             
 @labscript_device
 class PulseBlaster_No_DDS(PulseBlaster):
@@ -256,7 +238,7 @@ class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):
         from labscript_utils import check_version
-        check_version('spinapi', '3.1.1', '4')
+        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess

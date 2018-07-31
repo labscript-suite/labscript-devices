@@ -793,7 +793,7 @@ class PulseBlasterTab(DeviceTab):
 class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
-        check_version('spinapi', '3.1.1', '4')
+        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
