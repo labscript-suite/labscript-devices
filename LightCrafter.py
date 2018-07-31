@@ -10,6 +10,12 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
+
 
 # COMMON IMPORTS
 import base64
@@ -69,7 +75,7 @@ class ImageSet(Output):
     description = 'A set of images to be displayed on an SLM or DMD'
     width = 608
     height = 684
-    dtype = str
+    
     # Set default value to be a black image. Here's a raw BMP!
     default_value = blank_bmp
     
@@ -117,7 +123,7 @@ class ImageSet(Output):
         Not 100% sure that this is enough to cover ramps on other devices sharing the clock, come here if there are issues!
         """
         
-        self.raw_output = np.array(self.timeseries,self.dtype)
+        self.raw_output = np.array(self.timeseries)
         return
         
         
@@ -208,42 +214,42 @@ class LightCrafterTab(DeviceTab):
         
 @BLACS_worker
 class LightCrafterWorker(Worker):
-    command = {'version' :             '\x01\x00',
-                'display_mode':         '\x01\x01',
-                'static_image':         '\x01\x05',
-                'sequence_setting':     '\x04\x00',
-                'pattern_definition':   '\x04\x01',
-                'start_pattern_sequence': '\x04\x02',
-                'display_pattern' :     '\x04\x05',
-                'advance_pattern_sequence' : '\x04\x02',
+    command = {'version' :             b'\x01\x00',
+                'display_mode':         b'\x01\x01',
+                'static_image':         b'\x01\x05',
+                'sequence_setting':     b'\x04\x00',
+                'pattern_definition':   b'\x04\x01',
+                'start_pattern_sequence': b'\x04\x02',
+                'display_pattern' :     b'\x04\x05',
+                'advance_pattern_sequence' : b'\x04\x02',
                 }
-    send_packet_type = {   'read': '\x04',
-                            'write': '\x02',
+    send_packet_type = {   'read': b'\x04',
+                            'write': b'\x02',
                 }
-    receive_packet_type = {    '\x00' : 'System Busy',
-                                '\x01' : 'Error',
-                                '\x03' : 'Write response',
-                                '\x05' : 'Read response',
+    receive_packet_type = {    b'\x00' : 'System Busy',
+                                b'\x01' : 'Error',
+                                b'\x03' : 'Write response',
+                                b'\x05' : 'Read response',
                             }
-    flag = {'complete' : '\x00',
-            'beginning' : '\x01',
-            'intermediate' : '\x02',
-            'end': '\x03'}
+    flag = {'complete' : b'\x00',
+            'beginning' : b'\x01',
+            'intermediate' : b'\x02',
+            'end': b'\x03'}
             
-    error_messages = {  '\x01' : "Command execution failed with unknown error",
-                        '\x02' : "Invalid command",
-                        '\x03' : "Invalid parameter",
-                        '\x04' : "Out of memory resource",
-                        '\x05' : "Hardware device failure",
-                        '\x06' : "Hardware busy",
-                        '\x07' : "Not Initialized (any of the preconditions for the command is not met",
-                        '\x08' : "Some object referred by the command is not found. For example, a solution name was not found",
-                        '\x09' : "Checksum error",
-                        '\x0A' : "Packet format error due to insufficient or larger than expected payload size",
-                        '\x0B' : "Command continuation error due to incorrect continuation flag"
+    error_messages = {  b'\x01' : "Command execution failed with unknown error",
+                        b'\x02' : "Invalid command",
+                        b'\x03' : "Invalid parameter",
+                        b'\x04' : "Out of memory resource",
+                        b'\x05' : "Hardware device failure",
+                        b'\x06' : "Hardware busy",
+                        b'\x07' : "Not Initialized (any of the preconditions for the command is not met",
+                        b'\x08' : "Some object referred by the command is not found. For example, a solution name was not found",
+                        b'\x09' : "Checksum error",
+                        b'\x0A' : "Packet format error due to insufficient or larger than expected payload size",
+                        b'\x0B' : "Command continuation error due to incorrect continuation flag"
                         }
-    display_mode = {'static' : '\x00',
-                    'pattern': '\x04',
+    display_mode = {'static' : b'\x00',
+                    'pattern': b'\x04',
                     }
     # Packets must be in the form [packet type (1 bit), command (2), flags (1), payload length (2), data (N), checksum (1)]
     
@@ -258,13 +264,14 @@ class LightCrafterWorker(Worker):
         
         # Initialise it to a static image display
         self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['static'])
+        
         # self.program_manual({"None" : base64.b64encode(blank_bmp)})
         
         
         
     
     def send(self, type, command, data):
-        packet = type + command + self.flag['complete'] + struct.pack('<H',len(data)) + data
+        packet = b'{}{}{}{}{}'.format(type,command,self.flag['complete'],struct.pack('<H',len(data)),data)
         packet += struct.pack('<B',sum(bytearray(packet)) % 256) # add the checksum
         self.sock.send(packet)
         return self.receive()
@@ -273,14 +280,14 @@ class LightCrafterWorker(Worker):
         # This function assumes that we are getting a fresh packet, i.e. there is nothing waiting in the buffer
         # First we get the header bits, to see how big the payload will be:
         header = self.sock.recv(6)
-        type = self.receive_packet_type[header[0]]
+        pkt_type = self.receive_packet_type[header[0]]
         command = header[1:3]
         flag = header[3]
         length = struct.unpack('<H',header[4:6])[0]
         body = self.sock.recv(length + 1)
         checksum = body[-1]
         body = body[:-1]
-        return {'header' : header, 'type' : type, 'command' : command, 'flag' : flag, 'length' : length, 'body' : body, 'checksum' : checksum}
+        return {'header' : header, 'type' : pkt_type, 'command' : command, 'flag' : flag, 'length' : length, 'body' : body, 'checksum' : checksum}
         
     def receive(self):
         recv = self._receive()
@@ -324,7 +331,6 @@ class LightCrafterWorker(Worker):
             data = blank_bmp
         ## Check to see if it's a BMP
         
-        print "programming %s bytes starting with %s"%(len(data),data[0:10])
         
         if data[0:2] != "BM":
                 raise Exception('Error loading image: Image does not appear to be in bmp format (Initial bits are %s)'%data[0:2])
