@@ -447,8 +447,8 @@ class RFBlasterWorker(Worker):
         req = Request(self.address)
         if form is not None:
             body = form.tobytes()
-            req.add_header('Content-type', form.get_content_type())
-            req.add_header('Content-length', len(body))
+            req.add_header(b'Content-type', form.get_content_type())
+            req.add_header(b'Content-length', len(body))
             req.data = body
 
         page = b''.join(urlopen(req, timeout=self.timeout).readlines())
