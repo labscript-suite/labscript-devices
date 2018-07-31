@@ -80,30 +80,34 @@ class ImageSet(Output):
         
         
          
-    def set_image(self, t, path):
-        if not os.path.exists(path):
-            raise LabscriptError('Cannot load the image for SLM Segment %s (path: %s)'%(self.name, path))
-        # First rough check that the path leads to a .bmp file
-        if len(path) < 5 or path[-4:] != '.bmp':
-            raise LabscriptError('Error loading image into %s: Image does not appear to be in bmp format(path: %s) Length: %s, end: %s'%(self.name, path, len(path),path[-4:] ))
+    def set_image(self, t, path = None, raw = None):
         
-        raw_data = ''        
-        with open(path, 'rb') as f:
-            raw_data = f.read()
-            # Check that the image is a BMP, first two bytes should be "BM"
-            if raw_data[0:2] != "BM":
-                raise LabscriptError('Error loaging image into %s: Image does not appear to be in bmp format(path: %s)'%(self.name, path))
-            # Check the dimensions match the device, these are stored in bytes 18-21 and 22-25
-            width = struct.unpack("<i",raw_data[18:22])[0]
-            height = struct.unpack("<i",raw_data[22:26])[0]
-            
-            if width != self.width or height != self.height:
-                raise LabscriptError('Image %s has wrong dimensions. Image dimesions were %s x %s, expected %s x %s'%(path, width, height, self.width, self.height))
-            
-            bitdepth = struct.unpack("<h", raw_data[28:30])[0]
-            if bitdepth != 1:
-                raise LabscriptError("Your image %s is bitdepth %s, it needs to be 1. Please re-save image in appropriate format."%(path,bitdepth))
-            self.add_instruction(t, raw_data)
+        
+        if raw:
+            raw_data = raw
+        else:
+            if not os.path.exists(path):
+                raise LabscriptError('Cannot load the image for SLM Segment %s (path: %s)'%(self.name, path))
+            # First rough check that the path leads to a .bmp file
+            if len(path) < 5 or path[-4:] != '.bmp':
+                raise LabscriptError('Error loading image into %s: Image does not appear to be in bmp format(path: %s) Length: %s, end: %s'%(self.name, path, len(path),path[-4:] ))
+            raw_data = ''        
+            with open(path, 'rb') as f:
+                raw_data = f.read()
+        # Check that the image is a BMP, first two bytes should be "BM"
+        if raw_data[0:2] != "BM":
+            raise LabscriptError('Error loaging image into %s: Image does not appear to be in bmp format(path: %s)'%(self.name, path))
+        # Check the dimensions match the device, these are stored in bytes 18-21 and 22-25
+        width = struct.unpack("<i",raw_data[18:22])[0]
+        height = struct.unpack("<i",raw_data[22:26])[0]
+        
+        if width != self.width or height != self.height:
+            raise LabscriptError('Image %s has wrong dimensions. Image dimesions were %s x %s, expected %s x %s'%(path, width, height, self.width, self.height))
+        
+        bitdepth = struct.unpack("<h", raw_data[28:30])[0]
+        if bitdepth != 1:
+            raise LabscriptError("Your image %s is bitdepth %s, it needs to be 1. Please re-save image in appropriate format."%(path,bitdepth))
+        self.add_instruction(t, raw_data)
             
     def expand_timeseries(self,all_times):
         """We have to override the usual expand_timeseries, as it sees strings as iterables that need flattening!
@@ -194,7 +198,7 @@ class LightCrafterTab(DeviceTab):
         # self.get_tab_layout().addWidget(self.view)
         
         self.supports_remote_value_check(False)        
-        self.supports_smart_programming(False) 
+        self.supports_smart_programming(True) 
         
     def initialise_workers(self):
         self.server = self.BLACS_connection
@@ -248,7 +252,7 @@ class LightCrafterWorker(Worker):
         global struct; import struct
         self.host, self.port = self.server.split(':')
         self.port = int(self.port)
-        
+        self.smart_cache = {'IMAGE_TABLE': ''}
         self.sock = socket.socket()
         self.sock.connect((self.host,self.port))
         
@@ -337,24 +341,26 @@ class LightCrafterWorker(Worker):
         
         
         if table_data is not None:
+            oldtable = self.smart_cache['IMAGE_TABLE']
             self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['pattern'])
             num_of_patterns = len(table_data)
             
             # bit depth, number of patterns, invert patterns?, trigger type, trigger delay (4 bytes), trigger period (4 bytes), exposure time (4 bytes), led select
             self.send(self.send_packet_type['write'], self.command['sequence_setting'],  struct.pack('<BBBBiiiB',1,num_of_patterns,0,2,0,0,250,0))
-            for i, im in enumerate(table_data):
-                
-                self.send(self.send_packet_type['write'], self.command['pattern_definition'], struct.pack('<B',i) + im.tostring())
+            if fresh or len(oldtable)!=len(table_data) or (oldtable != table_data).any():
+                for i, im in enumerate(table_data):
+                    self.send(self.send_packet_type['write'], self.command['pattern_definition'], struct.pack('<B',i) + im.tostring())
             
+            self.send(self.send_packet_type['write'], self.command['display_pattern'], struct.pack('<H',0))
             self.send(self.send_packet_type['write'], self.command['start_pattern_sequence'], struct.pack('<B',1))
-            
+            self.smart_cache['IMAGE_TABLE'] = table_data
             
             
         # if response != 'ok':
             # raise Exception('Failed to transition to manual. Message from server was: %s'%response)
             
         
-        self.final_value = {"None" : base64.b64encode(im.tostring())}
+        self.final_value = {"None" : base64.b64encode(table_data[-1].tostring())}
         
         return self.final_value
         
