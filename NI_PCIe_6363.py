@@ -10,14 +10,20 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 from labscript import LabscriptError
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
 import labscript_devices.NIBoard as parent
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
+from labscript_utils.connections import _ensure_str
 
 
 @labscript_device
@@ -109,9 +115,9 @@ class NI_PCIe_6363Tab(DeviceTab):
 @BLACS_worker
 class NiPCIe6363Worker(Worker):
     def init(self):
-        exec 'from PyDAQmx import Task, DAQmxGetSysNIDAQMajorVersion, DAQmxGetSysNIDAQMinorVersion, DAQmxGetSysNIDAQUpdateVersion' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('from PyDAQmx import Task, DAQmxGetSysNIDAQMajorVersion, DAQmxGetSysNIDAQMinorVersion, DAQmxGetSysNIDAQUpdateVersion, DAQmxResetDevice', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global pylab; import pylab
         global numpy; import numpy
         global h5py; import labscript_utils.h5_lock, h5py
@@ -297,9 +303,9 @@ class NiPCIe6363Worker(Worker):
 class NiPCIe6363AcquisitionWorker(Worker):
     def init(self):
         #exec 'import traceback' in globals()
-        exec 'from PyDAQmx import Task' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('from PyDAQmx import Task', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global numpy; import numpy
         global threading; import threading
@@ -531,7 +537,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
 
             start_time = time.time()
             if self.buffered_data_list:
-                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtypes)
+                self.buffered_data = numpy.zeros(len(self.buffered_data_list)*1000,dtype=dtype_workaround(dtypes))
                 for i, data in enumerate(self.buffered_data_list):
                     data.shape = (len(self.buffered_channels),self.ai_read.value)              
                     for j, (chan, dtype) in enumerate(dtypes):
@@ -579,6 +585,9 @@ class NiPCIe6363AcquisitionWorker(Worker):
                 # Group doesn't exist yet, create it:
                 measurements = hdf5_file.create_group('/data/traces')
             for connection,label,start_time,end_time,wait_label,scale_factor,units in acquisitions:
+                connection = _ensure_str(connection)
+                label = _ensure_str(label)
+                wait_label = _ensure_str(wait_label)
                 if waits_in_use:
                     # add durations from all waits that start prior to start_time of acquisition
                     start_time += wait_durations[(wait_times < start_time)].sum()
@@ -599,7 +608,7 @@ class NiPCIe6363AcquisitionWorker(Worker):
                                        endpoint=True)
                 values = self.buffered_data[connection][start_index:end_index+1]
                 dtypes = [('t', numpy.float64),('values', numpy.float32)]
-                data = numpy.empty(len(values),dtype=dtypes)
+                data = numpy.empty(len(values),dtype=dtype_workaround(dtypes))
                 data['t'] = times
                 data['values'] = values
                 measurements.create_dataset(label, data=data)
@@ -617,10 +626,10 @@ class NiPCIe6363AcquisitionWorker(Worker):
     
 class NiPCIe6363WaitMonitorWorker(Worker):
     def init(self):
-        exec 'import ctypes' in globals()
-        exec 'from PyDAQmx import Task' in globals()
-        exec 'from PyDAQmx.DAQmxConstants import *' in globals()
-        exec 'from PyDAQmx.DAQmxTypes import *' in globals()
+        exec('import ctypes', globals())
+        exec('from PyDAQmx import Task', globals())
+        exec('from PyDAQmx.DAQmxConstants import *', globals())
+        exec('from PyDAQmx.DAQmxTypes import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global numpy; import numpy        
         global threading; import threading
@@ -826,7 +835,7 @@ class NiPCIe6363WaitMonitorWorker(Worker):
             with h5py.File(self.h5_file,'a') as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so 
                 dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
-                data = numpy.empty(len(self.wait_table), dtype=dtypes)
+                data = numpy.empty(len(self.wait_table), dtype=dtype_workaround(dtypes))
                 if self.is_wait_monitor_device and self.waits_in_use:
                     data['label'] = self.wait_table['label']
                     data['time'] = self.wait_table['time']
