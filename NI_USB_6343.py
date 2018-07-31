@@ -23,6 +23,7 @@ from labscript_utils.numpy_dtype_workaround import dtype_workaround
 import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
+from labscript_utils.connections import _ensure_str
 
 
 @labscript_device
@@ -574,6 +575,9 @@ class NI_USB_6343AcquisitionWorker(Worker):
                 # Group doesn't exist yet, create it:
                 measurements = hdf5_file.create_group('/data/traces')
             for connection,label,start_time,end_time,wait_label,scale_factor,units in acquisitions:
+                connection = _ensure_str(connection)
+                label = _ensure_str(label)
+                wait_label = _ensure_str(wait_label)
                 if waits_in_use:
                     # add durations from all waits that start prior to start_time of acquisition
                     start_time += wait_durations[(wait_times < start_time)].sum()
