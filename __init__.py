@@ -4,7 +4,7 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
     
-check_version('labscript_utils', '2.6', '3')
+check_version('labscript_utils', '2.7.1', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -16,7 +16,6 @@ import importlib
 __version__ = '2.1.0'
 
 check_version('qtutils', '2.0.0', '3.0.0')
-check_version('labscript_utils', '2.6', '3')
 check_version('labscript', '2.1', '3')
 check_version('blacs', '2.1', '3')
 check_version('zprocess', '2.2.7', '3')
