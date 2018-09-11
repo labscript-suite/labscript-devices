@@ -91,7 +91,7 @@ class DummyPseudoclockWorker(Worker):
         if timeout < 0:
             return True
         time.sleep(timeout)
-        return self.start_time + self.stop_time > time.time()
+        return self.start_time + self.stop_time < time.time()
 
     def transition_to_manual(self):
         self.start_time = None
