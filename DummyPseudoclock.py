@@ -61,7 +61,8 @@ class DummyPseudoclockTab(DeviceTab):
 
     @define_state(MODE_BUFFERED,True)  
     def wait_until_done(self, notify_queue):
-        done = yield(self.queue_work(self.primary_worker, 'wait_until_done'))        
+        """Call check_if_done repeatedly in the worker until the shot is complete"""
+        done = yield(self.queue_work(self.primary_worker, 'check_if_done'))        
         # Experiment is over. Tell the queue manager about it:
         if done:
             notify_queue.put('done')
@@ -83,8 +84,9 @@ class DummyPseudoclockWorker(Worker):
             self.stop_time = props.get('stop_time', None) # stop_time may be absent if we are not the master pseudoclock
         return {}
     
-    def wait_until_done(self):
-        # Wait up to 1 second or until the shot is done:
+    def check_if_done(self):
+        # Wait up to 1 second for the shot to be done, returning True if it is
+        # or False if not.
         if getattr(self, 'start_time', None) is None:
             self.start_time = time.time()
         timeout = min(self.start_time + self.stop_time - time.time(), 1)
