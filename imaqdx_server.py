@@ -23,6 +23,7 @@ import sys
 import time
 import zprocess
 from labscript_utils import check_version
+from labscript_utils.camera_server import CameraServer
 import labscript_utils.shared_drive
 # importing this wraps zlock calls around HDF file openings and closings:
 import labscript_utils.h5_lock
@@ -46,16 +47,15 @@ def _ensure_str(s):
     return s.decode() if isinstance(s, bytes) else str(s)
 
 
-class IMAQdx_Camera():
+def enumerate_cameras(connectedOnly=True):
+    return nv.IMAQdxEnumerateCameras(connectedOnly)
 
-    def enumerate_cameras(connectedOnly=True):
-        return nv.IMAQdxEnumerateCameras(connectedOnly)
-
+class IMAQdx_Camera(object):
     def __init__(self, sn=None, alias=None):
 
         # TODO change init to serial number
 
-        cams = IMAQdx_Camera.enumerate_cameras()
+        cams = enumerate_cameras()
         for cam in cams:
             if alias and not sn:
                 if bytes(alias, encoding='ascii') == cam.InterfaceName:
@@ -301,10 +301,6 @@ class IMAQdx_Camera():
 
 
 class IMAQdxCameraServer(CameraServer):
-    """Minimalistic camera server. Transition to buffered and abort are not
-    implemented, because we don't need to do anything in those cases. This
-    camera server simply writes to the h5 file the images, which have been
-    saved to disk during each shot by an external program."""
     def __init__(self, port, camera, camera_name):
         CameraServer.__init__(self, port)
         self.camera = camera
@@ -430,7 +426,6 @@ if __name__ == '__main__':
         blacs_port = labscript_utils.properties.get(f, camera_name,
                                     'connection_table_properties')['BIAS_port']
 
-
     # get the properties in a dict
     print('Converting camera properties to dictionary.')
     imaqdx_properties = dict(h5_attrs['added_properties'])
@@ -447,7 +442,6 @@ if __name__ == '__main__':
     cam.set_attributes_dict(imaqdx_properties)
     # Get the attributes from the shared connection table.
     # Then overwrite them per experiment if the experiment defines any new ones
-
 
     print('starting camera server on port %d...' % blacs_port)
     server = IMAQdxCameraServer(blacs_port, cam, camera_name)
