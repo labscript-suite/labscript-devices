@@ -22,6 +22,7 @@ from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscri
 import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
+from labscript_utils.connections import _ensure_str
 
 #
 # Helper functions
@@ -424,6 +425,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
     
         self.all_waits_finished = zprocess.Event('all_waits_finished',type='post')
         self.wait_durations_analysed = zprocess.Event('wait_durations_analysed',type='post')
+        self.wait_completed = zprocess.Event('wait_completed', type='post')
         self.current_wait = 0
         self.wait_table = None
         self.measured_waits = None
@@ -492,7 +494,6 @@ class CiceroOpalKellyXEM3001Worker(Worker):
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.h5_file = h5file # store reference to h5 file for wait monitor
         self.current_wait = 0 # reset wait analysis
-        self.h5_file = h5file # needed for wait analysis
         
         # Abort any manual mode loop (manual mode is a hack which has it stuck in a wait) and return the output to 0 in preparation for clock to begin
         self.abort()
@@ -599,6 +600,9 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                 # store length of wait (must be stored in clock samples so that
                 # we can subtract off this number of samples for a following wait)
                 self.measured_waits[self.current_wait] = retrigger_wait_samples-self.measured_waits.sum()
+
+                # Inform any interested parties that a wait has completed:
+                self.wait_completed.post(self.h5_file, data=_ensure_str(self.wait_table[self.current_wait]['label']))
 
                 # increment the wait we are looking for!
                 self.current_wait += 1
