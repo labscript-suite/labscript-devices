@@ -17,8 +17,13 @@ if PY2:
     str = unicode
 
 # This file represents a dummy labscript device for purposes of testing BLACS
-# and labscript. The device is a PseudoclockDevice, and can be the sole device
-# in a connection table or experiment.
+# and labscript. The device is a Intermediate Device, and can be attached to
+# a pseudoclock in labscript in order to test the pseudoclock behaviour
+# without needing a real Intermediate Device. 
+# 
+# You can attach an arbitrary number of outputs to this device, however we
+# currently only support outputs of type AnalogOut and DigitalOut. I would be
+# easy to extend this is anyone needed further functionality.
 
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
@@ -29,9 +34,8 @@ import numpy as np
 @labscript_device
 class DummyIntermediateDevice(IntermediateDevice):
 
-    description = 'Dummy pseudoclock'
+    description = 'Dummy IntermediateDevice'
     clock_limit = 1e6
-    clock_resolution = 1e-6
 
     # If this is updated, then you need to update generate_code to support whatever types you add
     allowed_children = [DigitalOut, AnalogOut]
@@ -61,8 +65,6 @@ class DummyIntermediateDevice(IntermediateDevice):
         out_table = np.zeros(len(times), dtype=dtype_workaround(dtypes))
         for device in self.child_devices:
             out_table[device.name][:] = device.raw_output
-            print(device.raw_output)
-            print(out_table)
 
         group.create_dataset('OUTPUTS', compression=config.compression, data=out_table)
 
