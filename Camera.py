@@ -238,8 +238,8 @@ class CameraWorker(Worker):
         assert str(int(port)) == port, 'Port must be an integer.'
         s.settimeout(10)
         s.connect((host, int(port)))
-        s.send('hello\r\n')
-        response = s.recv(1024)
+        s.send(b'hello\r\n')
+        response = s.recv(1024).decode('utf8')
         s.close()
         if 'hello' in response:
             return True
@@ -262,12 +262,12 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('%s\r\n'%h5file)
-        response = s.recv(1024)
+        s.send(b'%s\r\n' % h5file.encode('utf-8'))
+        response = s.recv(1024).decode('utf8')
         if not 'ok' in response:
             s.close()
             raise Exception(response)
-        response = s.recv(1024)
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)
@@ -288,12 +288,12 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('done\r\n')
-        response = s.recv(1024)
+        s.send(b'done\r\n')
+        response = s.recv(1024).decode('utf8')
         if response != 'ok\r\n':
             s.close()
             raise Exception(response)
-        response = s.recv(1024)
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)
@@ -317,8 +317,8 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('abort\r\n')
-        response = s.recv(1024)
+        s.send(b'abort\r\n')
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)
