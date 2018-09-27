@@ -15,7 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
@@ -69,8 +69,8 @@ def stop_profile(name):
     profiles[name]['min'] = profiles[name]['min'] if profiles[name]['min'] is not None and profiles[name]['min'] < runtime else runtime
     profiles[name]['max'] = profiles[name]['max'] if profiles[name]['max'] > runtime else runtime
     profiles[name]['average_time_per_call'] = profiles[name]['total_time']/profiles[name]['num_calls']
-          
-@labscript_device          
+
+
 class PulseBlaster(PseudoclockDevice):
     
     pb_instructions = {'CONTINUE':   0,
@@ -789,7 +789,6 @@ class PulseBlasterTab(DeviceTab):
         self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
 
 
-@BLACS_worker        
 class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version

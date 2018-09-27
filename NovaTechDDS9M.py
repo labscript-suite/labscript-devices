@@ -10,7 +10,7 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from labscript_devices import runviewer_parser, labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import runviewer_parser, BLACS_tab
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -19,8 +19,7 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
-        
-@labscript_device
+
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
     allowed_children = [DDS, StaticDDS]
@@ -255,7 +254,7 @@ class NovatechDDS9MTab(DeviceTab):
         self.supports_remote_value_check(True)
         self.supports_smart_programming(True) 
 
-@BLACS_worker        
+
 class NovatechDDS9mWorker(Worker):
     def init(self):
         global serial; import serial

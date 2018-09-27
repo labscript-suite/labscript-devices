@@ -20,7 +20,7 @@ from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDev
 import numpy as np
 
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 
 # Define a RFBlasterPseudoclock that only accepts one child clockline
 class RFBlasterPseudoclock(Pseudoclock):    
@@ -33,7 +33,7 @@ class RFBlasterPseudoclock(Pseudoclock):
         else:
             raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
 
-@labscript_device
+
 class RFBlaster(PseudoclockDevice):
     description = 'RF Blaster Rev1.1'
     clock_limit = 500e3
@@ -366,7 +366,6 @@ class MultiPartForm(object):
         return b'\r\n'.join(all_lines)
 
 
-@BLACS_worker
 class RFBlasterWorker(Worker):
     def init(self):
         exec('from numpy import *', globals())

@@ -16,14 +16,14 @@ if PY2:
     str = unicode
 
 from labscript import LabscriptError, AnalogOut
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 import labscript_devices.NIBoard as parent
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
-@labscript_device
+
 class NI_PCI_6733(parent.NIBoard):
     description = 'NI-PCI-6733'
     n_analogs = 8
@@ -109,9 +109,8 @@ class NI_PCI_6733Tab(DeviceTab):
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
         self.supports_smart_programming(False) 
-    
-    
-@BLACS_worker
+
+
 class NiPCI6733Worker(Worker):
     def init(self):
         exec('from PyDAQmx import Task', globals())

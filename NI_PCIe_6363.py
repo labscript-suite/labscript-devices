@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript import LabscriptError
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 import labscript_devices.NIBoard as parent
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
@@ -26,7 +26,6 @@ import labscript_utils.properties
 from labscript_utils.connections import _ensure_str
 
 
-@labscript_device
 class NI_PCIe_6363(parent.NIBoard):
     description = 'NI-PCIe-6363'
     n_analogs = 4
@@ -111,8 +110,8 @@ class NI_PCIe_6363Tab(DeviceTab):
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
         self.supports_smart_programming(False) 
-    
-@BLACS_worker
+
+
 class NiPCIe6363Worker(Worker):
     def init(self):
         exec('from PyDAQmx import Task, DAQmxGetSysNIDAQMajorVersion, DAQmxGetSysNIDAQMinorVersion, DAQmxGetSysNIDAQUpdateVersion, DAQmxResetDevice', globals())

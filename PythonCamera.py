@@ -19,12 +19,11 @@ except ImportError:
     
 check_version('labscript', '2.0.1', '3')
 
-from labscript_devices import labscript_device, BLACS_tab
+from labscript_devices import BLACS_tab
 from labscript_devices.Camera import Camera, CameraTab
 from labscript import set_passed_properties
 
 
-@labscript_device
 class PythonCamera(Camera):
     """A class for new features not compatible with the legacy Camera class"""
     description = 'Python camera'        
