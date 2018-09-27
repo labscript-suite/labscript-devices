@@ -27,7 +27,7 @@ from labscript_utils import labscript_suite_install_dir
 LABSCRIPT_DEVICES_DIR = os.path.join(labscript_suite_install_dir, 'labscript_devices')
 
 """This file contains the machinery for registering and looking up what BLACS tab and
-runviewer parser classes belong to a particular labscript device. "labscript_device"
+runviewer parser classes belong to a particular labscript device. "labscript device"
 here means a device that BLACS needs to communicate with. These devices have
 instructions saved within the 'devices' group of the HDF5 file, and have a tab
 corresponding to them in the BLACS interface. These device classes must have unique
@@ -44,7 +44,7 @@ The "new" method is more flexible. It allows BLACS tabs and runviewer parsers to
 defined in any importable file within a subfolder of labscript_devices. Classes using
 this method can be in files with any name, and do not need class decorators. Instead,
 the classes should be registered by creating a file called 'register_classes.py', which
-when imported, makes calls to labscript_devices.register_classes() to tell register
+when imported, makes calls to labscript_devices.register_classes() to register
 which BLACS tab and runviewer parser class belong to each device. Tab and parser classes
 must be passed to register_classes() as fully qualified names, i.e.
 "labscript_devices.submodule.ClassName", not by passing in the classes themselves. This
