@@ -127,20 +127,30 @@ class CiceroOpalKellyXEM3001DummyIntermediateDevice(IntermediateDevice):
 @labscript_device     
 class CiceroOpalKellyXEM3001(PseudoclockDevice):
     description = 'CiceroOpalKellyXEM3001'
-    clock_limit = 5e6
-    clock_resolution = 10e-9 # TODO: Confirm this. I had thought it was 100ns, but apparently it is 10ns?
+    clock_limit = 50e6
+    clock_resolution = 10e-9 
 
-    # Todo: find out what this actually is:
-    trigger_delay = 1e-6
-    # Todo: find out what this actually is:
-    wait_delay = 2.5e-6
-    
-    trigger_minimum_duration = 20e-9 # 2 internal reference clock ticks to be safe    
-    trigger_edge_type = 'rising' # trigger off a rising edge (this can be falling if you want)
+    # Todo: confirm this.
+    #       It should only be 150ns as we've set the debounce count in the worker process
+    #       to be 10 clock cycles (100ns), and I think it takes 3 clock cycles to propagate to the state
+    #       machine of the FPGA code (due to the three uses of the non-blocking <= verilog operator
+    #       in the debounce code) and then another 2 cycles before the output goes high
+    #       (one to move out of the wait for retrigger code and then one because the update of the
+    #        output state is non-blocking)
+    trigger_delay = 150e-9
+    # Todo: confirm this
+    #       I believe it is 1 clock cycle
+    wait_delay = 10e9
+
+    # We'll set this to be 2x the debounce count (which is hard coded as 100ns at the moment
+    # in the BLACS worker process)
+    trigger_minimum_duration = 200e-9
+    trigger_edge_type = 'rising' 
     allowed_children = [CiceroOpalKellyXEM3001Pseudoclock, CiceroOpalKellyXEM3001DummyPseudoclock]
     
-    # TODO: Is theer a number for this?
-    max_instructions = 100000
+    # Determined by confirming that an instruction table that is 2049 long
+    # does not output the last instruction
+    max_instructions = 2048
     
     @set_passed_properties(property_names = {
         "connection_table_properties": ["reference_clock"]}
@@ -221,7 +231,7 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
                 reduced_instructions.append({'on': on_period, 'off': off_period, 'reps': reps})
         
         if len(reduced_instructions) > self.max_instructions:
-            raise LabscriptError("%s %s has too many instructions. It has %d and can only support %d (but this may be an artificial limitation entered in labscript)"%(self.description, self.name, len(reduced_instructions), self.max_instructions))
+            raise LabscriptError("%s %s has too many instructions. It has %d and can only support %d"%(self.description, self.name, len(reduced_instructions), self.max_instructions))
             
         # Store these instructions to the h5 file:
         dtypes = [('on_period',np.int64),('off_period',np.int64),('reps',np.int64)]
@@ -240,12 +250,9 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
 
 @runviewer_parser
 class RunviewerClass(object):
-    clock_resolution = 100e-9
-    clock_type = 'fast clock'
-    # Todo: find out what this actually is:
-    trigger_delay = 1e-6
-    # Todo: find out what this actually is:
-    wait_delay = 2.5e-6
+    clock_resolution = CiceroOpalKellyXEM3001.clock_resolution
+    trigger_delay = CiceroOpalKellyXEM3001.trigger_delay
+    wait_delay = CiceroOpalKellyXEM3001.wait_delay
     
     def __init__(self, path, device):
         self.path = path
@@ -320,13 +327,6 @@ class CiceroOpalKellyXEM3001Tab(DeviceTab):
         # current reference clock configuration of the FPGA firmware
         self.failed_to_flash = False
     
-        # Create a single digital output     
-        self.create_digital_outputs({'Clock Out':{}})        
-        # Create widgets for output objects
-        _,_,do_widgets = self.auto_create_widgets()
-        # and auto place the widgets in the UI
-        self.auto_place_widgets(("Flags", do_widgets))
-        
         # Store the board number to be used
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         self.serial = str(connection_object.BLACS_connection)
@@ -340,7 +340,7 @@ class CiceroOpalKellyXEM3001Tab(DeviceTab):
         self.supports_smart_programming(False) 
         
         # Add button to force reflash
-        self.flash_fpga_button = QPushButton('Flash FPGA firmware')
+        self.flash_fpga_button = QPushButton('Flash FPGA firmware (this should be handled automatically by BLACS, if the device is not working correctly, try this button!)')
         self.flash_fpga_button.clicked.connect(self.flash_fpga)
         self.get_tab_layout().insertWidget(self.get_tab_layout().count()-1, self.flash_fpga_button)
         
@@ -397,6 +397,19 @@ class CiceroOpalKellyXEM3001Tab(DeviceTab):
             # Experiment is over. Tell the queue manager about it
             notify_queue.put('done')
             self.statemachine_timeout_remove(self.status_monitor)
+
+        # handle exception in worker
+        elif status is None:
+            self.statemachine_timeout_remove(self.status_monitor)
+
+            # TODO: This is a bit of a hack.
+            # We fake a restart in order to notify the queue that something went wrong
+            # and that it should abort the shot
+            for f in self._restart_receiver:
+                try:
+                    f(self.device_name)
+                except:
+                    self.logger.exception('Could not notify a connected receiver function')
         
     @define_state(MODE_BUFFERED,True)  
     def start_run(self, notify_queue):
@@ -435,7 +448,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
     
         # Initialise connection to OPAL KELLY Board
         self.dev = ok.okCFrontPanel()
-        assert self.dev.OpenBySerial(self.serial) == self.dev.NoError
+        assert self.dev.OpenBySerial(bytes(self.serial)) == self.dev.NoError
         
         try:
             assert self.dev.IsFrontPanelEnabled()
@@ -460,8 +473,12 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             raise RuntimeError('Cannot flash the FPGA for the current reference clock configuration as the .bit file is missing. Please ensure the correct bit file is available at %s'%fpga_path)
             
         self.logger.debug('Flashing FPGA bit file located at: %s'%fpga_path)
-        self.dev.ConfigureFPGA(fpga_path)
+        self.dev.ConfigureFPGA(bytes(fpga_path))
         assert self.dev.IsFrontPanelEnabled(), 'Flashing of the FPGA failed. The device is not configured with the .bit file correctly'
+
+        # set debounce to be 100ns
+        self.dev.SetWireInValue(0x01, 0x0A)
+        self.dev.UpdateWireIns()
         
         return True
     
@@ -471,25 +488,9 @@ class CiceroOpalKellyXEM3001Worker(Worker):
 		# close the connection
         del self.dev	# close() function not available in Python
         
+    # Dummy method because there is no manual mode for this device
     def program_manual(self, values):    
-        value = values['Clock Out'] # there is only one value
-                
-        if value != self.current_value:            
-            # first let's abort the previous manual mode
-            self.abort()
-            
-            if value:
-                data = bytearray(3*16)
-                add_instruction_to_bytearray(data, 0, on = 5, off = 0, reps = 1)
-                add_instruction_to_bytearray(data, 1, on = 0, off = 0, reps = 0)
-                add_instruction_to_bytearray(data, 2, on = 5, off = 0, reps = 1)
-            
-                # program the FPGA
-                assert self.dev.WriteToPipeIn(0x80, data) == len(data)
-                self.current_value = 1
-                self.start_run()
-        
-        return {}
+        return values
                 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.h5_file = h5file # store reference to h5 file for wait monitor
