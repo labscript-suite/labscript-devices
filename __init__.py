@@ -15,7 +15,7 @@ import importlib
 import imp
 import warnings
 
-__version__ = '2.1.0'
+__version__ = '2.2.0'
 
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript', '2.1', '3')
@@ -43,16 +43,16 @@ splitting it across multiple files.
 The "new" method is more flexible. It allows BLACS tabs and runviewer parsers to be
 defined in any importable file within a subfolder of labscript_devices. Classes using
 this method can be in files with any name, and do not need class decorators. Instead,
-the classes should be registered by creating a submodule file called register_classes,
-which when imported, makes calls to labscript_devices.register_classes() to tell
-labscript_devices which BLACS tab and runviewer parser class belong to each device. Tab
-and parser classes must be passed to register_classes() as fully qualified names, i.e.
+the classes should be registered by creating a file called 'register_classes.py', which
+when imported, makes calls to labscript_devices.register_classes() to tell register
+which BLACS tab and runviewer parser class belong to each device. Tab and parser classes
+must be passed to register_classes() as fully qualified names, i.e.
 "labscript_devices.submodule.ClassName", not by passing in the classes themselves. This
 ensures imports can be deferred until the classes are actually needed. When BLACS and
-runviewer look up classes with get_BLACS_tab() and get_runviewer_parser,
-populate_registry() will be called in order to find all files called register_classes.py
-within subfolders (at any depth) of labscript_devices, and will import them to run their
-code and register their classes.
+runviewer look up classes with get_BLACS_tab() and get_runviewer_parser(),
+populate_registry() will be called in order to find all files called
+'register_classes.py' within subfolders (at any depth) of labscript_devices, and they
+will be imported to run their code and hence register their classes.
 
 The "new" method does not impose any restrictions on code organisation within subfolders
 of labscript_devices, and so is preferable as it allows auxiliary utilities or resource
