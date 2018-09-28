@@ -15,4 +15,4 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from .DummyPseudoclock import DummyPseudoclock
+from .labscript_device import DummyPseudoclock

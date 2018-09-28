@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/DummyPseudoclock/worker.py                     #
+# /labscript_devices/DummyPseudoclock/blacs_worker.py               #
 #                                                                   #
 # Copyright 2017, Christopher Billington                            #
 #                                                                   #

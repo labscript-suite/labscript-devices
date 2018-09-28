@@ -4,7 +4,7 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
     
-check_version('labscript_utils', '2.7.1', '3')
+check_version('labscript_utils', '2.8.0', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -22,7 +22,7 @@ check_version('labscript', '2.1', '3')
 check_version('blacs', '2.4.0', '3.0.0')
 check_version('zprocess', '2.2.7', '3')
 
-from labscript_utils import labscript_suite_install_dir
+from labscript_utils import labscript_suite_install_dir, dedent
 
 LABSCRIPT_DEVICES_DIR = os.path.join(labscript_suite_install_dir, 'labscript_devices')
 
@@ -64,6 +64,10 @@ The old method may be deprecated in the future.
 """
 
 
+def dedent(s):
+    return ' '.join(s.split())
+
+
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a
      decorator and a method for looking up classes decorated with it,
@@ -100,10 +104,18 @@ class ClassRegister(object):
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
         except ImportError:
-            sys.stderr.write('Error importing module %s.%s whilst looking for classes for device %s. '%(__name__, name, name) +
-                             'Check that the module exists, is named correctly, and can be imported with no errors. ' +
-                             'Full traceback follows:\n')
-            raise
+            msg ="""No %s registered for a device named %s. Ensure that there is a file
+                'register_classes.py' with a call to
+                labscript_devices.register_classes() for this device, with the device
+                name passed to register_classes() matching the name of the device class.
+
+                Fallback method of looking for and importing a module in
+                labscript_devices with the same name as the device also failed. If using
+                this method, check that the module exists, has the same name as the
+                device class, and can be imported with no errors. Import error
+                was:\n\n"""
+            msg = dedent(msg) % (self.instancename, name) + traceback.format_exc()
+            raise ImportError(msg)
         # Class definitions in that module have executed now, check to see if class is in our register:
         try:
             return self.registered_classes[name]
