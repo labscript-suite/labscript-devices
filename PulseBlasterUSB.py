@@ -32,7 +32,7 @@ class PulseblasterUSBTab(Pulseblaster_No_DDS_Tab):
     num_DO = 24
     def __init__(self,*args,**kwargs):
         self.device_worker_class = PulseblasterUSBWorker 
-        pulseblaster_no_dds.__init__(self,*args,**kwargs)
+        Pulseblaster_No_DDS_Tab.__init__(self,*args,**kwargs)
 
 
 class PulseblasterUSBWorker(PulseblasterNoDDSWorker):
