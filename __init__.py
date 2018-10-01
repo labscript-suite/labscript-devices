@@ -1,11 +1,13 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
+
 try:
     from labscript_utils import check_version
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
-    
+
 check_version('labscript_utils', '2.8.0', '3')
 from labscript_utils import PY2
+
 if PY2:
     str = unicode
 
@@ -14,6 +16,7 @@ import sys
 import importlib
 import imp
 import warnings
+import traceback
 
 __version__ = '2.2.0'
 
@@ -64,10 +67,6 @@ The old method may be deprecated in the future.
 """
 
 
-def dedent(s):
-    return ' '.join(s.split())
-
-
 class ClassRegister(object):
     """A register for looking up classes by module name.  Provides a
      decorator and a method for looking up classes decorated with it,
@@ -104,7 +103,7 @@ class ClassRegister(object):
             # Ensure the module's code has run (this does not re-import it if it is already in sys.modules)
             importlib.import_module('.' + name, __name__)
         except ImportError:
-            msg ="""No %s registered for a device named %s. Ensure that there is a file
+            msg = """No %s registered for a device named %s. Ensure that there is a file
                 'register_classes.py' with a call to
                 labscript_devices.register_classes() for this device, with the device
                 name passed to register_classes() matching the name of the device class.
@@ -205,15 +204,19 @@ def populate_registry():
     and run them (i.e. import them). These files are expected to make calls to
     register_classes() to inform us of what BLACS tabs and runviewer classes correspond
     to their labscript device classes."""
+    # We import the register_classes modules as a direct submodule of labscript_devices.
+    # But they cannot all have the same name, so we import them as
+    # labscript_devices._register_classes_script_<num> with increasing number.
+    module_num = 0
     for folder, _, filenames in os.walk(LABSCRIPT_DEVICES_DIR):
         if 'register_classes.py' in filenames:
             # The module name is the path to the file, relative to the labscript suite
             # install directory:
-            relfolder = os.path.abspath(folder).split(labscript_suite_install_dir, 1)[1]
-            module_name = os.path.join(relfolder, 'register_classes').replace(os.path.sep, '.')
             # Open the file using the import machinery, and import it as module_name.
             fp, pathname, desc = imp.find_module('register_classes', [folder])
-            module = imp.load_module(module_name, fp, pathname, desc)
+            module_name = 'labscript_devices._register_classes_script_%d' % module_num
+            _ = imp.load_module(module_name, fp, pathname, desc)
+            module_num += 1
 
 
 if __name__ == '__main__':
