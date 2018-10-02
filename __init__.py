@@ -166,16 +166,18 @@ def deprecated_import_alias(fullname):
     absolute import path. Use by calling in the module where the class used to be:
     ClassName = deprecated_import_alias("new.path.to.ClassName")"""
     calling_module_name = inspect.getmodule(inspect.stack()[1][0]).__name__
+    cls = []
     def wrapper(*args, **kwargs):
-        cls = _import_class_by_fullname(fullname)
-        shortname = fullname.split('.')[-1]
-        newmodule = '.'.join(fullname.split('.')[:-1])
-        msg = """Importing %s from %s is deprecated, please instead import it from %s.
-           Importing anyway for backward compatibility, but this may cause some
-           unexpected behaviour."""
-        msg = dedent(msg) % (shortname, calling_module_name, newmodule)
-        warnings.warn(msg, stacklevel=2)
-        return cls(*args, **kwargs)
+        if not cls:
+            cls.append(_import_class_by_fullname(fullname))
+            shortname = fullname.split('.')[-1]
+            newmodule = '.'.join(fullname.split('.')[:-1])
+            msg = """Importing %s from %s is deprecated, please instead import it from
+               %s. Importing anyway for backward compatibility, but this may cause some
+               unexpected behaviour."""
+            msg = dedent(msg) % (shortname, calling_module_name, newmodule)
+            warnings.warn(msg, stacklevel=2)
+        return cls[0](*args, **kwargs)
     return wrapper
 
 
