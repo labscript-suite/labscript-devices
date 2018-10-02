@@ -15,4 +15,10 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from .labscript_device import DummyPseudoclock
+from labscript_devices import deprecated_import_alias
+
+
+# For backwards compatibility with old experiment scripts:
+DummyPseudoclock = deprecated_import_alias(
+    "labscript_devices.DummyPseudoclock.labscript_device.DummyPseudoclock"
+)
