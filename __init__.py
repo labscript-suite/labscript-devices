@@ -252,6 +252,7 @@ def populate_registry():
 
 
 if __name__ == '__main__':
-    # Ensure code importing labscript_devices gets this module if we're running as
-    # __main__, rather than a copy.
+    # If this module is run as __main__, make sure importing submodules still works,
+    # without double-importing this file:
+    __path__ = [os.path.dirname(os.path.abspath(__file__))]
     sys.modules['labscript_devices'] = sys.modules['__main__']
