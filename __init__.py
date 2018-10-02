@@ -149,7 +149,7 @@ BLACS_tab = ClassRegister('BLACS_tab')
 runviewer_parser = ClassRegister('runviewer_parser')
 
 
-def _import_class_by_fullname(fullname):
+def import_class_by_fullname(fullname):
     """Import and return a class defined by its fully qualified name as an absolute
     import path, i.e. "module.submodule.ClassName"."""
     split = fullname.split('.')
@@ -169,7 +169,7 @@ def deprecated_import_alias(fullname):
     cls = []
     def wrapper(*args, **kwargs):
         if not cls:
-            cls.append(_import_class_by_fullname(fullname))
+            cls.append(import_class_by_fullname(fullname))
             shortname = fullname.split('.')[-1]
             newmodule = '.'.join(fullname.split('.')[:-1])
             msg = """Importing %s from %s is deprecated, please instead import it from
@@ -194,7 +194,7 @@ def get_BLACS_tab(name):
     if not BLACS_tab_registry:
         populate_registry()
     if name in BLACS_tab_registry:
-        return _import_class_by_fullname(BLACS_tab_registry[name])
+        return import_class_by_fullname(BLACS_tab_registry[name])
     # Fall back on file naming convention + decorator method:
     return BLACS_tab[name]
 
@@ -203,7 +203,7 @@ def get_runviewer_parser(name):
     if not runviewer_parser_registry:
         populate_registry()
     if name in runviewer_parser_registry:
-        return _import_class_by_fullname(runviewer_parser_registry[name])
+        return import_class_by_fullname(runviewer_parser_registry[name])
     # Fall back on file naming convention + decorator method:
     return runviewer_parser[name]
 
