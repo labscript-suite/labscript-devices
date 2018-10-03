@@ -1,0 +1,130 @@
+{
+    "PCI-6733": {
+        "AO_ranges": [
+            [
+                -5,
+                5
+            ],
+            [
+                -10,
+                10
+            ]
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "num_AI": 0,
+        "num_AO": 8,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true
+    },
+    "PCIe-6363": {
+        "AO_ranges": [
+            [
+                -5,
+                5
+            ],
+            [
+                -10,
+                10
+            ]
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true
+    },
+    "USB-6008": {
+        "AO_ranges": [
+            [
+                -5,
+                5
+            ],
+            [
+                -10,
+                10
+            ]
+        ],
+        "max_AI_multi_chan_rate": 10000.0,
+        "max_AI_single_chan_rate": 10000.0,
+        "max_AO_sample_rate": null,
+        "max_DO_sample_rate": null,
+        "num_AI": 8,
+        "num_AO": 2,
+        "num_CI": 1,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port1": {
+                "num_lines": 4,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": false,
+        "supports_buffered_DO": false
+    },
+    "USB-6343": {
+        "AO_ranges": [
+            [
+                -5,
+                5
+            ],
+            [
+                -10,
+                10
+            ]
+        ],
+        "max_AI_multi_chan_rate": 500000.0,
+        "max_AI_single_chan_rate": 500000.0,
+        "max_AO_sample_rate": 917431.1926605505,
+        "max_DO_sample_rate": 1000000.0,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true
+    }
+}
