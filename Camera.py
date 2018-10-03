@@ -18,11 +18,11 @@ except ImportError:
     
 check_version('labscript', '2.0.1', '3')
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import BLACS_tab
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
 
-@labscript_device
+
 class Camera(TriggerableDevice):
     description = 'Generic Camera'        
     
@@ -203,7 +203,7 @@ class CameraTab(DeviceTab):
         self.ui.status_icon.setPixmap(pixmap)
         self.ui.server_status.setText(status_text)
 
-@BLACS_worker            
+
 class CameraWorker(Worker):
     def init(self):#, port, host, use_zmq):
 #        self.port = port

@@ -78,7 +78,6 @@ atsExternalClockAdvice = {
     'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
 }
 
-from labscript_devices import labscript_device
 from labscript import Device, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock
 import h5py
@@ -177,7 +176,7 @@ class AlazarTechBoard(Device):
                 input_attrs), location='device_properties')
 
 
-from labscript_devices import BLACS_tab, BLACS_worker
+from labscript_devices import BLACS_tab
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED
 from blacs.device_base_class import DeviceTab
@@ -274,7 +273,6 @@ def ats9462_clock(f):
 # to aborts never seeming to raise exceptions and the acquisition thread continuing on.
 
 
-@BLACS_worker
 class GuilessWorker(Worker):
     def init(self):
         global h5py

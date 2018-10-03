@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_devices.PulseBlaster import PulseBlaster, PulseBlasterParser
 from labscript import PseudoclockDevice, config
 
@@ -24,8 +24,7 @@ import numpy as np
 
 import time
 
-            
-@labscript_device
+
 class PulseBlaster_No_DDS(PulseBlaster):
 
     description = 'generic DO only Pulseblaster'
@@ -233,7 +232,7 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         self.start()
         self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
 
-@BLACS_worker        
+
 class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):

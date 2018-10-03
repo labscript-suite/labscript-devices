@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript import LabscriptError
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 import labscript_devices.NIBoard as parent
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
@@ -26,7 +26,6 @@ import labscript_utils.properties
 from labscript_utils.connections import _ensure_str
 
 
-@labscript_device
 class NI_USB_6343(parent.NIBoard):
     description = 'NI-USB-6343'
     clock_limit = 700e3
@@ -113,8 +112,8 @@ class NI_USB_6343Tab(DeviceTab):
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
         self.supports_smart_programming(False) 
-    
-@BLACS_worker
+
+
 class NI_USB_6343Worker(Worker):
     def init(self):
         exec('from PyDAQmx import Task, DAQmxResetDevice', globals())
