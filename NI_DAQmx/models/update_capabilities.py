@@ -29,7 +29,7 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 CAPABILITIES_FILE = os.path.join(THIS_FOLDER, 'capabilities.json')
 
 
-"""This is a script to update model_capabilities.json with the capabilties of all
+"""This is a script to update model_capabilities.json with the capabilities of all
 NI-DAQmx devices currently connected to this computer. Run this script to add support
 for a new model of NI-DAQmx device. Note that this will work with a simulated device
 configured through NI-MAX as well, so support can be added without actually having the
@@ -165,7 +165,7 @@ new_devices = []
 for name in DAQmxGetSysDevNames().split(', '):
     model = DAQmxGetDevProductType(name)
     print("found device:", name, model)
-    if name not in capabilties:
+    if name not in capabilities:
         new_devices.append(model)
     capabilities[model] = {}
     capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(name)
@@ -205,12 +205,13 @@ for name in DAQmxGetSysDevNames().split(', '):
             port_info['supports_buffered'] = False
     capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
 
-    if capabilities['num_AO'] > 0:
+    if capabilities[model]['num_AO'] > 0:
         AO_ranges = []
         raw_limits = DAQmxGetDevAOVoltageRngs(name)
         for i in range(0, len(raw_limits), 2):
             Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
             AO_ranges.append([Vmin, Vmax])
+        print(AO_ranges)
         # Find range with the largest maximum voltage and use that:
         Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
         # Confirm that no other range has a voltage lower than Vmin,
@@ -221,8 +222,8 @@ for name in DAQmxGetSysDevNames().split(', '):
     else:
         capabilities[model]["AO_range"] = None
 
-with open(CAPABILITIES_FILE, 'w') as f:
+with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     json.dump(capabilities, f, sort_keys=True, indent=4, separators=(',', ': '))
 
 print("added capabilities for %d models" % len(new_devices))
-print("run generate_classes.py to make labscript devices for these models")
+print("run generate_subclasses.py to make labscript devices for these models")

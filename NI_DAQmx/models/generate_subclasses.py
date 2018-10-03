@@ -27,8 +27,18 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 CAPABILITIES_FILE = os.path.join(THIS_FOLDER, 'capabilities.json')
 TEMPLATE_FILE = os.path.join(THIS_FOLDER, '_subclass_template.py')
 
+
 def reformat_files(filepaths):
     """Apply black formatter to a list of source files"""
+    try:
+        import black
+    except ImportError:
+        msg = """Cannot import code formatting library 'black'. Generated labscript
+            device code may be poorly formatted. Install black (Python 3.6+ only) via
+            pip and run again to produde better formatted files"""
+        warnings.warn(dedent(msg))
+        return
+
     from click.testing import CliRunner
 
     runner = CliRunner()
@@ -37,47 +47,42 @@ def reformat_files(filepaths):
     assert result.exit_code == 0, result.output
 
 
-do_formatting = True
-try:
-    import black
-except ImportError:
-    do_formatting = False
-    msg = """Cannot import code formatting library 'black'. Generated labscript device
-        code may be poorly formatted. Install black (Python 3.6+ only) via pip and run
-        again to produde better formatted files"""
-    warnings.warn(dedent(msg))
+def main():
+    capabilities = {}
+    if os.path.exists(CAPABILITIES_FILE):
+        with open(CAPABILITIES_FILE) as f:
+            capabilities = json.load(f)
 
+    with open(TEMPLATE_FILE) as f:
+        template = Template(f.read())
 
-capabilities = {}
-if os.path.exists(CAPABILITIES_FILE):
-    with open(CAPABILITIES_FILE) as f:
-        capabilities = json.load(f)
+    autogeneration_warning = """\
+    #####################################################################
+    #     WARNING                                                       #
+    #                                                                   #
+    # This file is auto-generated, any modifications may be             #
+    # overwritten. See README.txt in this folder for details            #
+    #                                                                   #
+    #####################################################################
+    """
 
-with open(TEMPLATE_FILE) as f:
-    template = Template(f.read())
+    filepaths = []
+    for model, device_capabilities in capabilities.items():
+        model_name = 'NI-' + model
+        class_name = model_name.replace('-', '_')
+        filepath = os.path.join(THIS_FOLDER, class_name + '.py')
+        src = template.substitute(
+            AUTOGENERATION_WARNING=autogeneration_warning,
+            CAPABILITIES=device_capabilities,
+            CLASS_NAME=class_name,
+            MODEL_NAME=model_name,
+        )
+        with open(filepath, 'w', newline='\n') as f:
+            f.write(src)
+        filepaths.append(filepath)
 
-autogeneration_warning = """\
-#####################################################################
-#     WARNING                                                       #
-#                                                                   #
-# This file is auto-generated, any modifications may be             #
-# overwritten. See README.txt in this folder for details            #
-#                                                                   #
-#####################################################################
-"""
+    if filepaths:
+        reformat_files(filepaths)
 
-filepaths = []
-for model, device_capabilities in capabilities.items():
-    model_name = 'NI-' + model
-    class_name = model_name.replace('-', '_')
-    filepath = os.path.join(THIS_FOLDER, class_name + '.py')
-    src = template.substitute(AUTOGENERATION_WARNING=autogeneration_warning,
-                              CAPABILITIES=device_capabilities,
-                              CLASS_NAME=class_name,
-                              MODEL_NAME=model_name)
-    with open(filepath, 'w') as f:
-        f.write(src)
-    filepaths.append(filepath)
-
-if filepaths and do_formatting:
-    reformat_files(filepaths)
+if __name__ == '__main__':
+    main()
