@@ -16,8 +16,11 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from blacs.device_base_class import DeviceTab
+import labscript_utils.h5_lock
+import h5py
 
+from blacs.device_base_class import DeviceTab
+from .utils import port_and_line_to_PFI, split_conn_AO, split_conn_DO
 
 class NI_DAQmxTab(DeviceTab):
     def initialise_GUI(self):
@@ -27,20 +30,22 @@ class NI_DAQmxTab(DeviceTab):
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']
-        DO_ports = properties['DO_ports']
-        num_PFI = properties['num_PFI']
-        num_counters = properties['num_counters']
+        ports = properties['ports']
+        num_CI = properties['num_CI']
 
         AO_base_units = 'V'
-        AO_base_min, AO_base_max = properties['range_AO']
+        if num_AO > 0:
+            AO_base_min, AO_base_max = properties['AO_range']
+        else:
+            AO_base_min, AO_base_max = None, None
         AO_base_step = 0.1
         AO_base_decimals = 3
 
-        clock_limit = properties['clock_limit']
         clock_terminal = properties['clock_terminal']
         clock_mirror_terminal = properties['clock_mirror_terminal']
         static_AO = properties['static_AO']
         static_DO = properties['static_DO']
+        clock_limit = properties['clock_limit']
 
         # And the Measurement and Automation Explorer (MAX) name we will need to
         # communicate with the device:
@@ -58,15 +63,18 @@ class NI_DAQmxTab(DeviceTab):
             }
 
         DO_proplist = []
-        for port_str, num_DO in DO_ports.items():
-            DO_prop = {}
-            for line in range(num_DO):
-                DO_prop['%s/line%d' % (port_str, line)] = {}
-            DO_proplist.append((port_str, DO_prop))
-
-        PFI_prop = {}
-        for i in range(num_PFI):
-            PFI_prop['PFI%d' % i] = {}
+        for port_num in range(len(ports)):
+            port_str ='port%d' % port_num
+            num_lines = ports[port_str]['num_lines']
+            supports_buffered = ports[port_str]['supports_buffered']
+            port_props = {}
+            for line in range(num_lines):
+                hardware_name = '%s/line%d' % (port_str, line)
+                if not supports_buffered:
+                    PFI_conn = port_and_line_to_PFI(port_num, line, ports)
+                    hardware_name += ' (%s)' % PFI_conn
+                port_props[hardware_name] = {}
+            DO_proplist.append((port_str, port_props))
 
         # Create the output objects
         self.create_analog_outputs(AO_prop)
@@ -74,37 +82,36 @@ class NI_DAQmxTab(DeviceTab):
         # Create widgets for outputs defined so far (i.e. analog outputs only)
         _, AO_widgets, _ = self.auto_create_widgets()
 
-        # now create the digital output objects
+        # now create the digital output objects one port at a time
         for _, DO_prop in DO_proplist:
             self.create_digital_outputs(DO_prop)
-        self.create_digital_outputs(PFI_prop)
 
         # Manually create the digital output widgets so they are grouped separately
         DO_widgets_by_port = {}
         for port_str, DO_prop in DO_proplist:
             DO_widgets_by_port[port_str] = self.create_digital_widgets(DO_prop)
-        PFI_widgets = self.create_digital_widgets(PFI_prop)
 
         # Auto place the widgets in the UI, specifying sort keys for ordering them:
-        widget_list = [("Analog outputs", AO_widgets, _split_conn_AO)]
+        widget_list = [("Analog outputs", AO_widgets, split_conn_AO)]
         for port_str, DO_widgets in sorted(DO_widgets_by_port.items()):
             name = "Digital outputs: %s" % port_str
-            widget_list.append((name, DO_widgets, _split_conn_DO))
-        widget_list.append(("PFI outputs", PFI_widgets, _split_conn_PFI))
-
+            if ports[port_str]['supports_buffered']:
+                name += ' (buffered)'
+            else:
+                name += ' (unbuffered)'
+            widget_list.append((name, DO_widgets, split_conn_DO))
         self.auto_place_widgets(*widget_list)
 
         # Create and set the primary worker
         self.create_worker(
             "main_worker",
-            Ni_DAQmxWorker,
+            'labscript_devices.NI_DAQmx.workers.Ni_DAQmxWorker',
             {
                 'MAX_name': self.MAX_name,
                 'Vmin': AO_base_min,
                 'Vmax': AO_base_max,
                 'num_AO': num_AO,
-                'DO_ports': DO_ports,
-                'num_PFI': num_PFI,
+                'ports': ports,
                 'clock_limit': clock_limit,
                 'clock_terminal': clock_terminal,
                 'clock_mirror_terminal': clock_mirror_terminal,
@@ -118,7 +125,7 @@ class NI_DAQmxTab(DeviceTab):
         if num_AI > 0:
             self.create_worker(
                 "acquisition_worker",
-                Ni_DAQmxAcquisitionWorker,
+                 'labscript_devices.NI_DAQmx.workers.Ni_DAQmxAcquisitionWorker',
                 {'MAX_name': self.MAX_name},
             )
             self.add_secondary_worker("acquisition_worker")
@@ -142,7 +149,7 @@ class NI_DAQmxTab(DeviceTab):
                     wait timeout device."""
                 raise RuntimeError(msg)
 
-            if num_counters == 0:
+            if num_CI == 0:
                 msg = "Device cannot be a wait monitor as it has no counter inputs"
                 raise RuntimeError(msg)
 
@@ -153,7 +160,7 @@ class NI_DAQmxTab(DeviceTab):
 
             self.create_worker(
                 "wait_monitor_worker",
-                Ni_DAQmxWaitMonitorWorker,
+                'labscript_devices.NI_DAQmx.workers.Ni_DAQmxWaitMonitorWorker',
                 {
                     'MAX_name': self.MAX_name,
                     'wait_acq_connection': wait_acq_connection,

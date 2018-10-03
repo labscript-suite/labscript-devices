@@ -205,13 +205,21 @@ for name in DAQmxGetSysDevNames().split(', '):
             port_info['supports_buffered'] = False
     capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
 
-    AO_ranges = []
     if capabilities['num_AO'] > 0:
+        AO_ranges = []
         raw_limits = DAQmxGetDevAOVoltageRngs(name)
         for i in range(0, len(raw_limits), 2):
             Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
             AO_ranges.append([Vmin, Vmax])
-    capabilities[model]["AO_ranges"] = AO_ranges
+        # Find range with the largest maximum voltage and use that:
+        Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
+        # Confirm that no other range has a voltage lower than Vmin,
+        # since if it does, this violates our assumptions and things might not
+        # be as simple as having a single range:
+        assert min(AO_ranges)[0] >= Vmin
+        capabilities[model]["AO_range"] = [Vmin, Vmax]
+    else:
+        capabilities[model]["AO_range"] = None
 
 with open(CAPABILITIES_FILE, 'w') as f:
     json.dump(capabilities, f, sort_keys=True, indent=4, separators=(',', ': '))

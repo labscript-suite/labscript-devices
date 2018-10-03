@@ -11,12 +11,13 @@
 #                                                                   #
 #####################################################################
 from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
+from labscript_utils import PY2, check_version
 
 if PY2:
     str = unicode
 
-import os
+check_version('labscript', '2.5.0', '3.0.0')
+
 from labscript import (
     IntermediateDevice,
     AnalogOut,
@@ -30,63 +31,16 @@ from labscript import (
     set_passed_properties,
 )
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
-
+from labscript_utils import dedent
+from .utils import split_conn_DO, split_conn_AO, split_conn_AI
 import numpy as np
 
 _ints = {8: np.uint8, 16: np.uint16, 32: np.uint32, 64: np.uint64}
 
 
-def dedent(s):
-    return ' '.join(s.split())
-
-
 def _smallest_int_type(n):
     """Return the smallest unsigned integer type sufficient to contain n bits"""
     return _ints[min(size for size in _ints.keys() if size >= n)]
-
-
-def _split_conn_DO(connection):
-    """Return the port and line number of a connection string such as 'port0/line1
-    as two integers, or raise ValueError if format is invalid"""
-    try:
-        port, line = [int(n) for n in connection.split('port', 1)[1].split('/line')]
-    except (ValueError, IndexError):
-        msg = """Digital output connection string %s does not match format
-            'port<N>/line<M>' for integers N, M"""
-        raise ValueError(dedent(msg) % str(connection))
-    return port, line
-
-
-def _split_conn_AO(connection):
-    """Return analog output number of a connection string such as 'ao1' as an
-    integer, or raise ValueError if format is invalid"""
-    try:
-        return int(connection.split('ao', 1)[1])
-    except (ValueError, IndexError):
-        msg = """Analog output connection string %s does not match format 'ao<N>' for
-            integer N"""
-        raise ValueError(dedent(msg) % str(connection))
-
-
-def _split_conn_AI(connection):
-    """Return analog input number of a connection string such as 'ai1' as an
-    integer, or raise ValueError if format is invalid"""
-    try:
-        return int(connection.split('ai', 1)[1])
-    except (ValueError, IndexError):
-        msg = """Analog input connection string %s does not match format 'ai<N>' for
-            integer N"""
-        raise ValueError(dedent(msg) % str(connection))
-
-
-def _split_conn_PFI(connection):
-    """Return PFI input number of a connection string such as 'PFI0' as an
-    integer, or raise ValueError if format is invalid"""
-    try:
-        return int(connection.split('PFI', 1)[1])
-    except (ValueError, IndexError):
-        msg = "PFI connection string %s does not match format 'PFI<N>' for integer N"
-        raise ValueError(msg % str(connection))
 
 
 class NI_DAQmx(IntermediateDevice):
@@ -99,11 +53,12 @@ class NI_DAQmx(IntermediateDevice):
         property_names={
             "connection_table_properties": [
                 "clock_terminal",
+                "MAX_name",
                 "static_AO",
                 "static_DO",
                 "DAQmx_waits_counter_bug_workaround",
                 "clock_mirror_terminal",
-                "AO_ranges",
+                "AO_range",
                 "max_AI_multi_chan_rate",
                 "max_AI_single_chan_rate",
                 "max_AO_sample_rate",
@@ -114,6 +69,7 @@ class NI_DAQmx(IntermediateDevice):
                 "ports",
                 "supports_buffered_AO",
                 "supports_buffered_DO",
+                "clock_limit",
             ],
             "device_properties": ["acquisition_rate"],
         }
@@ -122,7 +78,6 @@ class NI_DAQmx(IntermediateDevice):
         self,
         name,
         parent_device,
-        model,
         clock_terminal=None,
         MAX_name=None,
         static_AO=False,
@@ -130,7 +85,7 @@ class NI_DAQmx(IntermediateDevice):
         DAQmx_waits_counter_bug_workaround=False,
         clock_mirror_terminal=None,
         acquisition_rate=None,
-        AO_ranges=None,
+        AO_range=None,
         max_AI_multi_chan_rate=None,
         max_AI_single_chan_rate=None,
         max_AO_sample_rate=None,
@@ -146,29 +101,34 @@ class NI_DAQmx(IntermediateDevice):
         """Generic class for NI_DAQmx devices. Reads capabilities from a file
         that stores the capabilities of known devices."""
 
-        if clock_terminal is None and not (static_AO and static_DO):
-            msg = """Clock terminal must be specified unless static_AO and static_AO are
-                both True"""
-            raise LabscriptError(dedent(msg))
-
-        self.model = model
-        self.static_AO = static_AO
-        self.static_DO = static_DO
         self.clock_terminal = clock_terminal
         self.MAX_name = MAX_name if MAX_name is not None else name
-        self.acquisition_rate = acquisition_rate
+        self.static_AO = static_AO
+        self.static_DO = static_DO
+        
+        # This is to instruct the wait monitor device to:
+        # a) in labscript compilation: Use an 0.1 second duration for the wait monitor
+        #    trigger instead of a shorter one
+        # b) In the BLACS waits worker process: skip the initial rising edge. These are
+        #    to work around what seems to be a bug in DAQmx. The initial rising edge is
+        #    not supposed to be detected, and clearly pulses of less than 0.1 seconds
+        #    ought to be detectable. However this workaround fixes things for the
+        #    affected devices, currenly the NI USB 6229 on NI DAQmx 15.0.
+        self.DAQmx_waits_counter_bug_workaround = DAQmx_waits_counter_bug_workaround
 
-        self.num_AO = num_AO
-        self.num_AI = num_AI
-        self.ports = ports if ports is not None else {}
-        self.num_CI = num_CI
-        self.supports_buffered_AO = supports_buffered_AO
-        self.supports_buffered_DO = supports_buffered_DO
+        self.acquisition_rate = acquisition_rate
+        self.AO_range = AO_range
         self.max_AI_multi_chan_rate = max_AI_multi_chan_rate
         self.max_AI_single_chan_rate = max_AI_single_chan_rate
         self.max_AO_sample_rate = max_AO_sample_rate
         self.max_DO_sample_rate = max_DO_sample_rate
-
+        self.num_AI = num_AI
+        self.num_AO = num_AO
+        self.num_CI = num_CI
+        self.ports = ports if ports is not None else {}
+        self.supports_buffered_AO = supports_buffered_AO
+        self.supports_buffered_DO = supports_buffered_DO
+        
         if self.supports_buffered_DO and self.supports_buffered_AO:
             self.clock_limit = min(self.max_DO_sample_rate, self.max_AO_sample_rate)
         elif self.supports_buffered_DO:
@@ -194,30 +154,16 @@ class NI_DAQmx(IntermediateDevice):
         if self.ports and not static_DO:
             self.allowed_children += [DigitalOut]
 
-        if self.num_AO > 0:
-            # capabilities["AO_ranges"] is a list of 2-element lists Vmin, Vmax. Get the
-            # smallest Vmin and largest Vmax:
-            Vmin = min([r[0] for r in AO_ranges])
-            Vmax = max([r[1] for r in AO_ranges])
-            self.range_AO = Vmin, Vmax
-        else:
-            self.range_AO = None
+        if clock_terminal is None and not (static_AO and static_DO):
+            msg = """Clock terminal must be specified unless static_AO and static_DO are
+                both True"""
+            raise LabscriptError(dedent(msg))
 
         self.BLACS_connection = self.MAX_name
 
-        # This is to instruct the wait monitor device to:
-        # a) in labscript compilation: Use an 0.1 second duration for the wait monitor
-        #    trigger instead of a shorter one
-        # b) In the BLACS waits worker process: skip the initial rising edge. These are
-        #    to work around what seems to be a bug in DAQmx. The initial rising edge is
-        #    not supposed to be detected, and clearly pulses of less than 0.1 seconds
-        #    ought to be detectable. However this workaround fixes things for the
-        #    affected devices, currenly the NI USB 6229 on NI DAQmx 15.0.
-        self.DAQmx_waits_counter_bug_workaround = DAQmx_waits_counter_bug_workaround
-
         # This is called late since it must be called after our clock_limit attribute is
         # set:
-        IntermediateDevice.__init__(self, name, parent_device)
+        IntermediateDevice.__init__(self, name, parent_device, **kwargs)
 
     def add_device(self, device):
         """Error checking for adding a child device"""
@@ -240,13 +186,13 @@ class NI_DAQmx(IntermediateDevice):
             raise LabscriptError(dedent(msg))
         # Verify connection string is OK:
         if isinstance(device, (AnalogOut, StaticAnalogOut)):
-            ao_num = _split_conn_AO(device.connection)
+            ao_num = split_conn_AO(device.connection)
             if ao_num >= self.num_AO:
                 msg = """Cannot add output with connection string '%s' to device with
                 num_AO=%d"""
                 raise ValueError(dedent(msg) % (device.connection, self.num_AO))
         elif isinstance(device, (DigitalOut, StaticDigitalOut)):
-            port, line = _split_conn_DO(device.connection)
+            port, line = split_conn_DO(device.connection)
             port_str = 'port%d' % port
             if port_str not in self.ports:
                 msg = "Parent device has no such DO port '%s'" % port_str
@@ -262,7 +208,7 @@ class NI_DAQmx(IntermediateDevice):
                     buffered output"""
                 raise ValueError(dedent(msg) % port_str)
         elif isinstance(device, AnalogIn):
-            ai_num = _split_conn_AI(device.connection)
+            ai_num = split_conn_AI(device.connection)
             if ai_num >= self.num_AI:
                 msg = """Cannot add input with connection string '%s' to device with
                 num_AI=%d"""
@@ -288,7 +234,7 @@ class NI_DAQmx(IntermediateDevice):
 
     def _check_bounds(self, analogs):
         """Check that all analog outputs are in bounds"""
-        vmin, vmax = self.range_AO
+        vmin, vmax = self.AO_range
         for output in analogs.values():
             if any((output.raw_output < vmin) | (output.raw_output > vmax)):
                 msg = """%s %s ' % (output.description, output.name) can only have
@@ -313,7 +259,7 @@ class NI_DAQmx(IntermediateDevice):
         if not analogs:
             return None
         n_timepoints = 1 if self.static_AO else len(times)
-        connections = sorted(analogs, key=_split_conn_AO)
+        connections = sorted(analogs, key=split_conn_AO)
         dtypes = dtype_workaround([(c, np.float32) for c in connections])
         analog_out_table = np.empty(n_timepoints, dtype=dtypes)
         for connection, output in analogs.items():
@@ -330,7 +276,7 @@ class NI_DAQmx(IntermediateDevice):
         # table names and dtypes by port number:
         columns = {}
         for connection, output in digitals.items():
-            port, line = _split_conn_DO(connection)
+            port, line = split_conn_DO(connection)
             port_str = 'port%d' % port
             if port not in bits_by_port:
                 nlines = self.ports[port_str]["num_lines"]

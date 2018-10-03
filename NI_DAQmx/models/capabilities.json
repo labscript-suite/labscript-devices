@@ -1,14 +1,8 @@
 {
     "PCI-6733": {
-        "AO_ranges": [
-            [
-                -5,
-                5
-            ],
-            [
-                -10,
-                10
-            ]
+        "AO_range": [
+            -10,
+            10
         ],
         "max_AI_multi_chan_rate": null,
         "max_AI_single_chan_rate": null,
@@ -27,15 +21,9 @@
         "supports_buffered_DO": true
     },
     "PCIe-6363": {
-        "AO_ranges": [
-            [
-                -5,
-                5
-            ],
-            [
-                -10,
-                10
-            ]
+        "AO_range": [
+            -10,
+            10
         ],
         "max_AI_multi_chan_rate": 1000000.0,
         "max_AI_single_chan_rate": 2000000.0,
@@ -62,15 +50,9 @@
         "supports_buffered_DO": true
     },
     "USB-6008": {
-        "AO_ranges": [
-            [
-                -5,
-                5
-            ],
-            [
-                -10,
-                10
-            ]
+        "AO_range": [
+            -10,
+            10
         ],
         "max_AI_multi_chan_rate": 10000.0,
         "max_AI_single_chan_rate": 10000.0,
@@ -93,15 +75,9 @@
         "supports_buffered_DO": false
     },
     "USB-6343": {
-        "AO_ranges": [
-            [
-                -5,
-                5
-            ],
-            [
-                -10,
-                10
-            ]
+        "AO_range": [
+            -10,
+            10
         ],
         "max_AI_multi_chan_rate": 500000.0,
         "max_AI_single_chan_rate": 500000.0,

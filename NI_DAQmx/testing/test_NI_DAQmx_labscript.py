@@ -18,12 +18,7 @@ sys.excepthook = sys.__excepthook__
 labscript_init('test.h5', new=True, overwrite=True)
 PulseBlasterUSB('pulseblaster')
 ClockLine('clock', pulseblaster.pseudoclock, 'flag 0')
-NI_PCIe_6363(
-    'Dev1',
-    clock,
-    model='PCIe-6363',
-    clock_terminal='PFI0',
-)
+NI_PCIe_6363('Dev1', clock, clock_terminal='PFI0', num_AI=0)
 
 AnalogOut('ao0', Dev1, 'ao0')
 AnalogOut('ao1', Dev1, 'ao1')
