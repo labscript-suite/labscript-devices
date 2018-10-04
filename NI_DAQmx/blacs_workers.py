@@ -97,7 +97,7 @@ class Ni_DAQmxWorker(Worker):
                 ranges.append((8 * i, 8 * i + 7))
             div, remainder = divmod(num_lines, 8)
             if remainder:
-                ranges.append((div * 8, div * 8 + remainder))
+                ranges.append((div * 8, div * 8 + remainder - 1))
             for start, stop in ranges:
                 con = '%s/%s/line%d:%d' % (self.MAX_name, port_str, start, stop)
                 self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
@@ -187,7 +187,7 @@ class Ni_DAQmxWorker(Worker):
             self.DO_task.StartTask()
             # Write data for each port:
             for port_str in ports:
-                data = DO_table[port_str][0]
+                data = DO_table[port_str]
                 write_method = write_methods[data.dtype.type]
                 write_method(
                     1,  # npts

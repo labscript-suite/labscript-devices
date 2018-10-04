@@ -77,11 +77,11 @@ class NI_DAQmx(IntermediateDevice):
     def __init__(
         self,
         name,
-        parent_device,
+        parent_device=None,
         clock_terminal=None,
         MAX_name=None,
-        static_AO=False,
-        static_DO=False,
+        static_AO=None,
+        static_DO=None,
         DAQmx_waits_counter_bug_workaround=False,
         clock_mirror_terminal=None,
         acquisition_rate=None,
@@ -100,6 +100,19 @@ class NI_DAQmx(IntermediateDevice):
     ):
         """Generic class for NI_DAQmx devices. Reads capabilities from a file
         that stores the capabilities of known devices."""
+
+        # Default static output setting based on whether the device supports buffered
+        # output:
+        if static_AO is None:
+            static_AO = not supports_buffered_AO
+        if static_DO is None:
+            static_DO = not supports_buffered_DO
+
+        # Parent is only allowed to be None if output is static:
+        if parent_device is None and not (static_DO and static_AO):
+            msg = """Must specify a parent clockline, unless both static_AO and
+                static_DO are True"""
+            raise LabscriptError(dedent(msg))
 
         self.clock_terminal = clock_terminal
         self.MAX_name = MAX_name if MAX_name is not None else name
@@ -136,6 +149,7 @@ class NI_DAQmx(IntermediateDevice):
         elif self.supports_buffered_AO:
             self.clock_limit = self.max_AO_sample_rate
         else:
+            self.clock_limit = None
             if not (static_AO and static_DO):
                 msg = """Device does not support buffered output, please instantiate
                 it with static_AO=True and static_DO=True"""
@@ -279,9 +293,14 @@ class NI_DAQmx(IntermediateDevice):
             port, line = split_conn_DO(connection)
             port_str = 'port%d' % port
             if port not in bits_by_port:
+                # Make a list of the right size for the number of lines
+                # on the port, or the number of bits in the smallest integer
+                # type that is equal to or larger than the number of lines.
                 nlines = self.ports[port_str]["num_lines"]
-                bits_by_port[port] = [0] * nlines
-                columns[port] = (port_str, _smallest_int_type(nlines))
+                int_type = _smallest_int_type(nlines)
+                int_type_nbits = 8 * int_type().nbytes
+                columns[port] = (port_str, int_type)
+                bits_by_port[port] = [0] * int_type_nbits
             bits_by_port[port][line] = output.raw_output
         dtypes = dtype_workaround([columns[port] for port in sorted(columns)])
         digital_out_table = np.empty(n_timepoints, dtype=dtypes)
@@ -347,12 +366,18 @@ class NI_DAQmx(IntermediateDevice):
             else:
                 raise TypeError(device)
 
+        clockline = self.parent_device
+        if clockline is None:
+            # No pseudoclock to call expand_timeseries() on our children.
+            # Call it ourselves:
+            for device in self.child_devices:
+                device.expand_timeseries()
+            times = None
+        else:
+            times = clockline.parent_device.times[clockline]
+
         self._check_even_children(analogs, digitals, inputs)
         self._check_bounds(analogs)
-
-        clockline = self.parent_device
-        pseudoclock = clockline.parent_device
-        times = pseudoclock.times[clockline]
 
         AO_table = self._make_analog_out_table(analogs, times)
         DO_table = self._make_digital_out_table(digitals, times)
