@@ -94,12 +94,12 @@ class Ni_DAQmxWorker(Worker):
             # need to create chans in multiples of 8:
             ranges = []
             for i in range(num_lines // 8):
-                ranges.append((8*i,8*i + 7))
+                ranges.append((8 * i, 8 * i + 7))
             div, remainder = divmod(num_lines, 8)
             if remainder:
-                ranges.append((div*8, div*8 + remainder))
+                ranges.append((div * 8, div * 8 + remainder))
             for start, stop in ranges:
-                con = '%s/%s/line%d:%d' % (self.MAX_name, port_str, start,stop)
+                con = '%s/%s/line%d:%d' % (self.MAX_name, port_str, start, stop)
                 self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
 
         # Start tasks:
@@ -271,7 +271,7 @@ class Ni_DAQmxWorker(Worker):
                 self.clock_limit,
                 DAQmx_Val_Rising,
                 DAQmx_Val_FiniteSamps,
-                AO_table.shape[0],
+                npts,
             )
 
             # Write data:
@@ -317,31 +317,35 @@ class Ni_DAQmxWorker(Worker):
         # Stop output tasks and call program_manual. Only call StopTask if not aborting.
         # Otherwise results in an error if output was incomplete. If aborting, call
         # ClearTask only.
-        current_pos = uInt64()
-        total_samples = uInt64()
+        npts = uInt64()
+        samples = uInt64()
+        tasks = []
         if self.AO_task is not None:
-            if not abort:
-                if not self.static_AO:
-                    # Log current position in output array:
-                    self.AO_task.GetWriteCurrWritePos(byref(current_pos))
-                    self.AO_task.GetWriteTotalSampPerChanGenerated(byref(total_samples))
-                    msg = 'Stopping AO at sample %d of %d'
-                    self.logger.debug(msg, current_pos.value, total_samples.value)
-                self.AO_task.StopTask()
-            self.AO_task.ClearTask()
+            tasks.append([self.AO_task, self.static_AO, 'AO'])
             self.AO_task = None
-
         if self.DO_task is not None:
-            if not abort:
-                if not self.static_DO:
-                    # Log current position in output array:
-                    self.DO_task.GetWriteCurrWritePos(byref(current_pos))
-                    self.DO_task.GetWriteTotalSampPerChanGenerated(byref(total_samples))
-                    msg = 'Stopping DO at sample %d of %d'
-                    self.logger.debug(msg, current_pos.value, total_samples.value)
-                self.DO_task.StopTask()
-            self.DO_task.ClearTask()
+            tasks.append([self.DO_task, self.static_DO, 'DO'])
             self.DO_task = None
+
+        for task, static, name in tasks:
+            if not abort:
+                if not static:
+                    try:
+                        # Wait for task completion with a 1 second timeout:
+                        task.WaitUntilTaskDone(1)
+                    finally:
+                        # Log where we were up to in sample generation, regardless of
+                        # whether the above succeeded:
+                        task.GetWriteCurrWritePos(npts)
+                        task.GetWriteTotalSampPerChanGenerated(samples)
+                        # Detect -1 even though they're supposed to be unsigned ints, -1
+                        # seems to indicate the task was not started:
+                        current = samples.value if samples.value != 2**64 - 1 else -1
+                        total = npts.value if npts.value != 2**64 - 1 else -1
+                        msg = 'Stopping %s at sample %d of %d'
+                        self.logger.info(msg, name, current, total)
+                task.StopTask()
+            task.ClearTask()
 
         # Remove the mirroring of the clock terminal, if applicable:
         self.set_mirror_clock_terminal_connected(False)
