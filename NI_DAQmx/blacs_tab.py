@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /NI_DAQmx/tab.py                                                  #
+# /NI_DAQmx/blacs_tab.py                                            #
 #                                                                   #
 # Copyright 2018, Monash University, JQI, Christopher Billington    #
 #                                                                   #
@@ -20,7 +20,13 @@ import labscript_utils.h5_lock
 import h5py
 
 from blacs.device_base_class import DeviceTab
-from .utils import port_and_line_to_PFI, split_conn_AO, split_conn_DO
+from .utils import (
+    port_and_line_to_PFI,
+    split_conn_AO,
+    split_conn_DO,
+    port_line_to_hardware_name,
+)
+
 
 class NI_DAQmxTab(DeviceTab):
     def initialise_GUI(self):
@@ -63,17 +69,14 @@ class NI_DAQmxTab(DeviceTab):
             }
 
         DO_proplist = []
+        DO_hardware_names = []
         for port_num in range(len(ports)):
             port_str ='port%d' % port_num
-            num_lines = ports[port_str]['num_lines']
-            supports_buffered = ports[port_str]['supports_buffered']
             port_props = {}
-            for line in range(num_lines):
-                hardware_name = '%s/line%d' % (port_str, line)
-                if not supports_buffered:
-                    PFI_conn = port_and_line_to_PFI(port_num, line, ports)
-                    hardware_name += ' (%s)' % PFI_conn
+            for line in range(ports[port_str]['num_lines']):
+                hardware_name = port_line_to_hardware_name(port_num, line, ports)
                 port_props[hardware_name] = {}
+                DO_hardware_names.append(hardware_name)
             DO_proplist.append((port_str, port_props))
 
         # Create the output objects
@@ -105,7 +108,7 @@ class NI_DAQmxTab(DeviceTab):
         # Create and set the primary worker
         self.create_worker(
             "main_worker",
-            'labscript_devices.NI_DAQmx.workers.Ni_DAQmxWorker',
+            'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxWorker',
             {
                 'MAX_name': self.MAX_name,
                 'Vmin': AO_base_min,
@@ -117,6 +120,7 @@ class NI_DAQmxTab(DeviceTab):
                 'clock_mirror_terminal': clock_mirror_terminal,
                 'static_AO': static_AO,
                 'static_DO': static_DO,
+                'DO_hardware_names': DO_hardware_names,
             },
         )
         self.primary_worker = "main_worker"
@@ -125,7 +129,7 @@ class NI_DAQmxTab(DeviceTab):
         if num_AI > 0:
             self.create_worker(
                 "acquisition_worker",
-                 'labscript_devices.NI_DAQmx.workers.Ni_DAQmxAcquisitionWorker',
+                 'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxAcquisitionWorker',
                 {'MAX_name': self.MAX_name},
             )
             self.add_secondary_worker("acquisition_worker")
@@ -160,7 +164,7 @@ class NI_DAQmxTab(DeviceTab):
 
             self.create_worker(
                 "wait_monitor_worker",
-                'labscript_devices.NI_DAQmx.workers.Ni_DAQmxWaitMonitorWorker',
+                'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxWaitMonitorWorker',
                 {
                     'MAX_name': self.MAX_name,
                     'wait_acq_connection': wait_acq_connection,

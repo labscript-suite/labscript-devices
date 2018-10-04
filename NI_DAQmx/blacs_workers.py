@@ -27,6 +27,8 @@ from PyDAQmx.DAQmxTypes import *
 
 from blacs.tab_base_classes import Worker
 
+from .utils import split_conn_port, split_conn_DO
+
 
 class Ni_DAQmxWorker(Worker):
     def init(self):
@@ -72,10 +74,10 @@ class Ni_DAQmxWorker(Worker):
         else:
             self.AO_task = None
 
-        if self.DO_ports or self.num_PFI > 0:
-            num_DO = sum(self.DO_ports.values())
+        if self.ports:
+            num_DO = sum(port['num_lines'] for port in self.ports.values())
             self.DO_task = Task()
-            self.DO_data = np.zeros(num_DO + self.num_PFI, dtype=np.uint8)
+            self.DO_data = np.zeros(num_DO, dtype=np.uint8)
         else:
             self.DO_task = None
 
@@ -86,15 +88,19 @@ class Ni_DAQmxWorker(Worker):
                 con, "", self.Vmin, self.Vmax, DAQmx_Val_Volts, None
             )
 
-        # Setup DO channels:
-        for port_str in sorted(self.DO_ports):
-            con = '%s/%s' % (self.MAX_name, port_str)
-            self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
-
-        # Setup PFI channels:
-        if self.num_PFI > 0:
-            con = '%s/PFI0:%d' % (self.MAX_name, self.num_PFI)
-            self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
+        # Setup DO channels
+        for port_str in sorted(self.ports, key=split_conn_port):
+            num_lines = self.ports[port_str]["num_lines"]
+            # need to create chans in multiples of 8:
+            ranges = []
+            for i in range(num_lines // 8):
+                ranges.append((8*i,8*i + 7))
+            div, remainder = divmod(num_lines, 8)
+            if remainder:
+                ranges.append((div*8, div*8 + remainder))
+            for start, stop in ranges:
+                con = '%s/%s/line%d:%d' % (self.MAX_name, port_str, start,stop)
+                self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
 
         # Start tasks:
         if self.AO_task is not None:
@@ -110,13 +116,8 @@ class Ni_DAQmxWorker(Worker):
             self.AO_task.WriteAnalogF64(
                 1, True, 1, DAQmx_Val_GroupByChannel, self.AO_data, byref(written), None
             )
-        i = 0
-        for port_str, num_DO in sorted(self.DO_ports.items()):
-            for j in range(num_DO):
-                self.DO_data[i + j] = front_panel_values['%s/line%d' % (port_str, j)]
-            i += num_DO
-        for j in range(self.num_PFI):
-            self.DO_data[i + j] = front_panel_values['PFI%d' % j]
+        for i, conn in enumerate(self.DO_hardware_names):
+            self.DO_data[i] = front_panel_values[conn]
         if self.DO_task is not None:
             self.DO_task.WriteDigitalLines(
                 1, True, 1, DAQmx_Val_GroupByChannel, self.DO_data, byref(written), None
@@ -169,16 +170,16 @@ class Ni_DAQmxWorker(Worker):
 
             # Collect the final values of the lines on this port:
             port_final_value = DO_table[port_str][-1]
-            for line in self.DO_ports[port_str]:
+            for line in range(self.ports[port_str]["num_lines"]):
                 # Extract each digital value from the packed bits:
                 line_final_value = bool((1 << line) & port_final_value)
                 final_values['%s/line%d' % (port_str, line)] = int(line_final_value)
 
         # Methods for writing data to the task depending on the datatype of each port:
         write_methods = {
-            np.uint8: self.DO_task.DAQmxWriteDigitalU8,
-            np.uint16: self.DO_task.DAQmxWriteDigitalU16,
-            np.uint32: self.DO_task.DAQmxWriteDigitalU32,
+            np.uint8: self.DO_task.WriteDigitalU8,
+            np.uint16: self.DO_task.WriteDigitalU16,
+            np.uint32: self.DO_task.WriteDigitalU32,
         }
 
         if self.static_DO:
@@ -244,7 +245,7 @@ class Ni_DAQmxWorker(Worker):
         )
 
         # Collect the final values of the analog outs:
-        final_values = dict(AO_table[-1])
+        final_values = dict(zip(AO_table.dtype.names, AO_table[-1]))
 
         # Obtain a view that is a regular array:
         AO_table = AO_table.view((AO_table.dtype[0], len(AO_table.dtype.names)))
@@ -270,7 +271,7 @@ class Ni_DAQmxWorker(Worker):
                 self.clock_limit,
                 DAQmx_Val_Rising,
                 DAQmx_Val_FiniteSamps,
-                ao_data.shape[0],
+                AO_table.shape[0],
             )
 
             # Write data:
