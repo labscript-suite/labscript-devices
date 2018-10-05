@@ -105,7 +105,7 @@ class NI_DAQmxTab(DeviceTab):
         # Create and set the primary worker
         self.create_worker(
             "main_worker",
-            'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxWorker',
+            'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxOutputWorker',
             {
                 'MAX_name': self.MAX_name,
                 'Vmin': AO_base_min,
@@ -126,7 +126,7 @@ class NI_DAQmxTab(DeviceTab):
         if num_AI > 0:
             self.create_worker(
                 "acquisition_worker",
-                 'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxAcquisitionWorker',
+                 'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxAcquisitionWorker',
                 {'MAX_name': self.MAX_name},
             )
             self.add_secondary_worker("acquisition_worker")
@@ -161,7 +161,7 @@ class NI_DAQmxTab(DeviceTab):
 
             self.create_worker(
                 "wait_monitor_worker",
-                'labscript_devices.NI_DAQmx.blacs_workers.Ni_DAQmxWaitMonitorWorker',
+                'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxWaitMonitorWorker',
                 {
                     'MAX_name': self.MAX_name,
                     'wait_acq_connection': wait_acq_connection,

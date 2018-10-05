@@ -30,7 +30,7 @@ from blacs.tab_base_classes import Worker
 from .utils import split_conn_port, split_conn_DO
 
 
-class Ni_DAQmxWorker(Worker):
+class NI_DAQmxOutputWorker(Worker):
     def init(self):
         self.check_version()
         # Reset Device: clears previously added routes etc. Note: is insufficient for
