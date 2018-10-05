@@ -113,6 +113,16 @@ class NI_DAQmx(IntermediateDevice):
             msg = """Must specify a parent clockline, unless both static_AO and
                 static_DO are True"""
             raise LabscriptError(dedent(msg))
+        # If parent device is not None though, then clock terminal must be specified:
+        if parent_device is not None and clock_terminal is None:
+            msg = """If parent_device is given, then clock_terminal must be specified as
+                well as the terminal to which the parent pseudoclock is connected."""
+            raise ValueError(dedent(msg))
+        # Acquisition rate cannot be larger than the single channel rate:
+        if acquisition_rate is not None and acquisition_rate > max_AI_single_chan_rate:
+            msg = """acquisition_rate %f is larger than the maximum single-channel rate
+                %f for this device"""
+            raise ValueError(dedent(msg) % (acquisition_rate, max_AI_single_chan_rate))
 
         self.clock_terminal = clock_terminal
         self.MAX_name = MAX_name if MAX_name is not None else name
@@ -224,26 +234,34 @@ class NI_DAQmx(IntermediateDevice):
         elif isinstance(device, AnalogIn):
             ai_num = split_conn_AI(device.connection)
             if ai_num >= self.num_AI:
-                msg = """Cannot add input with connection string '%s' to device with
-                num_AI=%d"""
+                msg = """Cannot add analog input with connection string '%s' to device
+                with num_AI=%d"""
                 raise ValueError(dedent(msg) % (device.connection, self.num_AI))
+            if self.acquisition_rate is None:
+                msg = """Cannot add analog input to NI_DAQmx device with
+                    acquisition_rate=None. Please set acquisition_rate as an
+                    instantiation argument to the parent NI_DAQmx device."""
+                raise ValueError(dedent(msg))
+            if self.parent_device is None:
+                msg = """Cannot add analog input to device with no parent pseudoclock.
+                    Even if there is no buffered output, a pseudoclock is still required
+                    to trigger the start of acquisition. Please specify a parent_device
+                    and clock_terminal for device %s"""
+                raise ValueError(dedent(msg) % self.name)
 
         IntermediateDevice.add_device(self, device)
 
-    def _check_even_children(self, analogs, digitals, inputs):
+    def _check_even_children(self, analogs, digitals):
         """Check that there are an even number of children of each type."""
         errmsg = """{0} {1} must have an even numer of {2}s in order to guarantee an
             even total number of samples, which is a limitation of the DAQmx library.
             Please add a dummy {2} device or remove one you're not using, so that there
-            are an even number."""
+            is an even number."""
         if len(analogs) % 2:
             msg = errmsg.format(self.description, self.name, 'analog output')
             raise LabscriptError(dedent(msg))
         if len(digitals) % 2:
             msg = errmsg.format(self.description, self.name, 'digital output')
-            raise LabscriptError(dedent(msg))
-        if len(inputs) % 2:
-            msg = errmsg.format(self.description, self.name, 'analog input')
             raise LabscriptError(dedent(msg))
 
     def _check_bounds(self, analogs):
@@ -267,6 +285,22 @@ class NI_DAQmx(IntermediateDevice):
             NI-DAQmx that prevents experiments from running. Please ensure at least one
             digital out is nonzero at some time."""
         raise LabscriptError(dedent(msg))
+
+    def _check_AI_not_too_fast(self, AI_table):
+        if AI_table is None:
+            return
+        n = len(set(AI_table['connection']))
+        if n < 2:
+            # Either no AI in use, or already checked against single channel rate in
+            # __init__.
+            return
+        if self.acquisition_rate <= self.max_AI_multi_chan_rate / n:
+            return
+        msg = """Requested acqusition_rate %f for device %s with %d analog input
+            channels in use is too fast. Device supports a rate of %f per channel when
+            multiple channels are in use."""
+        msg = msg % (self.acquisition_rate, self.name, n, self.max_AI_multi_chan_rate)
+        raise ValueError(dedent(msg))
 
     def _make_analog_out_table(self, analogs, times):
         """Collect analog output data and create the output array"""
@@ -371,18 +405,20 @@ class NI_DAQmx(IntermediateDevice):
             # No pseudoclock to call expand_timeseries() on our children.
             # Call it ourselves:
             for device in self.child_devices:
-                device.expand_timeseries()
+                if isinstance(device, (StaticDigitalOut, StaticAnalogOut)):
+                    device.expand_timeseries()
             times = None
         else:
             times = clockline.parent_device.times[clockline]
 
-        self._check_even_children(analogs, digitals, inputs)
+        self._check_even_children(analogs, digitals)
         self._check_bounds(analogs)
 
         AO_table = self._make_analog_out_table(analogs, times)
         DO_table = self._make_digital_out_table(digitals, times)
         AI_table = self._make_analog_input_table(inputs)
 
+        self._check_AI_not_too_fast(AI_table)
         self._check_digitals_do_something(DO_table)
 
         grp = self.init_device_group(hdf5_file)

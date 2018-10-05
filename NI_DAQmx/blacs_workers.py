@@ -19,6 +19,7 @@ if PY2:
 import time
 import logging
 import traceback
+import threading
 
 from PyDAQmx import *
 from PyDAQmx.DAQmxConstants import *
@@ -29,9 +30,11 @@ import labscript_utils.h5_lock
 import h5py
 import zprocess
 
-from labscript_utils import dedent
 import labscript_utils.properties as properties
+from labscript_utils import dedent
+from labscript_utils.connections import _ensure_str
 from labscript_utils.numpy_dtype_workaround import dtype_workaround
+
 from blacs.tab_base_classes import Worker
 
 from .utils import split_conn_port, split_conn_DO
@@ -565,28 +568,21 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # read channels, acquisition rate, etc from H5 file
         h5_chnls = []
         with h5py.File(h5file, 'r') as f:
-            group = hdf5_file['/devices/' + device_name]
-            if 'AI' in group:
-                AI_table = group['AI'][:]
-            else:
-                AI_table = None
+            group = f['/devices/' + device_name]
+            if 'AI' not in group:
+                # No acquisition
+                return {}
+            AI_table = group['AI'][:]
             device_props = properties.get(f, device_name, 'device_properties')
             ctable_props = properties.get(f, device_name, 'connection_table_properties')
 
         self.clock_terminal = ctable_props['clock_terminal']
         self.buffered_rate = device_props['acquisition_rate']
 
-        if AI_table is not None:
-            h5_chans = [device_name + '/' + conn for conn in AI_table['connection']]
-        else:
-            h5_chans = []
-        # combine static channels with h5 channels (using a set to avoid duplicates)
-        self.buffered_channels = sorted(set(h5_chnls).union(self.channels))
+        chans = [device_name + '/' + _ensure_str(c) for c in AI_table['connection']]
 
-        # setup task (rate should be from h5 file) Possibly should detect and lower rate
-        # if too high, as h5 file doesn't know about other acquisition channels?
-        if self.buffered_rate <= 0:
-            self.buffered_rate = self.rate
+        # Remove duplicates and sort:
+        self.buffered_channels = sorted(set(chans))
 
         self.buffered = True
         if len(self.buffered_channels) == 1:
@@ -622,13 +618,13 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
             start_time = time.time()
             if self.buffered_data_list:
-                npts = self.buffer_per_channel * len(self.buffered_data_list)
+                npts = self.samples_per_channel * len(self.buffered_data_list)
                 self.buffered_data = np.zeros(npts, dtype=dtype_workaround(dtypes))
                 for i, data in enumerate(self.buffered_data_list):
                     data.shape = (len(self.buffered_channels), self.ai_read.value)
                     for j, (chan, dtype) in enumerate(dtypes):
-                        start = i * self.buffer_per_channel
-                        end = start + self.buffer_per_channel
+                        start = i * self.samples_per_channel
+                        end = start + self.samples_per_channel
                         self.buffered_data[chan][start:end] = data[j, :]
                     if i % 100 == 0:
                         msg = str(i / 100) + " time: " + str(time.time() - start_time)
@@ -665,7 +661,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 wait_times = waits['time']
                 wait_durations = waits['duration']
             try:
-                acquisitions = hdf5_file['/devices/' + device_name + '/ACQUISITIONS']
+                acquisitions = hdf5_file['/devices/' + device_name + '/AI']
             except KeyError:
                 # No acquisitions!
                 return
