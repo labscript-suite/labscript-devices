@@ -20,12 +20,7 @@ import labscript_utils.h5_lock
 import h5py
 
 from blacs.device_base_class import DeviceTab
-from .utils import (
-    port_and_line_to_PFI,
-    split_conn_AO,
-    split_conn_DO,
-    port_line_to_hardware_name,
-)
+from .utils import split_conn_AO, split_conn_DO
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -74,7 +69,7 @@ class NI_DAQmxTab(DeviceTab):
             port_str ='port%d' % port_num
             port_props = {}
             for line in range(ports[port_str]['num_lines']):
-                hardware_name = port_line_to_hardware_name(port_num, line, ports)
+                hardware_name = 'port%d/line%d' % (port_num, line)
                 port_props[hardware_name] = {}
                 DO_hardware_names.append(hardware_name)
             DO_proplist.append((port_str, port_props))
@@ -96,12 +91,14 @@ class NI_DAQmxTab(DeviceTab):
 
         # Auto place the widgets in the UI, specifying sort keys for ordering them:
         widget_list = [("Analog outputs", AO_widgets, split_conn_AO)]
-        for port_str, DO_widgets in sorted(DO_widgets_by_port.items()):
+        for port_num in range(len(ports)):
+            port_str ='port%d' % port_num
+            DO_widgets = DO_widgets_by_port[port_str]
             name = "Digital outputs: %s" % port_str
             if ports[port_str]['supports_buffered']:
                 name += ' (buffered)'
             else:
-                name += ' (unbuffered)'
+                name += ' (static)'
             widget_list.append((name, DO_widgets, split_conn_DO))
         self.auto_place_widgets(*widget_list)
 

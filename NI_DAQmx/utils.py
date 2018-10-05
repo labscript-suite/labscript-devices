@@ -78,39 +78,3 @@ def split_conn_port(connection):
     except (ValueError, IndexError):
         msg = "port string %s does not match format 'port<N>' for integer N"
         raise ValueError(msg % str(connection))
-
-
-def port_and_line_to_PFI(port, line, ports):
-    """For a given port and line number, and a dictionary of ports and their
-    capabilities (as passed to NI_DAQmx as the ports keyword argument), compute the PFI
-    terminal that corresponds to that port and line, under the assumption that the PFI
-    terminals begin as PFI0 on the first line of the first port that does not support
-    buffered output and count upward."""
-    n_ports = len(ports)
-    PFI_num = 0
-    for port_num in range(n_ports):
-        capabilities = ports['port%d' % port_num]
-        if capabilities['supports_buffered']:
-            continue
-        elif port_num != port:
-            PFI_num += capabilities['num_lines']
-        elif line < capabilities['num_lines']:
-            PFI_num += line
-            return 'PFI%d' % PFI_num
-    msg = "port%d/line%d does not correspond to an unbuffered digital output"
-    raise ValueError(msg % (port, line))
-
-
-def port_line_to_hardware_name(port, line, ports):
-    """For a given port and line number, and a dictionary of ports and their
-    capabilities (as passed to NI_DAQmx as the ports keyword argument), generate a
-    string description of the connection like 'port1/line0 (PFI0)'. If the line is on a
-    port capable of buffered output, the result will not have the PFI part appended. The
-    PFI number used assumes that the PFI terminals begin as PFI0 on the first line of
-    the first port that does not support buffered output and count upward."""
-    port_str = 'port%d'  % port
-    hardware_name = '%s/line%d' % (port_str, line)
-    if not ports[port_str]['supports_buffered']:
-        PFI_conn = port_and_line_to_PFI(port, line, ports)
-        hardware_name += ' (%s)' % PFI_conn
-    return hardware_name
