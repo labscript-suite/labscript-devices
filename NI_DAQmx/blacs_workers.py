@@ -37,7 +37,7 @@ from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from blacs.tab_base_classes import Worker
 
-from .utils import split_conn_port, split_conn_DO
+from .utils import split_conn_port, split_conn_DO, split_conn_AI
 
 
 class NI_DAQmxOutputWorker(Worker):
@@ -377,21 +377,10 @@ class NI_DAQmxOutputWorker(Worker):
 
 class NI_DAQmxAcquisitionWorker(Worker):
     def init(self):
-        self.task_running = False
-        self.daqlock = threading.Condition()
-        # Channel details
-        self.channels = []
-        self.rate = 1000.0
-        self.samples_per_channel = 1000
-        self.ai_start_delay = 25e-9
-        self.h5_file = ""
-        self.buffered_channels = []
-        self.buffered_rate = 0
-        self.buffered = False
-        self.buffered_data = None
-        self.buffered_data_list = []
+        self.acquisition_thread = None
+        self.task_setup_done = threading.Event()
 
-        self.task = None
+        self.acquired_data = None
         self.abort = False
 
         # An event for knowing when the wait durations are known, so that we may use
@@ -406,152 +395,64 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.task_running:
             self.stop_task()
 
-    def daqmx_read(self):
-        logger_fmt = 'BLACS.%s_%s.acquisition.daqmxread'
-        logger = logging.getLogger(logger_fmt % (self.device_name, self.worker_name))
-        logger.info('Starting')
+    def acquisition_loop(self, chans, rate, buffered):
+        """Started in a thread to acquire data. Sets up a task and acquires
+        data in a loop until stopped."""
 
         try:
-            while True:
-                with self.daqlock:
-                    logger.debug('Got daqlock')
-                    while not self.task_running:
-                        msg = """Task isn\'t running. Releasing daqlock and waiting to
-                            reacquire it."""
-                        logger.debug(dedent(msg))
-                        self.daqlock.wait()
-                    # logger.debug('Reading data from analogue inputs')
-                    if self.buffered:
-                        chnl_list = self.buffered_channels
-                    else:
-                        chnl_list = self.channels
-                    try:
-                        error = "Task did not return an error, but it should have"
-                        acquisition_timeout = 5
-                        error = self.task.ReadAnalogF64(
-                            self.samples_per_channel,
-                            acquisition_timeout,
-                            DAQmx_Val_GroupByChannel,
-                            self.ai_data,
-                            self.samples_per_channel * len(chnl_list),
-                            byref(self.ai_read),
-                            None,
-                        )
-                        # logger.debug('Reading complete')
-                        if error is not None and error != 0:
-                            if error < 0:
-                                raise Exception(error)
-                            if error > 0:
-                                logger.warning(error)
-                    except Exception as e:
-                        logger.exception('acquisition error')
-                        if self.abort:
-                            # If an abort is in progress, then we expect an exception
-                            # here. Don't raise it.
-                            logger.debug('ignoring error during abort.')
-                            # Ensure the next iteration of this while loop doesn't
-                            # happen until the task is restarted. The thread calling
-                            # self.stop_task() is also setting self.task_running = False
-                            # right about now, but we don't want to rely on it doing so
-                            # in time. Doing it here too avoids a race condition.
-                            self.task_running = False
-                            continue
-                        else:
-                            # Error was likely a timeout error...some other device might
-                            # be bing slow transitioning to buffered, so we haven't got
-                            # our start trigger yet. Keep trying until task_running is
-                            # False:
-                            continue
-                # send the data to the queue
-                if self.buffered:
-                    # rearrange ai_data into correct form
-                    data = np.copy(self.ai_data)
-                    self.buffered_data_list.append(data)
-        except Exception:
-            message = traceback.format_exc()
-            logger.error('An exception happened:\n %s' % message)
-            # self.to_parent.put(['error', message])
-            # TODO: Tell the GUI process that this has a problem some how (status
-            # check?)
-
-    def setup_task(self):
-        self.logger.debug('setup_task')
-        # DAQmx Configure Code
-        with self.daqlock:
-            self.logger.debug('setup_task got daqlock')
-            if self.task:
-                self.task.ClearTask()
-            if self.buffered:
-                chnl_list = self.buffered_channels
-                rate = self.buffered_rate
+            num_chans = len(chans)
+            # Get data 1000 points at a time or once every 0.2 seconds, whichever is faster:
+            if rate < 5000:
+                samples_per_channel = int(5 * rate)
             else:
-                chnl_list = self.channels
-                rate = self.rate
+                samples_per_channel = 1000
+            total_samples = samples_per_channel * num_chans
+            read_array = np.zeros(chans, dtype=np.float64)
+            read_timeout = 5
 
-            if len(chnl_list) < 1:
-                return
+            self.task = Task()
 
-            if rate < 1000:
-                self.samples_per_channel = int(rate)
-            else:
-                self.samples_per_channel = 1000
-
-            if rate < 1e2:
-                self.buffer_per_channel = 1000
-            elif rate < 1e4:
-                self.buffer_per_channel = 10000
-            elif rate < 1e6:
-                self.buffer_per_channel = 100000
-            else:
-                self.buffer_per_channel = 1000000
-
-            try:
-                self.task = Task()
-            except Exception as e:
-                self.logger.error(str(e))
-            self.ai_read = int32()
-            total_samps = self.samples_per_channel * len(chnl_list)
-            self.ai_data = np.zeros((total_samps,), dtype=np.float64)
-
-            for chnl in chnl_list:
+            for chan in chans:
                 self.task.CreateAIVoltageChan(
-                    chnl, "", DAQmx_Val_RSE, -10.0, 10.0, DAQmx_Val_Volts, None
+                    self.MAX_name + '/' + chan,
+                    "",
+                    DAQmx_Val_RSE,
+                    self.AI_range[0],
+                    self.AI_range[1],
+                    DAQmx_Val_Volts,
+                    None,
                 )
 
             self.task.CfgSampClkTiming(
-                "",
-                rate,
-                DAQmx_Val_Rising,
-                DAQmx_Val_ContSamps,
-                self.samples_per_channel,
+                "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, samples_per_channel
             )
-
-            # Variable buffer size helps avoid buffer underflows:
-            self.task.CfgInputBuffer(self.buffer_per_channel)
-
-            if self.buffered:
-                # set up start on digital trigger
+            if buffered:
                 self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
 
-            # DAQmx Start Code
             self.task.StartTask()
-            # TODO: Need to do something about the time for buffered acquisition. Should
-            # be related to when it starts (approx) How do we detect that?
-            self.t0 = time.time() - time.timezone
-            self.task_running = True
-            self.daqlock.notify()
-        self.logger.debug('finished setup_task')
+        except:
+            self.acquistion_loop_exception = sys.exc_info
+            return
+        finally:
+            self.task_setup_done.set()
 
-    def stop_task(self):
-        self.logger.debug('stop_task')
-        with self.daqlock:
-            self.logger.debug('stop_task got daqlock')
-            if self.task_running:
-                self.task_running = False
-                self.task.StopTask()
-                self.task.ClearTask()
-            self.daqlock.notify()
-        self.logger.debug('finished stop_task')
+        try:
+            while True:
+                self.task.ReadAnalogF64(
+                    samples_per_channel,
+                    read_timeout,
+                    DAQmx_Val_GroupByChannel,
+                    read_array,
+                    total_samples,
+                    byref(num_samps_read),
+                    None,
+                )
+                # Append to the list of acquired data:
+                data = read_array[:int(num_samps_read.value)].copy()
+                self.acquired_data.append(data)
+        except:
+            self.acquistion_loop_exception = sys.exc_info
+
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         # TODO: Do this line better!
@@ -560,8 +461,6 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.logger.debug('transition_to_buffered')
         # stop current task
         self.stop_task()
-
-        self.buffered_data_list = []
 
         # Save h5file path (for storing data later!)
         self.h5_file = h5file
@@ -579,10 +478,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.clock_terminal = ctable_props['clock_terminal']
         self.buffered_rate = device_props['acquisition_rate']
 
-        chans = [device_name + '/' + _ensure_str(c) for c in AI_table['connection']]
-
+        chans = [_ensure_str(c) for c in AI_table['connection']]
         # Remove duplicates and sort:
-        self.buffered_channels = sorted(set(chans))
+        chans = sorted(set(chans), key=split_conn_AI)
 
         self.buffered = True
         if len(self.buffered_channels) == 1:
@@ -635,9 +533,6 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
             self.buffered_data = None
             self.buffered_data_list = []
-
-            # Send data to callback functions as requested (in one big chunk!)
-            # self.result_queue.put([self.t0,self.rate,self.ai_read,len(self.channels),self.ai_data])
 
         # return to previous acquisition mode
         self.buffered = False

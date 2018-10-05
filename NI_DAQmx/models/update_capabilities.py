@@ -127,6 +127,7 @@ DAQmxGetDevAOMaxRate = float64_prop(PyDAQmx.DAQmxGetDevAOMaxRate)
 DAQmxGetDevAIMaxSingleChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxSingleChanRate)
 DAQmxGetDevAIMaxMultiChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxMultiChanRate)
 DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
+DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 
 def port_supports_buffered(device_name, port):
@@ -211,7 +212,6 @@ for name in DAQmxGetSysDevNames().split(', '):
         for i in range(0, len(raw_limits), 2):
             Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
             AO_ranges.append([Vmin, Vmax])
-        print(AO_ranges)
         # Find range with the largest maximum voltage and use that:
         Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
         # Confirm that no other range has a voltage lower than Vmin,
@@ -221,6 +221,23 @@ for name in DAQmxGetSysDevNames().split(', '):
         capabilities[model]["AO_range"] = [Vmin, Vmax]
     else:
         capabilities[model]["AO_range"] = None
+
+    if capabilities[model]['num_AI'] > 0:
+        AI_ranges = []
+        raw_limits = DAQmxGetDevAIVoltageRngs(name)
+        for i in range(0, len(raw_limits), 2):
+            Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
+            AI_ranges.append([Vmin, Vmax])
+        # Find range with the largest maximum voltage and use that:
+        Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
+        # Confirm that no other range has a voltage lower than Vmin,
+        # since if it does, this violates our assumptions and things might not
+        # be as simple as having a single range:
+        assert min(AI_ranges)[0] >= Vmin
+        capabilities[model]["AI_range"] = [Vmin, Vmax]
+    else:
+        capabilities[model]["AI_range"] = None
+
 
 with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     json.dump(capabilities, f, sort_keys=True, indent=4, separators=(',', ': '))

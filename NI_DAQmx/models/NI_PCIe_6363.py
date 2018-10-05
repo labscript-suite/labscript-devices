@@ -29,6 +29,7 @@ if PY2:
 from labscript_devices.NI_DAQmx.base_class import NI_DAQmx
 
 CAPABILITIES = {
+    'AI_range': [-10.0, 10.0],
     'AO_range': [-10.0, 10.0],
     'max_AI_multi_chan_rate': 1000000.0,
     'max_AI_single_chan_rate': 2000000.0,

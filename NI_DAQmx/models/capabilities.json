@@ -1,5 +1,6 @@
 {
     "PCI-6733": {
+        "AI_range": null,
         "AO_range": [
             -10.0,
             10.0
@@ -21,6 +22,10 @@
         "supports_buffered_DO": true
     },
     "PCIe-6363": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
         "AO_range": [
             -10.0,
             10.0
@@ -50,6 +55,10 @@
         "supports_buffered_DO": true
     },
     "USB-6008": {
+        "AI_range": [
+            -20.0,
+            20.0
+        ],
         "AO_range": [
             0.0,
             5.0
@@ -75,6 +84,10 @@
         "supports_buffered_DO": false
     },
     "USB-6343": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
         "AO_range": [
             -10.0,
             10.0
