@@ -16,15 +16,22 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-import numpy as np
-
-import labscript_utils.h5_lock
-import h5py
+import time
+import logging
+import traceback
 
 from PyDAQmx import *
 from PyDAQmx.DAQmxConstants import *
 from PyDAQmx.DAQmxTypes import *
 
+import numpy as np
+import labscript_utils.h5_lock
+import h5py
+import zprocess
+
+from labscript_utils import dedent
+import labscript_utils.properties as properties
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from blacs.tab_base_classes import Worker
 
 from .utils import split_conn_port, split_conn_DO
@@ -340,8 +347,8 @@ class NI_DAQmxOutputWorker(Worker):
                         task.GetWriteTotalSampPerChanGenerated(samples)
                         # Detect -1 even though they're supposed to be unsigned ints, -1
                         # seems to indicate the task was not started:
-                        current = samples.value if samples.value != 2**64 - 1 else -1
-                        total = npts.value if npts.value != 2**64 - 1 else -1
+                        current = samples.value if samples.value != 2 ** 64 - 1 else -1
+                        total = npts.value if npts.value != 2 ** 64 - 1 else -1
                         msg = 'Stopping %s at sample %d of %d'
                         self.logger.info(msg, name, current, total)
                 task.StopTask()
@@ -363,3 +370,348 @@ class NI_DAQmxOutputWorker(Worker):
 
     def abort_buffered(self):
         return self.transition_to_manual(True)
+
+
+class NI_DAQmxAcquisitionWorker(Worker):
+    def init(self):
+        self.task_running = False
+        self.daqlock = threading.Condition()
+        # Channel details
+        self.channels = []
+        self.rate = 1000.0
+        self.samples_per_channel = 1000
+        self.ai_start_delay = 25e-9
+        self.h5_file = ""
+        self.buffered_channels = []
+        self.buffered_rate = 0
+        self.buffered = False
+        self.buffered_data = None
+        self.buffered_data_list = []
+
+        self.task = None
+        self.abort = False
+
+        # An event for knowing when the wait durations are known, so that we may use
+        # them to chunk up acquisition data:
+        self.wait_durations_analysed = zprocess.Event('wait_durations_analysed')
+
+        self.daqmx_read_thread = threading.Thread(target=self.daqmx_read)
+        self.daqmx_read_thread.daemon = True
+        self.daqmx_read_thread.start()
+
+    def shutdown(self):
+        if self.task_running:
+            self.stop_task()
+
+    def daqmx_read(self):
+        logger_fmt = 'BLACS.%s_%s.acquisition.daqmxread'
+        logger = logging.getLogger(logger_fmt % (self.device_name, self.worker_name))
+        logger.info('Starting')
+
+        try:
+            while True:
+                with self.daqlock:
+                    logger.debug('Got daqlock')
+                    while not self.task_running:
+                        msg = """Task isn\'t running. Releasing daqlock and waiting to
+                            reacquire it."""
+                        logger.debug(dedent(msg))
+                        self.daqlock.wait()
+                    # logger.debug('Reading data from analogue inputs')
+                    if self.buffered:
+                        chnl_list = self.buffered_channels
+                    else:
+                        chnl_list = self.channels
+                    try:
+                        error = "Task did not return an error, but it should have"
+                        acquisition_timeout = 5
+                        error = self.task.ReadAnalogF64(
+                            self.samples_per_channel,
+                            acquisition_timeout,
+                            DAQmx_Val_GroupByChannel,
+                            self.ai_data,
+                            self.samples_per_channel * len(chnl_list),
+                            byref(self.ai_read),
+                            None,
+                        )
+                        # logger.debug('Reading complete')
+                        if error is not None and error != 0:
+                            if error < 0:
+                                raise Exception(error)
+                            if error > 0:
+                                logger.warning(error)
+                    except Exception as e:
+                        logger.exception('acquisition error')
+                        if self.abort:
+                            # If an abort is in progress, then we expect an exception
+                            # here. Don't raise it.
+                            logger.debug('ignoring error during abort.')
+                            # Ensure the next iteration of this while loop doesn't
+                            # happen until the task is restarted. The thread calling
+                            # self.stop_task() is also setting self.task_running = False
+                            # right about now, but we don't want to rely on it doing so
+                            # in time. Doing it here too avoids a race condition.
+                            self.task_running = False
+                            continue
+                        else:
+                            # Error was likely a timeout error...some other device might
+                            # be bing slow transitioning to buffered, so we haven't got
+                            # our start trigger yet. Keep trying until task_running is
+                            # False:
+                            continue
+                # send the data to the queue
+                if self.buffered:
+                    # rearrange ai_data into correct form
+                    data = np.copy(self.ai_data)
+                    self.buffered_data_list.append(data)
+        except Exception:
+            message = traceback.format_exc()
+            logger.error('An exception happened:\n %s' % message)
+            # self.to_parent.put(['error', message])
+            # TODO: Tell the GUI process that this has a problem some how (status
+            # check?)
+
+    def setup_task(self):
+        self.logger.debug('setup_task')
+        # DAQmx Configure Code
+        with self.daqlock:
+            self.logger.debug('setup_task got daqlock')
+            if self.task:
+                self.task.ClearTask()
+            if self.buffered:
+                chnl_list = self.buffered_channels
+                rate = self.buffered_rate
+            else:
+                chnl_list = self.channels
+                rate = self.rate
+
+            if len(chnl_list) < 1:
+                return
+
+            if rate < 1000:
+                self.samples_per_channel = int(rate)
+            else:
+                self.samples_per_channel = 1000
+
+            if rate < 1e2:
+                self.buffer_per_channel = 1000
+            elif rate < 1e4:
+                self.buffer_per_channel = 10000
+            elif rate < 1e6:
+                self.buffer_per_channel = 100000
+            else:
+                self.buffer_per_channel = 1000000
+
+            try:
+                self.task = Task()
+            except Exception as e:
+                self.logger.error(str(e))
+            self.ai_read = int32()
+            total_samps = self.samples_per_channel * len(chnl_list)
+            self.ai_data = np.zeros((total_samps,), dtype=np.float64)
+
+            for chnl in chnl_list:
+                self.task.CreateAIVoltageChan(
+                    chnl, "", DAQmx_Val_RSE, -10.0, 10.0, DAQmx_Val_Volts, None
+                )
+
+            self.task.CfgSampClkTiming(
+                "",
+                rate,
+                DAQmx_Val_Rising,
+                DAQmx_Val_ContSamps,
+                self.samples_per_channel,
+            )
+
+            # Variable buffer size helps avoid buffer underflows:
+            self.task.CfgInputBuffer(self.buffer_per_channel)
+
+            if self.buffered:
+                # set up start on digital trigger
+                self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
+
+            # DAQmx Start Code
+            self.task.StartTask()
+            # TODO: Need to do something about the time for buffered acquisition. Should
+            # be related to when it starts (approx) How do we detect that?
+            self.t0 = time.time() - time.timezone
+            self.task_running = True
+            self.daqlock.notify()
+        self.logger.debug('finished setup_task')
+
+    def stop_task(self):
+        self.logger.debug('stop_task')
+        with self.daqlock:
+            self.logger.debug('stop_task got daqlock')
+            if self.task_running:
+                self.task_running = False
+                self.task.StopTask()
+                self.task.ClearTask()
+            self.daqlock.notify()
+        self.logger.debug('finished stop_task')
+
+    def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+        # TODO: Do this line better!
+        self.device_name = device_name
+
+        self.logger.debug('transition_to_buffered')
+        # stop current task
+        self.stop_task()
+
+        self.buffered_data_list = []
+
+        # Save h5file path (for storing data later!)
+        self.h5_file = h5file
+        # read channels, acquisition rate, etc from H5 file
+        h5_chnls = []
+        with h5py.File(h5file, 'r') as f:
+            group = hdf5_file['/devices/' + device_name]
+            if 'AI' in group:
+                AI_table = group['AI'][:]
+            else:
+                AI_table = None
+            device_props = properties.get(f, device_name, 'device_properties')
+            ctable_props = properties.get(f, device_name, 'connection_table_properties')
+
+        self.clock_terminal = ctable_props['clock_terminal']
+        self.buffered_rate = device_props['acquisition_rate']
+
+        if AI_table is not None:
+            h5_chans = [device_name + '/' + conn for conn in AI_table['connection']]
+        else:
+            h5_chans = []
+        # combine static channels with h5 channels (using a set to avoid duplicates)
+        self.buffered_channels = sorted(set(h5_chnls).union(self.channels))
+
+        # setup task (rate should be from h5 file) Possibly should detect and lower rate
+        # if too high, as h5 file doesn't know about other acquisition channels?
+        if self.buffered_rate <= 0:
+            self.buffered_rate = self.rate
+
+        self.buffered = True
+        if len(self.buffered_channels) == 1:
+            self.buffered_data = np.zeros((1,), dtype=np.float64)
+        else:
+            self.buffered_data = np.zeros(
+                (1, len(self.buffered_channels)), dtype=np.float64
+            )
+        self.setup_task()
+        return {}
+
+    def transition_to_manual(self, abort=False):
+        self.logger.debug('transition_to_static')
+        # Stop acquisition (this should really be done on a digital edge, but that is
+        # for later! Maybe use a Counter) Set the abort flag so that the acquisition
+        # thread knows to expect an exception in the case of an abort:
+        #
+        # TODO: This is probably bad because it shortly get's overwritten to False
+        # However whether it has an effect depends on whether daqmx_read thread holds
+        # the daqlock when self.stop_task() is called
+        self.abort = abort
+        self.stop_task()
+        # Reset the abort flag so that unexpected exceptions are still raised:
+        self.abort = False
+        self.logger.info('transitioning to static, task stopped')
+        # save the data acquired to the h5 file
+        if not abort:
+            with h5py.File(self.h5_file, 'a') as hdf5_file:
+                data_group = hdf5_file['data']
+                data_group.create_group(self.device_name)
+
+            dtypes = [(c.split('/')[-1], np.float32) for c in self.buffered_channels]
+
+            start_time = time.time()
+            if self.buffered_data_list:
+                npts = self.buffer_per_channel * len(self.buffered_data_list)
+                self.buffered_data = np.zeros(npts, dtype=dtype_workaround(dtypes))
+                for i, data in enumerate(self.buffered_data_list):
+                    data.shape = (len(self.buffered_channels), self.ai_read.value)
+                    for j, (chan, dtype) in enumerate(dtypes):
+                        start = i * self.buffer_per_channel
+                        end = start + self.buffer_per_channel
+                        self.buffered_data[chan][start:end] = data[j, :]
+                    if i % 100 == 0:
+                        msg = str(i / 100) + " time: " + str(time.time() - start_time)
+                        self.logger.debug(msg)
+                self.extract_measurements(self.device_name)
+                msg = 'data written, time taken: %ss' % str(time.time() - start_time)
+                self.logger.info(msg)
+
+            self.buffered_data = None
+            self.buffered_data_list = []
+
+            # Send data to callback functions as requested (in one big chunk!)
+            # self.result_queue.put([self.t0,self.rate,self.ai_read,len(self.channels),self.ai_data])
+
+        # return to previous acquisition mode
+        self.buffered = False
+        self.setup_task()
+
+        return True
+
+    def extract_measurements(self, device_name):
+        self.logger.debug('extract_measurements')
+        with h5py.File(self.h5_file, 'a') as hdf5_file:
+            waits_in_use = len(hdf5_file['waits']) > 0
+        if waits_in_use:
+            # There were waits in this shot. We need to wait until the other process has
+            # determined their durations before we proceed:
+            self.wait_durations_analysed.wait(self.h5_file)
+
+        with h5py.File(self.h5_file, 'a') as hdf5_file:
+            if waits_in_use:
+                # get the wait start times and durations
+                waits = hdf5_file['/data/waits']
+                wait_times = waits['time']
+                wait_durations = waits['duration']
+            try:
+                acquisitions = hdf5_file['/devices/' + device_name + '/ACQUISITIONS']
+            except KeyError:
+                # No acquisitions!
+                return
+            try:
+                measurements = hdf5_file['/data/traces']
+            except KeyError:
+                # Group doesn't exist yet, create it:
+                measurements = hdf5_file.create_group('/data/traces')
+
+            rate = self.buffered_rate
+            for connection, label, t_start, t_end, _, _, _ in acquisitions:
+                connection = _ensure_str(connection)
+                label = _ensure_str(label)
+                if waits_in_use:
+                    # add durations from all waits that start prior to t_start of
+                    # acquisition
+                    t_start += wait_durations[(wait_times < t_start)].sum()
+                    # compare wait times to t_end to allow for waits during an
+                    # acquisition
+                    t_end += wait_durations[(wait_times < t_end)].sum()
+                i_start = int(np.ceil(rate * (t_start - self.ai_start_delay)))
+                i_end = int(np.floor(rate * (t_end - self.ai_start_delay)))
+                # np.ceil does what we want above, but float errors can miss the
+                # equality:
+                if self.ai_start_delay + (i_start - 1) / rate - t_start > -2e-16:
+                    i_start -= 1
+                # We want np.floor(x) to yield the largest integer < x (not <=):
+                if t_end - self.ai_start_delay - i_end / rate < 2e-16:
+                    i_end -= 1
+                t_i = self.ai_start_delay + i_start / rate
+                t_f = self.ai_start_delay + i_end / rate
+                times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
+                values = self.buffered_data[connection][i_start : i_end + 1]
+                dtypes = [('t', np.float64), ('values', np.float32)]
+                data = np.empty(len(values), dtype=dtype_workaround(dtypes))
+                data['t'] = times
+                data['values'] = values
+                measurements.create_dataset(label, data=data)
+
+    def abort_buffered(self):
+        # TODO: test this
+        return self.transition_to_manual(True)
+
+    def abort_transition_to_buffered(self):
+        # TODO: test this
+        return self.transition_to_manual(True)
+
+    def program_manual(self, values):
+        return {}
