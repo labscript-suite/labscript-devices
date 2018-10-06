@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /NI_DAQmx/models/update_capabilities.py                           #
+# /NI_DAQmx/models/get_capabilities.py                              #
 #                                                                   #
 # Copyright 2018, Christopher Billington                            #
 #                                                                   #
@@ -134,11 +134,11 @@ DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 
 def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
-    if 'clock_terminal' not in DAQmxGetDevTerminals(device_name):
+    if clock_terminal not in DAQmxGetDevTerminals(device_name):
         return False
     npts = 10
     task = Task()
-    clock_terminal = '/' + device_name + '/PFI0'
+    clock_terminal = '/' + device_name + '/' + clock_terminal
     data = np.zeros(npts, dtype=np.uint8)
     task.CreateDOChan(
         device_name + "/" + port + '/line0', "", c.DAQmx_Val_ChanForAllLines
@@ -157,9 +157,9 @@ def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
     ):
         return False
     except PyDAQmx.DAQmxFunctions.RouteNotSupportedByHW_RoutingError as e:
-        valid_terms = e.message.split('Suggested Values: ')[1].split('\n')[0].split(', ')
+        valid_terms = e.message.split('Suggested Values: ')[1].split('\n')[0]
         # Try again with one of the suggested terminals:
-        return port_supports_buffered(device_name, port, clock_terminal=valid_terms[0])
+        return port_supports_buffered(device_name, port, valid_terms[0].split(', ')[0])
     else:
         return True
     finally:

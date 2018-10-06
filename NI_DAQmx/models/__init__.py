@@ -34,5 +34,7 @@ __all__ = []
 for model_name in capabilities:
     class_name = 'NI_' + model_name.replace('-', '_')
     path = 'labscript_devices.NI_DAQmx.models.' + class_name + '.' + class_name
+    if PY2 and isinstance(class_name, str):
+        class_name = class_name.encode('utf8')
     globals()[class_name] = import_class_by_fullname(path)
     __all__.append(class_name)
