@@ -17,8 +17,6 @@ if PY2:
     str = unicode
 
 import time
-import logging
-import traceback
 import threading
 
 from PyDAQmx import *
@@ -376,174 +374,188 @@ class NI_DAQmxOutputWorker(Worker):
 
 
 class NI_DAQmxAcquisitionWorker(Worker):
-    def init(self):
-        self.acquisition_thread = None
-        self.task_setup_done = threading.Event()
+    MAX_READ_INTERVAL = 0.2
+    MAX_READ_PTS = 10000
 
+    def init(self):
+        # Prevent interference between the read callback and the shutdown code:
+        self.tasklock = threading.RLock()
+
+        # Assigned on a per-task basis and cleared afterward:
+        self.read_array = None
+        self.task = None
+
+        # Assigned on a per-shot basis and cleared afterward:
+        self.h5_file = None
         self.acquired_data = None
-        self.abort = False
+        self.buffered_rate = None
+        self.buffered_chans = None
+
+        # Hard coded for now. Perhaps we will add functionality to enable
+        # and disable inputs in manual mode, and adjust the rate:
+        self.manual_mode_chans = ['ai%d' % i for i in range(self.num_AI)]
+        self.manual_mode_rate = 1000
 
         # An event for knowing when the wait durations are known, so that we may use
         # them to chunk up acquisition data:
         self.wait_durations_analysed = zprocess.Event('wait_durations_analysed')
 
-        self.daqmx_read_thread = threading.Thread(target=self.daqmx_read)
-        self.daqmx_read_thread.daemon = True
-        self.daqmx_read_thread.start()
-
     def shutdown(self):
-        if self.task_running:
-            self.stop_task()
+        if self.task is not None:
+            self.stop_task(buffered=self.h5_file is not None)
 
-    def acquisition_loop(self, chans, rate, buffered):
-        """Started in a thread to acquire data. Sets up a task and acquires
-        data in a loop until stopped."""
-
-        try:
-            num_chans = len(chans)
-            # Get data 1000 points at a time or once every 0.2 seconds, whichever is faster:
-            if rate < 5000:
-                samples_per_channel = int(5 * rate)
-            else:
-                samples_per_channel = 1000
-            total_samples = samples_per_channel * num_chans
-            read_array = np.zeros(chans, dtype=np.float64)
-            read_timeout = 5
-
-            self.task = Task()
-
-            for chan in chans:
-                self.task.CreateAIVoltageChan(
-                    self.MAX_name + '/' + chan,
-                    "",
-                    DAQmx_Val_RSE,
-                    self.AI_range[0],
-                    self.AI_range[1],
-                    DAQmx_Val_Volts,
-                    None,
-                )
-
-            self.task.CfgSampClkTiming(
-                "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, samples_per_channel
+    def read(self, task, event_type, num_samples, callback_data):
+        """Called as a callback by DAQmx while task is running. Also called by us to get
+        remaining data just prior to stopping the task. Since the callback runs
+        in a separate thread, we need to serialise access to instance variables"""
+        buffered = get_callbackdata_from_id(callback_data)
+        samples_read = int32()
+        with self.tasklock:
+            if self.task is None:
+                # Task stopped already.
+                return
+            task.ReadAnalogF64(
+                num_samples,
+                -1,
+                DAQmx_Val_GroupByScanNumber,
+                self.read_array,
+                self.read_array.size,
+                samples_read,
+                None,
             )
+            # Select only the data read, and downconvert to 32 bit:
+            data = self.read_array[: int(samples_read.value), :].astype(np.float32)
             if buffered:
-                self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
-
-            self.task.StartTask()
-        except:
-            self.acquistion_loop_exception = sys.exc_info
-            return
-        finally:
-            self.task_setup_done.set()
-
-        try:
-            while True:
-                self.task.ReadAnalogF64(
-                    samples_per_channel,
-                    read_timeout,
-                    DAQmx_Val_GroupByChannel,
-                    read_array,
-                    total_samples,
-                    byref(num_samps_read),
-                    None,
-                )
                 # Append to the list of acquired data:
-                data = read_array[:int(num_samps_read.value)].copy()
                 self.acquired_data.append(data)
-        except:
-            self.acquistion_loop_exception = sys.exc_info
+            else:
+                # TODO: Send it to the broker thingy.
+                pass
 
+    def start_task(self, chans, rate, buffered):
+        """Set up a task that acquires data with a callback every 1000 points or 0.2
+        seconds, whichever is faster. NI DAQmx calls callbacks in a separate thread, so
+        this method returns, but data acquisition continues until stop_task() is called.
+        Data is appended to self.acquired_data if buffered=True, or (TODO) sent to the
+        [whatever the AI server broker is called] if buffered=False."""
+
+        if self.task is not None:
+            raise RuntimeError('Task already running')
+
+        num_chans = len(chans)
+        # Get data MAX_READ_PTS points at a time or once every MAX_READ_INTERVAL
+        # seconds, whichever is faster:
+        if rate * self.MAX_READ_INTERVAL < self.MAX_READ_PTS:
+            num_samples = int(rate / self.MAX_READ_INTERVAL)
+        else:
+            num_samples = self.MAX_READ_PTS
+
+        self.read_array = np.zeros((num_samples, num_chans), dtype=np.float64)
+        self.task = Task()
+
+        for chan in chans:
+            self.task.CreateAIVoltageChan(
+                self.MAX_name + '/' + chan,
+                "",
+                DAQmx_Val_RSE,
+                self.AI_range[0],
+                self.AI_range[1],
+                DAQmx_Val_Volts,
+                None,
+            )
+
+        self.task.CfgSampClkTiming(
+            "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, num_samples
+        )
+        if buffered:
+            self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
+
+        callback = DAQmxEveryNSamplesEventCallbackPtr(self.read)
+        callback_data = create_callback_id(buffered)
+        self.task.RegisterEveryNSamplesEvent(
+            DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, callback, callback_data
+        )
+
+        self.task.StartTask()
+
+    def stop_task(self, buffered):
+        callback_data = create_callback_id(buffered)
+        with self.tasklock:
+            if self.task is None:
+                raise RuntimeError('Task not running')
+            # Read remaining data:
+            self.read(self.task, None, -1, callback_data)
+            # Stop the task:
+            self.task.StopTask()
+            self.task.ClearTask()
+            self.task = None
+            self.read_array = None
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
-        # TODO: Do this line better!
-        self.device_name = device_name
-
         self.logger.debug('transition_to_buffered')
-        # stop current task
-        self.stop_task()
 
-        # Save h5file path (for storing data later!)
-        self.h5_file = h5file
         # read channels, acquisition rate, etc from H5 file
-        h5_chnls = []
         with h5py.File(h5file, 'r') as f:
             group = f['/devices/' + device_name]
             if 'AI' not in group:
                 # No acquisition
                 return {}
             AI_table = group['AI'][:]
-            device_props = properties.get(f, device_name, 'device_properties')
-            ctable_props = properties.get(f, device_name, 'connection_table_properties')
-
-        self.clock_terminal = ctable_props['clock_terminal']
-        self.buffered_rate = device_props['acquisition_rate']
+            device_properties = properties.get(f, device_name, 'device_properties')
 
         chans = [_ensure_str(c) for c in AI_table['connection']]
         # Remove duplicates and sort:
-        chans = sorted(set(chans), key=split_conn_AI)
-
-        self.buffered = True
-        if len(self.buffered_channels) == 1:
-            self.buffered_data = np.zeros((1,), dtype=np.float64)
-        else:
-            self.buffered_data = np.zeros(
-                (1, len(self.buffered_channels)), dtype=np.float64
-            )
-        self.setup_task()
+        self.buffered_chans = sorted(set(chans), key=split_conn_AI)
+        self.h5_file = h5file
+        self.buffered_rate = device_properties['acquisition_rate']
+        self.acquired_data = []
+        # Stop the manual mode task and start the buffered mode task:
+        self.stop_task(buffered=False)
+        self.start_task(self.buffered_chans, self.buffered_rate, buffered=True)
         return {}
 
     def transition_to_manual(self, abort=False):
         self.logger.debug('transition_to_static')
-        # Stop acquisition (this should really be done on a digital edge, but that is
-        # for later! Maybe use a Counter) Set the abort flag so that the acquisition
-        # thread knows to expect an exception in the case of an abort:
-        #
-        # TODO: This is probably bad because it shortly get's overwritten to False
-        # However whether it has an effect depends on whether daqmx_read thread holds
-        # the daqlock when self.stop_task() is called
-        self.abort = abort
-        self.stop_task()
-        # Reset the abort flag so that unexpected exceptions are still raised:
-        self.abort = False
-        self.logger.info('transitioning to static, task stopped')
-        # save the data acquired to the h5 file
-        if not abort:
-            with h5py.File(self.h5_file, 'a') as hdf5_file:
-                data_group = hdf5_file['data']
-                data_group.create_group(self.device_name)
+        #  If we were doing buffered mode acquisition, stop the buffered mode task and
+        # start the manual mode task. We might not have been doing buffered mode
+        # acquisition if abort() was called when we are not in buffered mode, or if
+        # there were no acuisitions this shot.
+        if self.h5_file is None:
+            return
 
-            dtypes = [(c.split('/')[-1], np.float32) for c in self.buffered_channels]
+        self.stop_task(True)
+        self.logger.info('transitioning to manual mode, task stopped')
+        self.start_task(self.manual_mode_chans, self.manual_mode_rate, False)
+            
+        if abort:
+            self.acquired_data = None
+            self.buffered_chans = None
+            self.h5_file = None
+            self.buffered_rate = None
+            return
 
-            start_time = time.time()
-            if self.buffered_data_list:
-                npts = self.samples_per_channel * len(self.buffered_data_list)
-                self.buffered_data = np.zeros(npts, dtype=dtype_workaround(dtypes))
-                for i, data in enumerate(self.buffered_data_list):
-                    data.shape = (len(self.buffered_channels), self.ai_read.value)
-                    for j, (chan, dtype) in enumerate(dtypes):
-                        start = i * self.samples_per_channel
-                        end = start + self.samples_per_channel
-                        self.buffered_data[chan][start:end] = data[j, :]
-                    if i % 100 == 0:
-                        msg = str(i / 100) + " time: " + str(time.time() - start_time)
-                        self.logger.debug(msg)
-                self.extract_measurements(self.device_name)
-                msg = 'data written, time taken: %ss' % str(time.time() - start_time)
-                self.logger.info(msg)
+        with h5py.File(self.h5_file, 'a') as hdf5_file:
+            data_group = hdf5_file['data']
+            data_group.create_group(self.device_name)
+            waits_in_use = len(hdf5_file['waits']) > 0
 
-            self.buffered_data = None
-            self.buffered_data_list = []
-
-        # return to previous acquisition mode
-        self.buffered = False
-        self.setup_task()
+        # Concatenate our chunks of acquired data and recast them as a structured
+        # array with channel names:
+        start_time = time.time()
+        dtypes = [(chan, np.float32) for chan in self.buffered_chans]
+        raw_data = np.concatenate(self.acquired_data).view(dtype_workaround(dtypes))
+        self.acquired_data = None
+        self.buffered_chans = None
+        self.extract_measurements(raw_data, waits_in_use)
+        self.h5_file = None
+        self.buffered_rate = None
+        msg = 'data written, time taken: %ss' % str(time.time() - start_time)
+        self.logger.info(msg)
 
         return True
 
-    def extract_measurements(self, device_name):
+    def extract_measurements(self, raw_data, waits_in_use):
         self.logger.debug('extract_measurements')
-        with h5py.File(self.h5_file, 'a') as hdf5_file:
-            waits_in_use = len(hdf5_file['waits']) > 0
         if waits_in_use:
             # There were waits in this shot. We need to wait until the other process has
             # determined their durations before we proceed:
@@ -556,7 +568,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 wait_times = waits['time']
                 wait_durations = waits['duration']
             try:
-                acquisitions = hdf5_file['/devices/' + device_name + '/AI']
+                acquisitions = hdf5_file['/devices/' + self.device_name + '/AI']
             except KeyError:
                 # No acquisitions!
                 return
@@ -566,7 +578,6 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 # Group doesn't exist yet, create it:
                 measurements = hdf5_file.create_group('/data/traces')
 
-            rate = self.buffered_rate
             for connection, label, t_start, t_end, _, _, _ in acquisitions:
                 connection = _ensure_str(connection)
                 label = _ensure_str(label)
@@ -577,19 +588,19 @@ class NI_DAQmxAcquisitionWorker(Worker):
                     # compare wait times to t_end to allow for waits during an
                     # acquisition
                     t_end += wait_durations[(wait_times < t_end)].sum()
-                i_start = int(np.ceil(rate * (t_start - self.ai_start_delay)))
-                i_end = int(np.floor(rate * (t_end - self.ai_start_delay)))
+                i_start = int(np.ceil(self.buffered_rate * t_start))
+                i_end = int(np.floor(self.buffered_rate * t_end))
                 # np.ceil does what we want above, but float errors can miss the
                 # equality:
-                if self.ai_start_delay + (i_start - 1) / rate - t_start > -2e-16:
+                if (i_start - 1) / self.buffered_rate - t_start > -2e-16:
                     i_start -= 1
                 # We want np.floor(x) to yield the largest integer < x (not <=):
-                if t_end - self.ai_start_delay - i_end / rate < 2e-16:
+                if t_end - i_end / self.buffered_rate < 2e-16:
                     i_end -= 1
-                t_i = self.ai_start_delay + i_start / rate
-                t_f = self.ai_start_delay + i_end / rate
+                t_i = i_start / self.buffered_rate
+                t_f = i_end / self.buffered_rate
                 times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
-                values = self.buffered_data[connection][i_start : i_end + 1]
+                values = raw_data[connection][i_start : i_end + 1]
                 dtypes = [('t', np.float64), ('values', np.float32)]
                 data = np.empty(len(values), dtype=dtype_workaround(dtypes))
                 data['t'] = times
@@ -597,11 +608,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 measurements.create_dataset(label, data=data)
 
     def abort_buffered(self):
-        # TODO: test this
         return self.transition_to_manual(True)
 
     def abort_transition_to_buffered(self):
-        # TODO: test this
         return self.transition_to_manual(True)
 
     def program_manual(self, values):

@@ -127,7 +127,12 @@ class NI_DAQmxTab(DeviceTab):
             self.create_worker(
                 "acquisition_worker",
                 'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxAcquisitionWorker',
-                {'MAX_name': self.MAX_name, 'AI_range': properties['AI_range']},
+                {
+                    'MAX_name': self.MAX_name,
+                    'num_AI': num_AI,
+                    'AI_range': properties['AI_range'],
+                    'clock_terminal': clock_terminal,
+                },
             )
             self.add_secondary_worker("acquisition_worker")
 
