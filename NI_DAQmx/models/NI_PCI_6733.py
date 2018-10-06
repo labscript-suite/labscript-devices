@@ -30,6 +30,7 @@ from labscript_devices.NI_DAQmx.base_class import NI_DAQmx
 
 CAPABILITIES = {
     'AI_range': None,
+    'AI_start_delay': None,
     'AO_range': [-10.0, 10.0],
     'max_AI_multi_chan_rate': None,
     'max_AI_single_chan_rate': None,

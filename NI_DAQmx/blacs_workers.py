@@ -578,6 +578,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 # Group doesn't exist yet, create it:
                 measurements = hdf5_file.create_group('/data/traces')
 
+            t0 = self.AI_start_delay
             for connection, label, t_start, t_end, _, _, _ in acquisitions:
                 connection = _ensure_str(connection)
                 label = _ensure_str(label)
@@ -588,17 +589,17 @@ class NI_DAQmxAcquisitionWorker(Worker):
                     # compare wait times to t_end to allow for waits during an
                     # acquisition
                     t_end += wait_durations[(wait_times < t_end)].sum()
-                i_start = int(np.ceil(self.buffered_rate * t_start))
-                i_end = int(np.floor(self.buffered_rate * t_end))
+                i_start = int(np.ceil(self.buffered_rate * (t_start - t0)))
+                i_end = int(np.floor(self.buffered_rate * (t_end - t0)))
                 # np.ceil does what we want above, but float errors can miss the
                 # equality:
-                if (i_start - 1) / self.buffered_rate - t_start > -2e-16:
+                if t0 + (i_start - 1) / self.buffered_rate - t_start > -2e-16:
                     i_start -= 1
                 # We want np.floor(x) to yield the largest integer < x (not <=):
-                if t_end - i_end / self.buffered_rate < 2e-16:
+                if t_end - t0 - i_end / self.buffered_rate < 2e-16:
                     i_end -= 1
-                t_i = i_start / self.buffered_rate
-                t_f = i_end / self.buffered_rate
+                t_i = t0 + i_start / self.buffered_rate
+                t_f = t0 + i_end / self.buffered_rate
                 times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
                 values = raw_data[connection][i_start : i_end + 1]
                 dtypes = [('t', np.float64), ('values', np.float32)]

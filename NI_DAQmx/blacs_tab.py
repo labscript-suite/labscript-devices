@@ -131,6 +131,7 @@ class NI_DAQmxTab(DeviceTab):
                     'MAX_name': self.MAX_name,
                     'num_AI': num_AI,
                     'AI_range': properties['AI_range'],
+                    'AI_start_delay': properties['AI_start_delay'],
                     'clock_terminal': clock_terminal,
                 },
             )

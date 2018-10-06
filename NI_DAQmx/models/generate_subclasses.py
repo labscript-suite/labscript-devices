@@ -15,6 +15,8 @@ from labscript_utils import PY2
 
 if PY2:
     str = unicode
+    import io
+    open = io.open
 
 import os
 import warnings
@@ -80,6 +82,7 @@ def main():
         with open(filepath, 'w', newline='\n') as f:
             f.write(src)
         filepaths.append(filepath)
+        print('generated %s' % os.path.basename(filepath))
 
     if filepaths:
         reformat_files(filepaths)

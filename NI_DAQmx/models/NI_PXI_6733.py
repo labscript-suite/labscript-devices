@@ -29,27 +29,24 @@ if PY2:
 from labscript_devices.NI_DAQmx.base_class import NI_DAQmx
 
 CAPABILITIES = {
-    'AI_range': [-20.0, 20.0],
-    'AI_start_delay': 8.333333333333334e-08,
-    'AO_range': [0.0, 5.0],
-    'max_AI_multi_chan_rate': 10000.0,
-    'max_AI_single_chan_rate': 10000.0,
-    'max_AO_sample_rate': None,
-    'max_DO_sample_rate': None,
-    'num_AI': 8,
-    'num_AO': 2,
-    'num_CI': 1,
-    'ports': {
-        'port0': {'num_lines': 8, 'supports_buffered': False},
-        'port1': {'num_lines': 4, 'supports_buffered': False},
-    },
-    'supports_buffered_AO': False,
-    'supports_buffered_DO': False,
+    'AI_range': None,
+    'AI_start_delay': None,
+    'AO_range': [-10.0, 10.0],
+    'max_AI_multi_chan_rate': None,
+    'max_AI_single_chan_rate': None,
+    'max_AO_sample_rate': 1000000.0,
+    'max_DO_sample_rate': 10000000.0,
+    'num_AI': 0,
+    'num_AO': 8,
+    'num_CI': 2,
+    'ports': {'port0': {'num_lines': 8, 'supports_buffered': True}},
+    'supports_buffered_AO': True,
+    'supports_buffered_DO': True,
 }
 
 
-class NI_USB_6008(NI_DAQmx):
-    description = 'NI-USB-6008'
+class NI_PXI_6733(NI_DAQmx):
+    description = 'NI-PXI-6733'
 
     def __init__(self, *args, **kwargs):
         # Any provided kwargs take precedent over capabilities

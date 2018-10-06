@@ -15,6 +15,9 @@ from labscript_utils import PY2
 
 if PY2:
     str = unicode
+    import io
+
+    open = io.open
 
 import numpy as np
 import os
@@ -130,8 +133,8 @@ DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
 DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 
-def port_supports_buffered(device_name, port):
-    if 'PFI0' not in DAQmxGetDevTerminals(device_name):
+def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
+    if 'clock_terminal' not in DAQmxGetDevTerminals(device_name):
         return False
     npts = 10
     task = Task()
@@ -148,18 +151,60 @@ def port_supports_buffered(device_name, port):
         task.WriteDigitalLines(
             npts, False, 10.0, c.DAQmx_Val_GroupByScanNumber, data, byref(written), None
         )
-    except PyDAQmx.DAQmxFunctions.BufferedOperationsNotSupportedOnSelectedLinesError:
+    except (
+        PyDAQmx.DAQmxFunctions.BufferedOperationsNotSupportedOnSelectedLinesError,
+        PyDAQmx.DAQmxFunctions.PhysicalChanNotSupportedGivenSampTimingType653xError,
+    ):
         return False
+    except PyDAQmx.DAQmxFunctions.RouteNotSupportedByHW_RoutingError as e:
+        valid_terms = e.message.split('Suggested Values: ')[1].split('\n')[0].split(', ')
+        # Try again with one of the suggested terminals:
+        return port_supports_buffered(device_name, port, clock_terminal=valid_terms[0])
     else:
         return True
     finally:
         task.ClearTask()
 
 
+def AI_start_delay(device_name):
+    if 'PFI0' not in DAQmxGetDevTerminals(device_name):
+        return None
+    task = Task()
+    clock_terminal = '/' + device_name + '/PFI0'
+    rate = DAQmxGetDevAIMaxSingleChanRate(device_name)
+    Vmin, Vmax = DAQmxGetDevAIVoltageRngs(device_name)[0:2]
+    num_samples = 1000
+    chan = device_name + '/ai0'
+    task.CreateAIVoltageChan(
+        chan, "", c.DAQmx_Val_RSE, Vmin, Vmax, c.DAQmx_Val_Volts, None
+    )
+    task.CfgSampClkTiming(
+        "", rate, c.DAQmx_Val_Rising, c.DAQmx_Val_ContSamps, num_samples
+    )
+    task.CfgDigEdgeStartTrig(clock_terminal, c.DAQmx_Val_Rising)
+
+    start_trig_delay = float64()
+    delay_from_sample_clock = float64()
+    sample_timebase_rate = float64()
+
+    task.GetStartTrigDelay(start_trig_delay)
+    task.GetDelayFromSampClkDelay(delay_from_sample_clock)
+    task.GetSampClkTimebaseRate(sample_timebase_rate)
+
+    task.ClearTask()
+
+    total_delay_in_ticks = start_trig_delay.value + delay_from_sample_clock.value
+    total_delay_in_seconds = total_delay_in_ticks / sample_timebase_rate.value
+    return total_delay_in_seconds
+
+
 capabilities = {}
 if os.path.exists(CAPABILITIES_FILE):
     with open(CAPABILITIES_FILE) as f:
-        capabilities = json.load(f)
+        try:
+            capabilities = json.load(f)
+        except ValueError:
+            pass
 
 
 new_devices = []
@@ -169,7 +214,12 @@ for name in DAQmxGetSysDevNames().split(', '):
     if name not in capabilities:
         new_devices.append(model)
     capabilities[model] = {}
-    capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(name)
+    try:
+        capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(
+            name
+        )
+    except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
+        capabilities[model]["supports_buffered_AO"] = False
     try:
         capabilities[model]["max_DO_sample_rate"] = DAQmxGetDevDOMaxRate(name)
         capabilities[model]["supports_buffered_DO"] = True
@@ -196,6 +246,10 @@ for name in DAQmxGetSysDevNames().split(', '):
     ports = DAQmxGetDevDOPorts(name)
     chans = DAQmxGetDevDOLines(name)
     for port in ports:
+        if '_' in port:
+            # Ignore the alternate port names such as 'port0_32' that allow using two or
+            # more ports together as a single, larger one:
+            continue
         port_info = {}
         capabilities[model]["ports"][port] = port_info
         port_chans = [chan for chan in chans if chan.split('/')[0] == port]
@@ -238,9 +292,14 @@ for name in DAQmxGetSysDevNames().split(', '):
     else:
         capabilities[model]["AI_range"] = None
 
+    if capabilities[model]["num_AI"] > 0:
+        capabilities[model]["AI_start_delay"] = AI_start_delay(name)
+    else:
+        capabilities[model]["AI_start_delay"] = None
 
 with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
-    json.dump(capabilities, f, sort_keys=True, indent=4, separators=(',', ': '))
+    data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
+    f.write(data)
 
 print("added capabilities for %d models" % len(new_devices))
 print("run generate_subclasses.py to make labscript devices for these models")
