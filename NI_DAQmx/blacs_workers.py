@@ -22,6 +22,7 @@ import threading
 from PyDAQmx import *
 from PyDAQmx.DAQmxConstants import *
 from PyDAQmx.DAQmxTypes import *
+from PyDAQmx.DAQmxCallBack import *
 
 import numpy as np
 import labscript_utils.h5_lock
@@ -386,6 +387,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.task = None
 
         # Assigned on a per-shot basis and cleared afterward:
+        self.buffered_mode = False
         self.h5_file = None
         self.acquired_data = None
         self.buffered_rate = None
@@ -400,15 +402,17 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # them to chunk up acquisition data:
         self.wait_durations_analysed = zprocess.Event('wait_durations_analysed')
 
+        # Start task for manual mode
+        self.start_task(self.manual_mode_chans, self.manual_mode_rate)
+
     def shutdown(self):
         if self.task is not None:
             self.stop_task(buffered=self.h5_file is not None)
 
-    def read(self, task, event_type, num_samples, callback_data):
+    def read(self, task, event_type, num_samples):
         """Called as a callback by DAQmx while task is running. Also called by us to get
         remaining data just prior to stopping the task. Since the callback runs
         in a separate thread, we need to serialise access to instance variables"""
-        buffered = get_callbackdata_from_id(callback_data)
         samples_read = int32()
         with self.tasklock:
             if self.task is None:
@@ -425,19 +429,20 @@ class NI_DAQmxAcquisitionWorker(Worker):
             )
             # Select only the data read, and downconvert to 32 bit:
             data = self.read_array[: int(samples_read.value), :].astype(np.float32)
-            if buffered:
+            if self.buffered_mode:
                 # Append to the list of acquired data:
                 self.acquired_data.append(data)
             else:
                 # TODO: Send it to the broker thingy.
                 pass
 
-    def start_task(self, chans, rate, buffered):
-        """Set up a task that acquires data with a callback every 1000 points or 0.2
-        seconds, whichever is faster. NI DAQmx calls callbacks in a separate thread, so
-        this method returns, but data acquisition continues until stop_task() is called.
-        Data is appended to self.acquired_data if buffered=True, or (TODO) sent to the
-        [whatever the AI server broker is called] if buffered=False."""
+    def start_task(self, chans, rate):
+        """Set up a task that acquires data with a callback every MAX_READ_PTS points or
+        MAX_READ_INTERVAL seconds, whichever is faster. NI DAQmx calls callbacks in a
+        separate thread, so this method returns, but data acquisition continues until
+        stop_task() is called. Data is appended to self.acquired_data if
+        self.buffered_mode=True, or (TODO) sent to the [whatever the AI server broker is
+        called] if self.buffered_mode=False."""
 
         if self.task is not None:
             raise RuntimeError('Task already running')
@@ -467,24 +472,22 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.task.CfgSampClkTiming(
             "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, num_samples
         )
-        if buffered:
+        if self.buffered_mode:
             self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
 
         callback = DAQmxEveryNSamplesEventCallbackPtr(self.read)
-        callback_data = create_callback_id(buffered)
         self.task.RegisterEveryNSamplesEvent(
-            DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, callback, callback_data
+            DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, callback, None
         )
 
         self.task.StartTask()
 
-    def stop_task(self, buffered):
-        callback_data = create_callback_id(buffered)
+    def stop_task(self):
         with self.tasklock:
             if self.task is None:
                 raise RuntimeError('Task not running')
             # Read remaining data:
-            self.read(self.task, None, -1, callback_data)
+            self.read(self.task, None, -1)
             # Stop the task:
             self.task.StopTask()
             self.task.ClearTask()
@@ -510,22 +513,24 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.buffered_rate = device_properties['acquisition_rate']
         self.acquired_data = []
         # Stop the manual mode task and start the buffered mode task:
-        self.stop_task(buffered=False)
-        self.start_task(self.buffered_chans, self.buffered_rate, buffered=True)
+        self.stop_task()
+        self.buffered_mode = True
+        self.start_task(self.buffered_chans, self.buffered_rate)
         return {}
 
     def transition_to_manual(self, abort=False):
-        self.logger.debug('transition_to_static')
+        self.logger.debug('transition_to_manual')
         #  If we were doing buffered mode acquisition, stop the buffered mode task and
         # start the manual mode task. We might not have been doing buffered mode
         # acquisition if abort() was called when we are not in buffered mode, or if
         # there were no acuisitions this shot.
-        if self.h5_file is None:
+        if not self.buffered_mode:
             return
 
-        self.stop_task(True)
+        self.stop_task()
+        self.buffered_mode = False
         self.logger.info('transitioning to manual mode, task stopped')
-        self.start_task(self.manual_mode_chans, self.manual_mode_rate, False)
+        self.start_task(self.manual_mode_chans, self.manual_mode_rate)
             
         if abort:
             self.acquired_data = None

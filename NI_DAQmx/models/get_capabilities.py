@@ -198,6 +198,31 @@ def AI_start_delay(device_name):
     return total_delay_in_seconds
 
 
+def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
+    """Try AI ranges to see which are actually allowed for non-differential input, since
+    the largest range may only be available for differential input, which we don't
+    attempt to support (though we could with a little effort)"""
+    chan = device_name + '/ai0'
+    supported_ranges = []
+    for Vmin, Vmax in AI_ranges:
+        try:
+            task = Task()
+            task.CreateAIVoltageChan(
+                chan, "", c.DAQmx_Val_RSE, Vmin, Vmax, c.DAQmx_Val_Volts, None
+            )
+            task.StartTask()
+        except PyDAQmx.DAQmxFunctions.InvalidAttributeValueError as e:
+            if 'DAQmx_AI_Min' in e.message or 'DAQmx_AI_Max' in e.message:
+                # Not supported for non-differential input:
+                continue
+            raise
+        finally:
+            task.ClearTask()
+        supported_ranges.append([Vmin, Vmax])
+
+    return supported_ranges
+
+
 capabilities = {}
 if os.path.exists(CAPABILITIES_FILE):
     with open(CAPABILITIES_FILE) as f:
@@ -282,6 +307,8 @@ for name in DAQmxGetSysDevNames().split(', '):
         for i in range(0, len(raw_limits), 2):
             Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
             AI_ranges.append([Vmin, Vmax])
+        # Restrict to the ranges allowed for non-differential input:
+        AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
         # Find range with the largest maximum voltage and use that:
         Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
         # Confirm that no other range has a voltage lower than Vmin,
@@ -301,5 +328,6 @@ with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
     f.write(data)
 
-print("added capabilities for %d models" % len(new_devices))
+print("added/updated capabilities for %d models" % len(new_devices))
+print("Total models with known capabilities: %d" %len(capabilities))
 print("run generate_subclasses.py to make labscript devices for these models")
