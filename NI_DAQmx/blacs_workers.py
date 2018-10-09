@@ -409,13 +409,13 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.task is not None:
             self.stop_task()
 
-    def read(self, task, event_type, num_samples, callback_data=None):
+    def read(self, task_handle, event_type, num_samples, callback_data=None):
         """Called as a callback by DAQmx while task is running. Also called by us to get
         remaining data just prior to stopping the task. Since the callback runs
         in a separate thread, we need to serialise access to instance variables"""
         samples_read = int32()
         with self.tasklock:
-            if self.task is None:
+            if self.task is None or task_handle != self.task.taskHandle.value:
                 # Task stopped already.
                 return 0
             self.task.ReadAnalogF64(
