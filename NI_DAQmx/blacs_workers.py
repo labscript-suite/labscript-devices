@@ -44,7 +44,7 @@ class NI_DAQmxOutputWorker(Worker):
         self.check_version()
         # Reset Device: clears previously added routes etc. Note: is insufficient for
         # some devices, which require power cycling to truly reset.
-        DAQmxResetDevice(self.MAX_name)
+        # DAQmxResetDevice(self.MAX_name)
         self.setup_manual_mode_tasks()
 
     def stop_and_clear_tasks(self):
@@ -407,9 +407,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
     def shutdown(self):
         if self.task is not None:
-            self.stop_task(buffered=self.h5_file is not None)
+            self.stop_task()
 
-    def read(self, task, event_type, num_samples):
+    def read(self, task, event_type, num_samples, callback_data=None):
         """Called as a callback by DAQmx while task is running. Also called by us to get
         remaining data just prior to stopping the task. Since the callback runs
         in a separate thread, we need to serialise access to instance variables"""
@@ -417,8 +417,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
         with self.tasklock:
             if self.task is None:
                 # Task stopped already.
-                return
-            task.ReadAnalogF64(
+                return 0
+            self.task.ReadAnalogF64(
                 num_samples,
                 -1,
                 DAQmx_Val_GroupByScanNumber,
@@ -435,6 +435,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
             else:
                 # TODO: Send it to the broker thingy.
                 pass
+        return 0
 
     def start_task(self, chans, rate):
         """Set up a task that acquires data with a callback every MAX_READ_PTS points or
@@ -448,12 +449,10 @@ class NI_DAQmxAcquisitionWorker(Worker):
             raise RuntimeError('Task already running')
 
         num_chans = len(chans)
+
         # Get data MAX_READ_PTS points at a time or once every MAX_READ_INTERVAL
         # seconds, whichever is faster:
-        if rate * self.MAX_READ_INTERVAL < self.MAX_READ_PTS:
-            num_samples = int(rate / self.MAX_READ_INTERVAL)
-        else:
-            num_samples = self.MAX_READ_PTS
+        num_samples = min(self.MAX_READ_PTS, int(rate * self.MAX_READ_INTERVAL))
 
         self.read_array = np.zeros((num_samples, num_chans), dtype=np.float64)
         self.task = Task()
@@ -475,9 +474,11 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.buffered_mode:
             self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
 
-        callback = DAQmxEveryNSamplesEventCallbackPtr(self.read)
+        # This must not be garbage collected until the task is:
+        self.task.callback_ptr = DAQmxEveryNSamplesEventCallbackPtr(self.read)
+
         self.task.RegisterEveryNSamplesEvent(
-            DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, callback, None
+            DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, self.task.callback_ptr, 100
         )
 
         self.task.StartTask()
@@ -549,6 +550,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         start_time = time.time()
         dtypes = [(chan, np.float32) for chan in self.buffered_chans]
         raw_data = np.concatenate(self.acquired_data).view(dtype_workaround(dtypes))
+        raw_data = raw_data.reshape((len(raw_data),))
         self.acquired_data = None
         self.buffered_chans = None
         self.extract_measurements(raw_data, waits_in_use)
