@@ -139,11 +139,13 @@ def has_incomplete_sample_detection(device_name):
 
 if __name__ == '__main__':
     # List whether attached devices have incomplete sample detection:
+    print('Device    '.rjust(16), 'Incomplete sample detection')
     for name in get_devices():
         if not is_simulated(name):
             model = get_product_type(name)
+            print((model + '    ').rjust(16), end=' ')
             try:
                 result = has_incomplete_sample_detection(name)
             except ValueError as e:
                 result = str(e)
-            print(model + ':', result)
+            print(result)
