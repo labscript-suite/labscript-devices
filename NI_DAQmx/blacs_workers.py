@@ -51,7 +51,7 @@ class NI_DAQmxOutputWorker(Worker):
         # DAQmxResetDevice(self.MAX_name)
         self.start_manual_mode_tasks()
 
-    def stop_and_clear_tasks(self):
+    def stop_tasks(self):
         if self.AO_task is not None:
             self.AO_task.StopTask()
             self.AO_task.ClearTask()
@@ -536,19 +536,23 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.buffered_mode = False
         self.logger.info('transitioning to manual mode, task stopped')
         self.start_task(self.manual_mode_chans, self.manual_mode_rate)
-            
+
         if abort:
             self.acquired_data = None
             self.buffered_chans = None
             self.h5_file = None
             self.buffered_rate = None
-            return
+            return True
 
         with h5py.File(self.h5_file, 'a') as hdf5_file:
             data_group = hdf5_file['data']
             data_group.create_group(self.device_name)
             waits_in_use = len(hdf5_file['waits']) > 0
 
+        if not self.acquired_data:
+            msg = """No data was acquired. Perhaps the acqusitiion task was not
+                triggered to start, is the device connected to a pseudoclock?"""
+            raise RuntimeError(dedent(msg))
         # Concatenate our chunks of acquired data and recast them as a structured
         # array with channel names:
         start_time = time.time()
@@ -629,7 +633,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         return {}
 
 
-class Ni_DAQmxWaitMonitorWorker(Worker):
+class NI_DAQmxWaitMonitorWorker(Worker):
     def init(self):
 
         self.all_waits_finished = Event('all_waits_finished', type='post')
@@ -658,7 +662,7 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
 
     def shutdown(self):
         self.stop_tasks(True)
-    
+
     def read_edges(self, npts, timeout=None):
         """Wait up to the given timeout in seconds for an edge on the wait monitor and
         and return the duration since the previous edge. Return None upon timeout."""
@@ -736,7 +740,7 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         except Exception:
             # Save the exception so it can be raised in transition_to_manual
             self.wait_monitor_thread_exception = sys.exc_info()
-    
+
     def send_resume_trigger(self, pulse_width, trigger_type):
         written = int32()
         if trigger_type == 'rising':
@@ -762,7 +766,7 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         self.DO_task.WriteDigitalLines(
             1, True, 1, DAQmx_Val_GroupByChannel, rearm_data, written, None
         )
-        
+
     def stop_tasks(self, abort):
         self.logger.debug('stop_tasks')
         if self.wait_monitor_thread is not None:
@@ -786,17 +790,17 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         self.DO_task.ClearTask()
         self.DO_task = None
         self.logger.debug('finished stop_tasks')
-        
+
     def start_tasks(self, acquisition_conn, timeout_conn, timeout_trigger_type):
         # The counter acquisition task:
         self.CI = Task()
         CI_chan = self.MAX_name + '/' + acquisition_conn
         # What is the longest time in between waits, plus the timeout of the
         # second wait?
-        interwait_times = np.diff(self.wait_table['time'])
-        max_measure_time = max(interwait_times + self.wait_table['timeout'][1:])
+        interwait_times = np.diff([0] + list(self.wait_table['time']))
+        max_measure_time = max(interwait_times + self.wait_table['timeout'])
         # Allow for software delays in timeouts.
-        max_measure_time += 1.0  
+        max_measure_time += 1.0
         # TODO: introspect CI timebases in capbilities script by parsing error messages,
         # to get what the min measurement can be given the max one. 100ns will be too
         # short for some devices. Need to use this data in labscript to ensure the pulse
@@ -804,7 +808,7 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         self.CI.CreateCISemiPeriodChan(
             CI_chan, '', 100e-9, max_measure_time, DAQmx_Val_Seconds, ""
         )
-        num_edges = 2 * len(self.wait_table + 1)
+        num_edges = 2 * (len(self.wait_table) + 1)
         self.CI.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)
         self.CI.StartTask()
 
@@ -858,9 +862,9 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         # if other things die.
         self.wait_monitor_thread.start()
         self.logger.debug('finished transition to buffered')
-            
+
         return {}
-    
+
     def transition_to_manual(self, abort=False):
         self.logger.debug('transition_to_manual')
         self.stop_tasks(abort)
@@ -905,12 +909,12 @@ class Ni_DAQmxWaitMonitorWorker(Worker):
         self.h5_file = None
         self.semiperiods = None
         return True
-    
+
     def abort_buffered(self):
         return self.transition_to_manual(True)
-        
+
     def abort_transition_to_buffered(self):
-        return self.transition_to_manual(True)   
-    
-    def program_manual(self,values):
+        return self.transition_to_manual(True)
+
+    def program_manual(self, values):
         return {}
