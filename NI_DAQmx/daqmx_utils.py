@@ -50,7 +50,7 @@ def supports_period_measurement(device_name):
     return c.DAQmx_Val_Period in [result[i] for i in range(npts)]
 
 
-def has_incomplete_sample_detection(device_name):
+def incomplete_sample_detection(device_name):
     """Introspect whether a device has 'incomplete sample detection', described here:
 
         www.ni.com/documentation/en/ni-daqmx/latest/devconsid/incompletesampledetection/

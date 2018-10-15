@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /NI_DAQmx/workers.py                                              #
+# /NI_DAQmx/blacs_workers.py                                        #
 #                                                                   #
 # Copyright 2018, Monash University, JQI, Christopher Billington    #
 #                                                                   #
@@ -16,6 +16,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
+import sys
 import time
 import threading
 import logging
@@ -29,6 +30,7 @@ import numpy as np
 import labscript_utils.h5_lock
 import h5py
 from zprocess import Event
+from zprocess.utils import _reraise
 
 import labscript_utils.properties as properties
 from labscript_utils import dedent
@@ -38,6 +40,7 @@ from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from blacs.tab_base_classes import Worker
 
 from .utils import split_conn_port, split_conn_DO, split_conn_AI
+from .daqmx_utils import incomplete_sample_detection
 
 
 class NI_DAQmxOutputWorker(Worker):
@@ -46,7 +49,7 @@ class NI_DAQmxOutputWorker(Worker):
         # Reset Device: clears previously added routes etc. Note: is insufficient for
         # some devices, which require power cycling to truly reset.
         # DAQmxResetDevice(self.MAX_name)
-        self.setup_manual_mode_tasks()
+        self.start_manual_mode_tasks()
 
     def stop_and_clear_tasks(self):
         if self.AO_task is not None:
@@ -59,7 +62,7 @@ class NI_DAQmxOutputWorker(Worker):
             self.DO_task = None
 
     def shutdown(self):
-        self.stop_and_clear_tasks()
+        self.stop_tasks()
 
     def check_version(self):
         """Check the version of PyDAQmx is high enough to avoid a known bug"""
@@ -76,7 +79,7 @@ class NI_DAQmxOutputWorker(Worker):
                 Please ensure you upgrade to v14.2.0 or higher."""
             raise Exception(dedent(msg) % (major.value, minor.value, patch.value))
 
-    def setup_manual_mode_tasks(self):
+    def start_manual_mode_tasks(self):
         # Create tasks:
         if self.num_AO > 0:
             self.AO_task = Task()
@@ -305,7 +308,7 @@ class NI_DAQmxOutputWorker(Worker):
         self.initial_values = initial_values
 
         # Stop the manual mode output tasks, if any:
-        self.stop_and_clear_tasks()
+        self.stop_tasks()
 
         # Get the data to be programmed into the output tasks:
         AO_table, DO_table = self.get_output_tables(h5file, device_name)
@@ -361,7 +364,7 @@ class NI_DAQmxOutputWorker(Worker):
         self.set_mirror_clock_terminal_connected(False)
 
         # Set up manual mode tasks again:
-        self.setup_manual_mode_tasks()
+        self.start_manual_mode_tasks()
         if abort:
             # Reprogram the initial states:
             self.program_manual(self.initial_values)
@@ -628,210 +631,279 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
 class Ni_DAQmxWaitMonitorWorker(Worker):
     def init(self):
-        self.h5_file = None
-        self.CI_task = None
-        self.DO_task = None
-        self.abort = False
+
         self.all_waits_finished = Event('all_waits_finished', type='post')
         self.wait_durations_analysed = Event('wait_durations_analysed', type='post')
         self.wait_completed = Event('wait_completed', type='post')
-    
+
+        # Set on a per-shot basis and cleared afterward:
+        self.h5_file = None
+        self.CI_task = None
+        self.DO_task = None
+        self.wait_table = None
+        self.semiperiods = None
+        self.wait_monitor_thread = None
+
+        # Saved error in case one occurs in the thread, we can raise it later in
+        # transition_to_manual:
+        self.wait_monitor_thread_exception = None
+        # To trigger early shutdown of the wait monitor thread:
+        self.shutting_down = False
+
+        # Does this device have the "incomplete sample detection" feature? This
+        # determines whether the first sample on our semiperiod counter input task will
+        # be automatically discarded before we see it, or whether we will have to
+        # discard it ourselves
+        self.incomplete_sample_detection = incomplete_sample_detection(self.MAX_name)
+
     def shutdown(self):
-        self.logger.info('Shutdown requested, stopping task')
-        if self.CI_task is not None or self.DO_task is not None:
-            self.stop_tasks()    
+        self.stop_tasks(True)
     
-    def wait_for_rising_edge(self, timeout=None):
-        """Wait up to the given timeout in seconds for a rising edge on the wait monitor
-        and and return the duration since the last falling edge. Return None upon
-        timeout."""
+    def read_edges(self, npts, timeout=None):
+        """Wait up to the given timeout in seconds for an edge on the wait monitor and
+        and return the duration since the previous edge. Return None upon timeout."""
         samples_read = int32()
-        # If no timeout, call read repeatedly with a 0.2 second timeout to ensure we don't
-        # block indefinitely and can still abort.
+        # If no timeout, call read repeatedly with a 0.2 second timeout to ensure we
+        # don't block indefinitely and can still abort.
         if timeout is None:
             read_timeout = 0.2
         else:
             read_timeout = timeout
-        read_array = np.empty(1)
+        read_array = np.empty(npts)
         while True:
-            if self.abort:
-                raise RuntimeError('Aborted')
+            if self.shutting_down:
+                raise RuntimeError('Stopped before expected number of samples acquired')
             try:
-                self.acquisition_task.ReadCounterF64(
-                    1, read_timeout, read_array, 1, samples_read, None
+                self.CI_task.ReadCounterF64(
+                    npts, read_timeout, read_array, npts, samples_read, None
                 )
             except SamplesNotYetAvailableError:
                 if timeout is None:
                     continue
                 return None
-            return read_array[0]
+            return read_array
 
-    def daqmx_read(self):
-        self.logger.info('Starting counter read loop')
-        with self.kill_lock:
-            # Ignore the initial low-time 
-            self.wait_for_rising_edge()
-            # Alright, we're now a short way into the experiment.
-            for wait in self.wait_table:
-                # How long until this wait should time out?
-                timeout = wait['time'] + wait['timeout'] - current_time
-                timeout = max(timeout, 0)  # ensure non-negative
-                # Wait that long for the next pulse:
-                half_period = self.wait_for_edge(timeout)
-                # Did the wait finish of its own accord, or time out?
-                if half_period is None:
-                    # It timed out. Better trigger the clock to resume!
-                    msg = """Wait timed out; retriggering clock with {:.3e} s pulse
-                        ({} edge)"""
-                    msg = dedent(msg).format(pulse_width, self.timeout_trigger_type)
-                    self.logger.info(msg)
-                    self.send_resume_trigger(pulse_width)
-                    # Wait for it to respond to that:
-                    self.logger.info('Waiting for edge on WaitMonitor')
-                    self.wait_for_edge()
-                # Alright, now we're at the end of the wait.
-                self.logger.info('Wait completed')
-                current_time = wait['time']
-                # Inform any interested parties that a wait has completed:
-                postdata = _ensure_str(wait['label'])
-                self.wait_completed.post(self.h5_file, data=postdata)
-                # Wait for the end of the pulse:
-                current_time += self.wait_for_edge()
-            # Inform any interested parties that waits have all finished:
-            self.logger.info('All waits finished')
-            self.all_waits_finished.post(self.h5_file)
+    def wait_monitor(self, timeout_trigger_type):
+        try:
+            # Read edge times from the counter input task, indiciating the times of the
+            # pulses that occur at the start of the experiment and after every wait. If a
+            # timeout occurs, pulse the timeout output to force a resume of the master
+            # pseudoclock. Save the resulting
+            self.logger.info('Wait monitor thread starting')
+            with self.kill_lock:
+                # Wait for the pulse indicating the start of the experiment:
+                if self.incomplete_sample_detection:
+                    semiperiods = self.read_edges(1, timeout=None)
+                else:
+                    semiperiods = self.read_edges(2, timeout=None)
+                # May have been one or two edges, depending on whether the device has
+                # incomplete sample detection. We are only interested in the second one
+                # anyway, it tells us how long the initial pulse was. Store the pulse width
+                # for later, we will use it for making timeout pulses if necessary. Note
+                # that the variable current_time is labscript time, so it will be reset
+                # after each wait to the time of that wait plus pulse_width.
+                current_time = pulse_width = semiperiods[-1]
+                self.semiperiods.append(semiperiods[-1])
+                # Alright, we're now a short way into the experiment.
+                for wait in self.wait_table:
+                    # How long until when the next wait should timeout?
+                    timeout = wait['time'] + wait['timeout'] - current_time
+                    timeout = max(timeout, 0)  # ensure non-negative
+                    # Wait that long for the next pulse:
+                    self.logger.info('Waiting for pulse indicating end of wait')
+                    semiperiods = self.read_edges(2, timeout)
+                    # Did the wait finish of its own accord, or time out?
+                    if semiperiods is None:
+                        # It timed out. Better trigger the clock to resume!
+                        msg = """Wait timed out; retriggering clock with {:.3e} s pulse
+                            ({} edge)"""
+                        msg = dedent(msg).format(pulse_width, self.timeout_trigger_type)
+                        self.logger.info(msg)
+                        self.send_resume_trigger(pulse_width, timeout_trigger_type)
+                        # Wait for it to respond to that:
+                        self.logger.info('Waiting for pulse indicating end of wait')
+                        semiperiods = self.read_edges(2, timeout)
+                    # Alright, now we're at the end of the wait.
+                    self.semiperiods.extend(semiperiods)
+                    self.logger.info('Wait completed')
+                    current_time = wait['time'] + semiperiods[-1]
+                    # Inform any interested parties that a wait has completed:
+                    postdata = _ensure_str(wait['label'])
+                    self.wait_completed.post(self.h5_file, data=postdata)
+                # Inform any interested parties that waits have all finished:
+                self.logger.info('All waits finished')
+                self.all_waits_finished.post(self.h5_file)
+        except Exception:
+            # Save the exception so it can be raised in transition_to_manual
+            self.wait_monitor_thread_exception = sys.exc_info()
     
-    def send_resume_trigger(self, pulse_width):
+    def send_resume_trigger(self, pulse_width, trigger_type):
         written = int32()
-        if self.timeout_trigger_type == 'rising':
+        if trigger_type == 'rising':
             trigger_value = 1
             rearm_value = 0
-        elif self.timeout_trigger_type == 'falling':
+        elif trigger_type == 'falling':
             trigger_value = 0
             rearm_value = 1
         else:
-            raise ValueError('timeout_trigger_type of {}_{} must be either "rising" or "falling".'.format(self.device_name, self.worker_name))
+            msg = 'timeout_trigger_type  must be "rising" or "falling", not "{}".'
+            raise ValueError(msg.format(trigger_type))
+        trigger_data = np.array([trigger_value], dtype=np.uint8)
+        rearm_data = (np.array([rearm_value], dtype=np.uint8),)
         # Triggering edge:
-        self.timeout_task.WriteDigitalLines(1, True, 1, DAQmx_Val_GroupByChannel, np.array([trigger_value], dtype=np.uint8), byref(written), None)
-        assert written.value == 1
-        # Wait however long we observed the first pulse of the experiment to be:
+        self.DO_task.WriteDigitalLines(
+            1, True, 1, DAQmx_Val_GroupByChannel, trigger_data, written, None
+        )
+        # Wait however long we observed the first pulse of the experiment to be. In
+        # practice this is likely to be negligible compared to the other software delays
+        # here, but in case it is larger we'd better wait:
         time.sleep(pulse_width)
         # Rearm trigger
-        self.timeout_task.WriteDigitalLines(1, True, 1, DAQmx_Val_GroupByChannel, np.array([rearm_value], dtype=np.uint8), byref(written), None)
-        assert written.value == 1
+        self.DO_task.WriteDigitalLines(
+            1, True, 1, DAQmx_Val_GroupByChannel, rearm_data, written, None
+        )
         
-    def stop_task(self):
-        self.logger.debug('stop_task')
-        with self.daqlock:
-            self.logger.debug('stop_task got daqlock')
-            if self.task_running:
-                self.task_running = False
-                self.acquisition_task.StopTask()
-                self.acquisition_task.ClearTask()
-                self.timeout_task.StopTask()
-                self.timeout_task.ClearTask()
-        self.logger.debug('finished stop_task')
+    def stop_tasks(self, abort):
+        self.logger.debug('stop_tasks')
+        if self.wait_monitor_thread is not None:
+            if abort:
+                # This will cause the wait_monitor thread to raise an exception within a
+                # short time, allowing us to join it before it would otherwise be done.
+                self.shutting_down = True
+            self.wait_monitor_thread.join()
+            self.wait_monitor_thread = None
+            self.self.shutting_down = False
+            if not abort and self.wait_monitor_thread_exception is not None:
+                # Raise any unexpected errors from the wait monitor thread:
+                _reraise(*self.wait_monitor_thread_exception)
+            self.wait_monitor_thread_exception = None
+            if not abort:
+                # Don't want errors about incomplete task to be raised if we are aborting:
+                self.CI_task.StopTask()
+            self.DO_task.StopTask()
+        self.CI.ClearTask()
+        self.CI_task = None
+        self.DO_task.ClearTask()
+        self.DO_task = None
+        self.logger.debug('finished stop_tasks')
         
-    def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
+    def start_tasks(self, acquisition_conn, timeout_conn, timeout_trigger_type):
+        # The counter acquisition task:
+        self.CI = Task()
+        CI_chan = self.MAX_name + '/' + acquisition_conn
+        # What is the longest time in between waits, plus the timeout of the
+        # second wait?
+        interwait_times = np.diff(self.wait_table['time'])
+        max_measure_time = max(interwait_times + self.wait_table['timeout'][1:])
+        # Allow for software delays in timeouts.
+        max_measure_time += 1.0  
+        # TODO: introspect CI timebases in capbilities script by parsing error messages,
+        # to get what the min measurement can be given the max one. 100ns will be too
+        # short for some devices. Need to use this data in labscript to ensure the pulse
+        # time given to the device is not too short.
+        self.CI.CreateCISemiPeriodChan(
+            CI_chan, '', 100e-9, max_measure_time, DAQmx_Val_Seconds, ""
+        )
+        num_edges = 2 * len(self.wait_table + 1)
+        self.CI.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)
+        self.CI.StartTask()
+
+        # The timeout task:
+        self.DO = Task()
+        DO_chan = self.MAX_name + '/' + timeout_conn
+        self.DO_task.CreateDOChan(DO_chan, "", DAQmx_Val_ChanForAllLines)
+        # Ensure timeout trigger is armed:
+        if self.timeout_trigger_type == 'falling':
+            armed = np.array([1], dtype=np.uint8)
+        else:
+            armed = np.array([0], dtype=np.uint8)
+        written = int32()
+        # Writing autostarts the task:
+        self.DO.WriteDigitalLines(
+            1, True, 1, DAQmx_Val_GroupByChannel, armed, byref(written), None
+        )
+
+    def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
-        # Save h5file path (for storing data later!)
         self.h5_file = h5file
-        self.is_wait_monitor_device = False # Will be set to true in a moment if necessary
-        self.logger.debug('setup_task')
         with h5py.File(h5file, 'r') as hdf5_file:
             dataset = hdf5_file['waits']
+            acquisition_device = dataset.attrs['wait_monitor_acquisition_device']
+            acquisition_conn = dataset.attrs['wait_monitor_acquisition_connection']
+            timeout_device = dataset.attrs['wait_monitor_timeout_device']
+            timeout_conn = dataset.attrs['wait_monitor_timeout_connection']
+            timeout_trigger_type = dataset.attrs['wait_monitor_timeout_trigger_type']
             if len(dataset) == 0:
                 # There are no waits. Do nothing.
                 self.logger.debug('There are no waits, not transitioning to buffered')
-                self.waits_in_use = False
-                self.wait_table = np.zeros((0,))
+                self.wait_table = None
                 return {}
-            self.waits_in_use = True
-            acquisition_device = dataset.attrs['wait_monitor_acquisition_device']
-            acquisition_connection = dataset.attrs['wait_monitor_acquisition_connection']
-            timeout_device = dataset.attrs['wait_monitor_timeout_device']
-            timeout_connection = dataset.attrs['wait_monitor_timeout_connection']
-            try:
-                self.timeout_trigger_type = dataset.attrs['wait_monitor_timeout_trigger_type']
-            except KeyError:
-                self.timeout_trigger_type = 'rising'
-            self.wait_table = dataset[:]
-        # Only do anything if we are in fact the wait_monitor device:
-        if timeout_device == device_name or acquisition_device == device_name:
-            if not timeout_device == device_name and acquisition_device == device_name:
-                raise NotImplementedError("Ni_DAQmx worker must be both the wait monitor timeout device and acquisition device." +
-                                          "Being only one could be implemented if there's a need for it, but it isn't at the moment")
-            
-            self.is_wait_monitor_device = True
-            # The counter acquisition task:
-            self.acquisition_task = Task()
-            acquisition_chan = '/'.join([self.MAX_name,acquisition_connection])
-            self.acquisition_task.CreateCISemiPeriodChan(acquisition_chan, '', 100e-9, 200, DAQmx_Val_Seconds, "")    
-            self.acquisition_task.CfgImplicitTiming(DAQmx_Val_ContSamps, 1000)
-            self.acquisition_task.StartTask()
-            # The timeout task:
-            self.timeout_task = Task()
-            timeout_chan = '/'.join([self.MAX_name,timeout_connection])
-            self.timeout_task.CreateDOChan(timeout_chan,"",DAQmx_Val_ChanForAllLines)
-            # Ensure timeout trigger is armed
-            if self.timeout_trigger_type == 'falling':
-                written = int32()
-                self.timeout_task.WriteDigitalLines(1, True, 1, DAQmx_Val_GroupByChannel, np.array([1], dtype=np.uint8), byref(written), None)
-                assert written.value == 1
-            self.task_running = True
-                
-            # An array to store the results of counter acquisition:
-            self.half_periods = []
-            self.read_thread = threading.Thread(target=self.daqmx_read)
-            # Not a daemon thread, as it implements wait timeouts - we need it to stay alive if other things die.
-            self.read_thread.start()
-            self.logger.debug('finished transition to buffered')
+            if timeout_device == device_name or acquisition_device == device_name:
+                if timeout_device != acquisition_device:
+                    msg = """NI_DAQmx device must be both the wait monitor timeout
+                        device and acquisition device. Being only one is not
+                        supported."""
+                    raise NotImplementedError(dedent(msg))
+                # There are waits, and we are the wait monitor device:
+                self.wait_table = dataset[:]
+
+        self.start_tasks(acquisition_conn, timeout_conn, timeout_trigger_type)
+
+        # An array to store the results of counter acquisition:
+        self.semiperiods = []
+        self.wait_monitor_thread = threading.Thread(
+            target=self.wait_monitor, args=(timeout_trigger_type,)
+        )
+        # Not a daemon thread, as it implements wait timeouts - we need it to stay alive
+        # if other things die.
+        self.wait_monitor_thread.start()
+        self.logger.debug('finished transition to buffered')
             
         return {}
     
     def transition_to_manual(self, abort=False):
-        self.logger.debug('transition_to_static')
-        self.abort = abort
-        self.stop_task()
-        # Reset the abort flag so that unexpected exceptions are still raised:        
-        self.abort = False
-        self.logger.info('transitioning to static, task stopped')
-        # save the data acquired to the h5 file
-        if not abort:
-            if self.is_wait_monitor_device and self.waits_in_use:
-                # Let's work out how long the waits were. The absolute times of each edge on the wait
-                # monitor were:
-                edge_times = np.cumsum(self.half_periods)
-                # Now there was also a rising edge at t=0 that we didn't measure:
-                edge_times = np.insert(edge_times,0,0)
-                # Ok, and the even-indexed ones of these were rising edges.
-                rising_edge_times = edge_times[::2]
-                # Now what were the times between rising edges?
-                periods = np.diff(rising_edge_times)
-                # How does this compare to how long we expected there to be between the start
-                # of the experiment and the first wait, and then between each pair of waits?
-                # The difference will give us the waits' durations.
-                resume_times = self.wait_table['time']
-                # Again, include the start of the experiment, t=0:
-                resume_times =  np.insert(resume_times,0,0)
-                run_periods = np.diff(resume_times)
-                wait_durations = periods - run_periods
-                waits_timed_out = wait_durations > self.wait_table['timeout']
-            with h5py.File(self.h5_file,'a') as hdf5_file:
-                # Work out how long the waits were, save em, post an event saying so 
-                dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
-                data = np.empty(len(self.wait_table), dtype=dtype_workaround(dtypes))
-                if self.is_wait_monitor_device and self.waits_in_use:
-                    data['label'] = self.wait_table['label']
-                    data['time'] = self.wait_table['time']
-                    data['timeout'] = self.wait_table['timeout']
-                    data['duration'] = wait_durations
-                    data['timed_out'] = waits_timed_out
-                if self.is_wait_monitor_device:
-                    hdf5_file.create_dataset('/data/waits', data=data)
-            if self.is_wait_monitor_device:
-                self.wait_durations_analysed.post(self.h5_file)
-        
+        self.logger.debug('transition_to_manual')
+        self.stop_tasks(abort)
+        if not abort and self.wait_table is not None:
+            # Let's work out how long the waits were. The absolute times of each edge on
+            # the wait monitor were:
+            edge_times = np.cumsum(self.semiperiods)
+            # Now there was also a rising edge at t=0 that we didn't measure:
+            edge_times = np.insert(edge_times, 0, 0)
+            # Ok, and the even-indexed ones of these were rising edges.
+            rising_edge_times = edge_times[::2]
+            # Now what were the times between rising edges?
+            periods = np.diff(rising_edge_times)
+            # How does this compare to how long we expected there to be between the
+            # start of the experiment and the first wait, and then between each pair of
+            # waits? The difference will give us the waits' durations.
+            resume_times = self.wait_table['time']
+            # Again, include the start of the experiment, t=0:
+            resume_times = np.insert(resume_times, 0, 0)
+            run_periods = np.diff(resume_times)
+            wait_durations = periods - run_periods
+            waits_timed_out = wait_durations > self.wait_table['timeout']
+
+            # Work out how long the waits were, save them, post an event saying so:
+            dtypes = [
+                ('label', 'a256'),
+                ('time', float),
+                ('timeout', float),
+                ('duration', float),
+                ('timed_out', bool),
+            ]
+            data = np.empty(len(self.wait_table), dtype=dtype_workaround(dtypes))
+            data['label'] = self.wait_table['label']
+            data['time'] = self.wait_table['time']
+            data['timeout'] = self.wait_table['timeout']
+            data['duration'] = wait_durations
+            data['timed_out'] = waits_timed_out
+            with h5py.File(self.h5_file, 'a') as hdf5_file:
+                hdf5_file.create_dataset('/data/waits', data=data)
+            self.wait_durations_analysed.post(self.h5_file)
+
+        self.h5_file = None
+        self.semiperiods = None
         return True
     
     def abort_buffered(self):
