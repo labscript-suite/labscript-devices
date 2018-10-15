@@ -673,7 +673,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             read_timeout = 0.2
         else:
             read_timeout = timeout
-        read_array = np.empty(npts)
+        read_array = np.zeros(npts)
         while True:
             if self.shutting_down:
                 raise RuntimeError('Stopped before expected number of samples acquired')
@@ -685,6 +685,9 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 if timeout is None:
                     continue
                 return None
+            # except CounterNoTimebaseEdgesBetweenGatesError:
+            #     print('read error, read array is:', read_array)
+            #     raise
             return read_array
 
     def wait_monitor(self, timeout_trigger_type):
@@ -695,11 +698,13 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             # pseudoclock. Save the resulting
             self.logger.info('Wait monitor thread starting')
             with self.kill_lock:
+                self.logger.info('Waiting for start of experiment')
                 # Wait for the pulse indicating the start of the experiment:
                 if self.incomplete_sample_detection:
                     semiperiods = self.read_edges(1, timeout=None)
                 else:
                     semiperiods = self.read_edges(2, timeout=None)
+                self.logger.info('Experiment started got edges:' + str(semiperiods))
                 # May have been one or two edges, depending on whether the device has
                 # incomplete sample detection. We are only interested in the second one
                 # anyway, it tells us how long the initial pulse was. Store the pulse width
@@ -738,6 +743,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 self.logger.info('All waits finished')
                 self.all_waits_finished.post(self.h5_file)
         except Exception:
+            self.logger.exception('Exception in wait monitor thread:')
             # Save the exception so it can be raised in transition_to_manual
             self.wait_monitor_thread_exception = sys.exc_info()
 
@@ -753,7 +759,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             msg = 'timeout_trigger_type  must be "rising" or "falling", not "{}".'
             raise ValueError(msg.format(trigger_type))
         trigger_data = np.array([trigger_value], dtype=np.uint8)
-        rearm_data = (np.array([rearm_value], dtype=np.uint8),)
+        rearm_data = np.array([rearm_value], dtype=np.uint8)
         # Triggering edge:
         self.DO_task.WriteDigitalLines(
             1, True, 1, DAQmx_Val_GroupByChannel, trigger_data, written, None
@@ -776,7 +782,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 self.shutting_down = True
             self.wait_monitor_thread.join()
             self.wait_monitor_thread = None
-            self.self.shutting_down = False
+            self.shutting_down = False
             if not abort and self.wait_monitor_thread_exception is not None:
                 # Raise any unexpected errors from the wait monitor thread:
                 _reraise(*self.wait_monitor_thread_exception)
@@ -785,7 +791,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 # Don't want errors about incomplete task to be raised if we are aborting:
                 self.CI_task.StopTask()
             self.DO_task.StopTask()
-        self.CI.ClearTask()
+        self.CI_task.ClearTask()
         self.CI_task = None
         self.DO_task.ClearTask()
         self.DO_task = None
@@ -793,7 +799,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
 
     def start_tasks(self, acquisition_conn, timeout_conn, timeout_trigger_type):
         # The counter acquisition task:
-        self.CI = Task()
+        self.CI_task = Task()
         CI_chan = self.MAX_name + '/' + acquisition_conn
         # What is the longest time in between waits, plus the timeout of the
         # second wait?
@@ -805,15 +811,15 @@ class NI_DAQmxWaitMonitorWorker(Worker):
         # to get what the min measurement can be given the max one. 100ns will be too
         # short for some devices. Need to use this data in labscript to ensure the pulse
         # time given to the device is not too short.
-        self.CI.CreateCISemiPeriodChan(
-            CI_chan, '', 100e-9, max_measure_time, DAQmx_Val_Seconds, ""
+        self.CI_task.CreateCISemiPeriodChan(
+            CI_chan, '', max_measure_time/2, max_measure_time, DAQmx_Val_Seconds, ""
         )
         num_edges = 2 * (len(self.wait_table) + 1)
-        self.CI.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)
-        self.CI.StartTask()
+        self.CI_task.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)
+        self.CI_task.StartTask()
 
         # The timeout task:
-        self.DO = Task()
+        self.DO_task = Task()
         DO_chan = self.MAX_name + '/' + timeout_conn
         self.DO_task.CreateDOChan(DO_chan, "", DAQmx_Val_ChanForAllLines)
         # Ensure timeout trigger is armed:
@@ -823,7 +829,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             armed = np.array([0], dtype=np.uint8)
         written = int32()
         # Writing autostarts the task:
-        self.DO.WriteDigitalLines(
+        self.DO_task.WriteDigitalLines(
             1, True, 1, DAQmx_Val_GroupByChannel, armed, byref(written), None
         )
 
