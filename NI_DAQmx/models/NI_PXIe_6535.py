@@ -36,18 +36,20 @@ CAPABILITIES = {
     'max_AI_single_chan_rate': None,
     'max_AO_sample_rate': None,
     'max_DO_sample_rate': 10000000.0,
+    'min_semiperiod_measurement': None,
     'num_AI': 0,
     'num_AO': 0,
     'num_CI': 0,
     'ports': {
-        'port0': {'num_lines': 8, 'supports_buffered': True},
-        'port1': {'num_lines': 8, 'supports_buffered': True},
-        'port2': {'num_lines': 8, 'supports_buffered': True},
-        'port3': {'num_lines': 8, 'supports_buffered': True},
+        'port0': {'num_lines': 8, 'supports_buffered': False},
+        'port1': {'num_lines': 8, 'supports_buffered': False},
+        'port2': {'num_lines': 8, 'supports_buffered': False},
+        'port3': {'num_lines': 8, 'supports_buffered': False},
         'port4': {'num_lines': 6, 'supports_buffered': False},
     },
     'supports_buffered_AO': False,
     'supports_buffered_DO': True,
+    'supports_semiperiod_measurement': False,
 }
 
 

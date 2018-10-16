@@ -296,12 +296,12 @@ if os.path.exists(CAPABILITIES_FILE):
             pass
 
 
-new_devices = []
+models = []
 for name in DAQmxGetSysDevNames().split(', '):
     model = DAQmxGetDevProductType(name)
     print("found device:", name, model)
-    if name not in capabilities:
-        new_devices.append(model)
+    if model not in models:
+        models.append(model)
     capabilities[model] = {}
     try:
         capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(
@@ -401,6 +401,9 @@ with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
     f.write(data)
 
-print("added/updated capabilities for %d models" % len(new_devices))
+print("added/updated capabilities for %d models" % len(models))
 print("Total models with known capabilities: %d" %len(capabilities))
+for model in capabilities:
+    if model not in models:
+        print(model, 'capabilities not updated')
 print("run generate_subclasses.py to make labscript devices for these models")

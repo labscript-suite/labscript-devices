@@ -48,7 +48,7 @@ class NI_DAQmxOutputWorker(Worker):
         self.check_version()
         # Reset Device: clears previously added routes etc. Note: is insufficient for
         # some devices, which require power cycling to truly reset.
-        # DAQmxResetDevice(self.MAX_name)
+        DAQmxResetDevice(self.MAX_name)
         self.start_manual_mode_tasks()
 
     def stop_tasks(self):
@@ -127,13 +127,13 @@ class NI_DAQmxOutputWorker(Worker):
             self.AO_data[i] = front_panel_values['ao%d' % i]
         if self.AO_task is not None:
             self.AO_task.WriteAnalogF64(
-                1, True, 1, DAQmx_Val_GroupByChannel, self.AO_data, byref(written), None
+                1, True, 1, DAQmx_Val_GroupByChannel, self.AO_data, written, None
             )
         for i, conn in enumerate(self.DO_hardware_names):
             self.DO_data[i] = front_panel_values[conn]
         if self.DO_task is not None:
             self.DO_task.WriteDigitalLines(
-                1, True, 1, DAQmx_Val_GroupByChannel, self.DO_data, byref(written), None
+                1, True, 1, DAQmx_Val_GroupByChannel, self.DO_data, written, None
             )
         # TODO: return coerced/quantised values
         return {}
@@ -208,7 +208,7 @@ class NI_DAQmxOutputWorker(Worker):
                     10.0,  # timeout
                     DAQmx_Val_GroupByChannel,
                     data,
-                    byref(written),
+                    written,
                     None,
                 )
         else:
@@ -238,7 +238,7 @@ class NI_DAQmxOutputWorker(Worker):
                     10.0,  # timeout
                     DAQmx_Val_GroupByChannel,
                     data,
-                    byref(written),
+                    written,
                     None,
                 )
 
@@ -269,7 +269,7 @@ class NI_DAQmxOutputWorker(Worker):
             # Static AO. Start the task and write data, no timing configuration.
             self.AO_task.StartTask()
             self.AO_task.WriteAnalogF64(
-                1, True, 10.0, DAQmx_Val_GroupByChannel, AO_table, byref(written), None
+                1, True, 10.0, DAQmx_Val_GroupByChannel, AO_table, written, None
             )
         else:
             # We use all but the last sample (which is identical to the second last
@@ -294,7 +294,7 @@ class NI_DAQmxOutputWorker(Worker):
                 10.0,  # timeout
                 DAQmx_Val_GroupByScanNumber,
                 AO_table[:-1],  # All but the last sample as mentioned above
-                byref(written),
+                written,
                 None,
             )
 
@@ -660,6 +660,19 @@ class NI_DAQmxWaitMonitorWorker(Worker):
         # discard it ourselves
         self.incomplete_sample_detection = incomplete_sample_detection(self.MAX_name)
 
+        # Data for timeout triggers:
+        if self.timeout_trigger_type == 'rising':
+            trigger_value = 1
+            rearm_value = 0
+        elif self.timeout_trigger_type == 'falling':
+            trigger_value = 0
+            rearm_value = 1
+        else:
+            msg = 'timeout_trigger_type  must be "rising" or "falling", not "{}".'
+            raise ValueError(msg.format(trigger_type))
+        self.timeout_trigger = np.array([trigger_value], dtype=np.uint8)
+        self.timeout_rearm = np.array([rearm_value], dtype=np.uint8)
+
     def shutdown(self):
         self.stop_tasks(True)
 
@@ -687,21 +700,21 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 return None
             return read_array
 
-    def wait_monitor(self, timeout_trigger_type):
+    def wait_monitor(self):
         try:
             # Read edge times from the counter input task, indiciating the times of the
             # pulses that occur at the start of the experiment and after every wait. If a
             # timeout occurs, pulse the timeout output to force a resume of the master
             # pseudoclock. Save the resulting
-            self.logger.info('Wait monitor thread starting')
+            self.logger.debug('Wait monitor thread starting')
             with self.kill_lock:
-                self.logger.info('Waiting for start of experiment')
+                self.logger.debug('Waiting for start of experiment')
                 # Wait for the pulse indicating the start of the experiment:
                 if self.incomplete_sample_detection:
                     semiperiods = self.read_edges(1, timeout=None)
                 else:
                     semiperiods = self.read_edges(2, timeout=None)
-                self.logger.info('Experiment started got edges:' + str(semiperiods))
+                self.logger.debug('Experiment started, got edges:' + str(semiperiods))
                 # May have been one or two edges, depending on whether the device has
                 # incomplete sample detection. We are only interested in the second one
                 # anyway, it tells us how long the initial pulse was. Store the pulse width
@@ -716,7 +729,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                     timeout = wait['time'] + wait['timeout'] - current_time
                     timeout = max(timeout, 0)  # ensure non-negative
                     # Wait that long for the next pulse:
-                    self.logger.info('Waiting for pulse indicating end of wait')
+                    self.logger.debug('Waiting for pulse indicating end of wait')
                     semiperiods = self.read_edges(2, timeout)
                     # Did the wait finish of its own accord, or time out?
                     if semiperiods is None:
@@ -724,50 +737,39 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                         msg = """Wait timed out; retriggering clock with {:.3e} s pulse
                             ({} edge)"""
                         msg = dedent(msg).format(pulse_width, self.timeout_trigger_type)
-                        self.logger.info(msg)
-                        self.send_resume_trigger(pulse_width, timeout_trigger_type)
+                        self.logger.debug(msg)
+                        self.send_resume_trigger(pulse_width)
                         # Wait for it to respond to that:
-                        self.logger.info('Waiting for pulse indicating end of wait')
+                        self.logger.debug('Waiting for pulse indicating end of wait')
                         semiperiods = self.read_edges(2, timeout)
                     # Alright, now we're at the end of the wait.
                     self.semiperiods.extend(semiperiods)
-                    self.logger.info('Wait completed')
+                    self.logger.debug('Wait completed')
                     current_time = wait['time'] + semiperiods[-1]
                     # Inform any interested parties that a wait has completed:
                     postdata = _ensure_str(wait['label'])
                     self.wait_completed.post(self.h5_file, data=postdata)
                 # Inform any interested parties that waits have all finished:
-                self.logger.info('All waits finished')
+                self.logger.debug('All waits finished')
                 self.all_waits_finished.post(self.h5_file)
         except Exception:
             self.logger.exception('Exception in wait monitor thread:')
             # Save the exception so it can be raised in transition_to_manual
             self.wait_monitor_thread_exception = sys.exc_info()
 
-    def send_resume_trigger(self, pulse_width, trigger_type):
+    def send_resume_trigger(self, pulse_width):
         written = int32()
-        if trigger_type == 'rising':
-            trigger_value = 1
-            rearm_value = 0
-        elif trigger_type == 'falling':
-            trigger_value = 0
-            rearm_value = 1
-        else:
-            msg = 'timeout_trigger_type  must be "rising" or "falling", not "{}".'
-            raise ValueError(msg.format(trigger_type))
-        trigger_data = np.array([trigger_value], dtype=np.uint8)
-        rearm_data = np.array([rearm_value], dtype=np.uint8)
-        # Triggering edge:
+        # Trigger:
         self.DO_task.WriteDigitalLines(
-            1, True, 1, DAQmx_Val_GroupByChannel, trigger_data, written, None
+            1, True, 1, DAQmx_Val_GroupByChannel, self.timeout_trigger, written, None
         )
         # Wait however long we observed the first pulse of the experiment to be. In
         # practice this is likely to be negligible compared to the other software delays
         # here, but in case it is larger we'd better wait:
         time.sleep(pulse_width)
-        # Rearm trigger
+        # Rearm trigger:
         self.DO_task.WriteDigitalLines(
-            1, True, 1, DAQmx_Val_GroupByChannel, rearm_data, written, None
+            1, True, 1, DAQmx_Val_GroupByChannel, self.timeout_rearm, written, None
         )
 
     def stop_tasks(self, abort):
@@ -796,22 +798,25 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             self.DO_task = None
         self.logger.debug('finished stop_tasks')
 
-    def start_tasks(self, acquisition_conn, timeout_conn, timeout_trigger_type):
+    def start_tasks(self):
+
         # The counter acquisition task:
         self.CI_task = Task()
-        CI_chan = self.MAX_name + '/' + acquisition_conn
+        CI_chan = self.MAX_name + '/' + self.wait_acq_connection
         # What is the longest time in between waits, plus the timeout of the
         # second wait?
         interwait_times = np.diff([0] + list(self.wait_table['time']))
         max_measure_time = max(interwait_times + self.wait_table['timeout'])
         # Allow for software delays in timeouts.
         max_measure_time += 1.0
-        # TODO: introspect CI timebases in capbilities script by parsing error messages,
-        # to get what the min measurement can be given the max one. 100ns will be too
-        # short for some devices. Need to use this data in labscript to ensure the pulse
-        # time given to the device is not too short.
+        min_measure_time = self.min_semiperiod_measurement
+        self.logger.debug(
+            "CI measurement range is: min: %f max: %f",
+            min_measure_time,
+            max_measure_time,
+        )
         self.CI_task.CreateCISemiPeriodChan(
-            CI_chan, '', 100e-9, max_measure_time, DAQmx_Val_Seconds, ""
+            CI_chan, '', min_measure_time, max_measure_time, DAQmx_Val_Seconds, ""
         )
         num_edges = 2 * (len(self.wait_table) + 1)
         self.CI_task.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)
@@ -819,17 +824,13 @@ class NI_DAQmxWaitMonitorWorker(Worker):
 
         # The timeout task:
         self.DO_task = Task()
-        DO_chan = self.MAX_name + '/' + timeout_conn
+        DO_chan = self.MAX_name + '/' + self.wait_timeout_connection
         self.DO_task.CreateDOChan(DO_chan, "", DAQmx_Val_ChanForAllLines)
         # Ensure timeout trigger is armed:
-        if self.timeout_trigger_type == 'falling':
-            armed = np.array([1], dtype=np.uint8)
-        else:
-            armed = np.array([0], dtype=np.uint8)
         written = int32()
         # Writing autostarts the task:
         self.DO_task.WriteDigitalLines(
-            1, True, 1, DAQmx_Val_GroupByChannel, armed, byref(written), None
+            1, True, 1, DAQmx_Val_GroupByChannel, self.timeout_rearm, written, None
         )
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
@@ -837,32 +838,18 @@ class NI_DAQmxWaitMonitorWorker(Worker):
         self.h5_file = h5file
         with h5py.File(h5file, 'r') as hdf5_file:
             dataset = hdf5_file['waits']
-            acquisition_device = dataset.attrs['wait_monitor_acquisition_device']
-            acquisition_conn = dataset.attrs['wait_monitor_acquisition_connection']
-            timeout_device = dataset.attrs['wait_monitor_timeout_device']
-            timeout_conn = dataset.attrs['wait_monitor_timeout_connection']
-            timeout_trigger_type = dataset.attrs['wait_monitor_timeout_trigger_type']
             if len(dataset) == 0:
                 # There are no waits. Do nothing.
                 self.logger.debug('There are no waits, not transitioning to buffered')
                 self.wait_table = None
                 return {}
-            if timeout_device == device_name or acquisition_device == device_name:
-                if timeout_device != acquisition_device:
-                    msg = """NI_DAQmx device must be both the wait monitor timeout
-                        device and acquisition device. Being only one is not
-                        supported."""
-                    raise NotImplementedError(dedent(msg))
-                # There are waits, and we are the wait monitor device:
-                self.wait_table = dataset[:]
+            self.wait_table = dataset[:]
 
-        self.start_tasks(acquisition_conn, timeout_conn, timeout_trigger_type)
+        self.start_tasks()
 
         # An array to store the results of counter acquisition:
         self.semiperiods = []
-        self.wait_monitor_thread = threading.Thread(
-            target=self.wait_monitor, args=(timeout_trigger_type,)
-        )
+        self.wait_monitor_thread = threading.Thread(target=self.wait_monitor)
         # Not a daemon thread, as it implements wait timeouts - we need it to stay alive
         # if other things die.
         self.wait_monitor_thread.start()

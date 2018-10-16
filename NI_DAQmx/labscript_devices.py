@@ -57,7 +57,6 @@ class NI_DAQmx(IntermediateDevice):
                 "MAX_name",
                 "static_AO",
                 "static_DO",
-                "DAQmx_waits_counter_bug_workaround",
                 "clock_mirror_terminal",
                 "AI_range",
                 "AI_start_delay",
@@ -66,13 +65,16 @@ class NI_DAQmx(IntermediateDevice):
                 "max_AI_single_chan_rate",
                 "max_AO_sample_rate",
                 "max_DO_sample_rate",
+                "min_semiperiod_measurement",
                 "num_AI",
                 "num_AO",
                 "num_CI",
                 "ports",
                 "supports_buffered_AO",
                 "supports_buffered_DO",
+                "supports_semiperiod_measurement",
                 "clock_limit",
+                "wait_monitor_minimum_pulse_width"
             ],
             "device_properties": ["acquisition_rate"],
         }
@@ -85,7 +87,6 @@ class NI_DAQmx(IntermediateDevice):
         MAX_name=None,
         static_AO=None,
         static_DO=None,
-        DAQmx_waits_counter_bug_workaround=False,
         clock_mirror_terminal=None,
         acquisition_rate=None,
         AI_range=None,
@@ -95,12 +96,14 @@ class NI_DAQmx(IntermediateDevice):
         max_AI_single_chan_rate=None,
         max_AO_sample_rate=None,
         max_DO_sample_rate=None,
+        min_semiperiod_measurement=None,
         num_AI=0,
         num_AO=0,
         num_CI=0,
         ports=None,
         supports_buffered_AO=False,
         supports_buffered_DO=False,
+        supports_semiperiod_measurement=False,
         **kwargs
     ):
         """Generic class for NI_DAQmx devices. Reads capabilities from a file
@@ -134,28 +137,20 @@ class NI_DAQmx(IntermediateDevice):
         self.static_AO = static_AO
         self.static_DO = static_DO
         
-        # This is to instruct the wait monitor device to:
-        # a) in labscript compilation: Use an 0.1 second duration for the wait monitor
-        #    trigger instead of a shorter one
-        # b) In the BLACS waits worker process: skip the initial rising edge. These are
-        #    to work around what seems to be a bug in DAQmx. The initial rising edge is
-        #    not supposed to be detected, and clearly pulses of less than 0.1 seconds
-        #    ought to be detectable. However this workaround fixes things for the
-        #    affected devices, currenly the NI USB 6229 on NI DAQmx 15.0.
-        self.DAQmx_waits_counter_bug_workaround = DAQmx_waits_counter_bug_workaround
-
         self.acquisition_rate = acquisition_rate
         self.AO_range = AO_range
         self.max_AI_multi_chan_rate = max_AI_multi_chan_rate
         self.max_AI_single_chan_rate = max_AI_single_chan_rate
         self.max_AO_sample_rate = max_AO_sample_rate
         self.max_DO_sample_rate = max_DO_sample_rate
+        self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
         self.supports_buffered_AO = supports_buffered_AO
         self.supports_buffered_DO = supports_buffered_DO
+        self.supports_semiperiod_measurement = supports_semiperiod_measurement
         
         if self.supports_buffered_DO and self.supports_buffered_AO:
             self.clock_limit = min(self.max_DO_sample_rate, self.max_AO_sample_rate)
@@ -169,6 +164,8 @@ class NI_DAQmx(IntermediateDevice):
                 msg = """Device does not support buffered output, please instantiate
                 it with static_AO=True and static_DO=True"""
                 raise LabscriptError(dedent(msg))
+
+        self.wait_monitor_minimum_pulse_width = self.min_semiperiod_measurement
 
         # Set allowed children based on capabilities:
         self.allowed_children = []

@@ -47,6 +47,7 @@ class NI_DAQmxTab(DeviceTab):
         static_AO = properties['static_AO']
         static_DO = properties['static_DO']
         clock_limit = properties['clock_limit']
+        min_semiperiod_measurement = properties['min_semiperiod_measurement']
 
         # And the Measurement and Automation Explorer (MAX) name we will need to
         # communicate with the device:
@@ -160,11 +161,6 @@ class NI_DAQmxTab(DeviceTab):
                 msg = "Device cannot be a wait monitor as it has no counter inputs"
                 raise RuntimeError(msg)
 
-            # Using this workaround? Default to False in case not present in file:
-            counter_bug_workaround = properties.get(
-                "DAQmx_waits_counter_bug_workaround", False
-            )
-
             self.create_worker(
                 "wait_monitor_worker",
                 'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxWaitMonitorWorker',
@@ -173,7 +169,7 @@ class NI_DAQmxTab(DeviceTab):
                     'wait_acq_connection': wait_acq_connection,
                     'wait_timeout_connection': wait_timeout_connection,
                     'timeout_trigger_type': timeout_trigger_type,
-                    'counter_bug_workaround': counter_bug_workaround,
+                    'min_semiperiod_measurement': min_semiperiod_measurement,
                 },
             )
             self.add_secondary_worker("wait_monitor_worker")
