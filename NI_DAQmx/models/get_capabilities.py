@@ -223,6 +223,70 @@ def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
     return supported_ranges
 
 
+def supports_semiperiod_measurement(device_name):
+    import warnings
+    with warnings.catch_warnings():
+        # PyDAQmx warns about a positive return value, but actually this is how you are
+        # supposed to figure out the size of the array required.
+        warnings.simplefilter("ignore")
+        # Pass in null pointer and 0 len to ask for what array size is needed:
+        npts = PyDAQmx.DAQmxGetDevCISupportedMeasTypes(device_name, int32(), 0)
+    # Create that array
+    result = (int32 * npts)()
+    PyDAQmx.DAQmxGetDevCISupportedMeasTypes(device_name, result, npts)
+    return c.DAQmx_Val_SemiPeriod in [result[i] for i in range(npts)]
+
+
+def get_min_semiperiod_measurement(device_name):
+    """Depending on the timebase used, counter inputs can measure time intervals of
+    various ranges. As a default, we pick a largish range - the one with the fastest
+    timebase still capable of measuring 100 seconds, or the largest time interval if it
+    is less than 100 seconds, and we save the smallest interval measurable with this
+    timebase. Then labscript can ensure it doesn't make wait monitor pulses shorter than
+    this. This should be a sensible default behaviour, though if the user has
+    experiments considerably shorter or longer than 100 seconds, such that they want to
+    use a different timebase, they may pass the min_semiperiod_measurement keyword
+    argument into the DAQmx class, to tell labscript to make pulses some other duration
+    compatible with the maximum wait time in their experiment. However, since there are
+    software delays in timeouts of waits during a shot, any timed-out waits necessarily
+    will last software timescales of up to ~100ms on a slow computer, preventing one
+    from using very fast timebases with low-resolution counters if there is any
+    possibility of timing out. For now (in the wait monitor worker class) we
+    pessimistically add one second to the expected longest measurement to account for
+    software delays. These decisions can be revisited if there is a need, do not
+    hesitate to file an issue on bitbucket regarding this if it affects you."""
+    CI_chans = DAQmxGetDevCIPhysicalChans(device_name)
+    CI_chan = device_name + '/' + CI_chans[0]
+    # Make a task with a semiperiod measurement
+    task = Task()
+    task.CreateCISemiPeriodChan(CI_chan, '', 1e-100, 1e100, c.DAQmx_Val_Seconds, "")
+    try:
+        task.StartTask()
+    except PyDAQmx.DAQmxFunctions.CtrMinMaxError as e:
+        # Parse the error to extract the allowed values:
+        CI_ranges = []
+        DT_MIN_PREFIX = "Value Must Be Greater Than:"
+        DT_MAX_PREFIX = "Value Must Be Less Than:"
+        error_lines = e.message.splitlines()
+        for line in error_lines:
+            if DT_MIN_PREFIX in line:
+                dt_min = float(line.replace(DT_MIN_PREFIX, ''))
+            if DT_MAX_PREFIX in line:
+                dt_max = float(line.replace(DT_MAX_PREFIX, ''))
+                CI_ranges.append([dt_min, dt_max])
+    else:
+        raise AssertionError("Can't figure out counter input ranges")
+    finally:
+        task.ClearTask()
+
+    # Pick out the value we want. Either dtmin when dtmax is over 100, or the largest
+    # dtmin if there is no dtmax over 100:
+    for dtmin, dtmax in sorted(CI_ranges):
+        if dtmax > 100:
+            return dtmin
+    return dtmin
+
+
 capabilities = {}
 if os.path.exists(CAPABILITIES_FILE):
     with open(CAPABILITIES_FILE) as f:
@@ -283,7 +347,15 @@ for name in DAQmxGetSysDevNames().split(', '):
             port_info['supports_buffered'] = port_supports_buffered(name, port)
         else:
             port_info['supports_buffered'] = False
+
     capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
+    supports_semiperiod = supports_semiperiod_measurement(name)
+    capabilities[model]["supports_semiperiod_measurement"] = supports_semiperiod
+    if capabilities[model]["num_CI"] > 0 and supports_semiperiod:
+        min_semiperiod_measurement = get_min_semiperiod_measurement(name)
+    else:
+        min_semiperiod_measurement = None
+    capabilities[model]["min_semiperiod_measurement"] = min_semiperiod_measurement
 
     if capabilities[model]['num_AO'] > 0:
         AO_ranges = []
@@ -324,6 +396,7 @@ for name in DAQmxGetSysDevNames().split(', '):
     else:
         capabilities[model]["AI_start_delay"] = None
 
+    
 with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
     f.write(data)

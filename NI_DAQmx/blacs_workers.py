@@ -685,9 +685,6 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 if timeout is None:
                     continue
                 return None
-            # except CounterNoTimebaseEdgesBetweenGatesError:
-            #     print('read error, read array is:', read_array)
-            #     raise
             return read_array
 
     def wait_monitor(self, timeout_trigger_type):
@@ -791,10 +788,12 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 # Don't want errors about incomplete task to be raised if we are aborting:
                 self.CI_task.StopTask()
             self.DO_task.StopTask()
-        self.CI_task.ClearTask()
-        self.CI_task = None
-        self.DO_task.ClearTask()
-        self.DO_task = None
+        if self.CI_task is not None:
+            self.CI_task.ClearTask()
+            self.CI_task = None
+        if self.DO_task is not None:
+            self.DO_task.ClearTask()
+            self.DO_task = None
         self.logger.debug('finished stop_tasks')
 
     def start_tasks(self, acquisition_conn, timeout_conn, timeout_trigger_type):
@@ -812,7 +811,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
         # short for some devices. Need to use this data in labscript to ensure the pulse
         # time given to the device is not too short.
         self.CI_task.CreateCISemiPeriodChan(
-            CI_chan, '', max_measure_time/2, max_measure_time, DAQmx_Val_Seconds, ""
+            CI_chan, '', 100e-9, max_measure_time, DAQmx_Val_Seconds, ""
         )
         num_edges = 2 * (len(self.wait_table) + 1)
         self.CI_task.CfgImplicitTiming(DAQmx_Val_ContSamps, num_edges)

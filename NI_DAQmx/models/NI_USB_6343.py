@@ -36,6 +36,7 @@ CAPABILITIES = {
     'max_AI_single_chan_rate': 500000.0,
     'max_AO_sample_rate': 917431.1926605505,
     'max_DO_sample_rate': 1000000.0,
+    'min_semiperiod_measurement': 1e-07,
     'num_AI': 32,
     'num_AO': 4,
     'num_CI': 4,
@@ -46,6 +47,7 @@ CAPABILITIES = {
     },
     'supports_buffered_AO': True,
     'supports_buffered_DO': True,
+    'supports_semiperiod_measurement': True,
 }
 
 

@@ -36,12 +36,14 @@ CAPABILITIES = {
     'max_AI_single_chan_rate': None,
     'max_AO_sample_rate': 1000000.0,
     'max_DO_sample_rate': 10000000.0,
+    'min_semiperiod_measurement': 2e-05,
     'num_AI': 0,
     'num_AO': 8,
     'num_CI': 2,
     'ports': {'port0': {'num_lines': 8, 'supports_buffered': True}},
     'supports_buffered_AO': True,
     'supports_buffered_DO': True,
+    'supports_semiperiod_measurement': True,
 }
 
 
