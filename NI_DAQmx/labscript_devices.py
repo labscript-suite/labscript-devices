@@ -50,6 +50,10 @@ class NI_DAQmx(IntermediateDevice):
 
     description = 'NI-DAQmx'
 
+    # If used as a wait monitor, this device's BLACS worker supports posting events in
+    # software indicating the completion of each wait as it occurs:
+    wait_monitor_supports_wait_completed_events = True
+
     @set_passed_properties(
         property_names={
             "connection_table_properties": [
@@ -74,7 +78,8 @@ class NI_DAQmx(IntermediateDevice):
                 "supports_buffered_DO",
                 "supports_semiperiod_measurement",
                 "clock_limit",
-                "wait_monitor_minimum_pulse_width"
+                "wait_monitor_minimum_pulse_width",
+                "wait_monitor_supports_wait_completed_events"
             ],
             "device_properties": ["acquisition_rate"],
         }
