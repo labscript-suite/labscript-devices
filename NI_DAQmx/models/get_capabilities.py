@@ -19,6 +19,10 @@ if PY2:
 
     open = io.open
 
+from labscript_utils import check_version
+
+check_version('PyDAQmx', '1.4.1', '2.0.0')
+
 import numpy as np
 import os
 import ctypes
@@ -225,6 +229,7 @@ def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
 
 def supports_semiperiod_measurement(device_name):
     import warnings
+
     with warnings.catch_warnings():
         # PyDAQmx warns about a positive return value, but actually this is how you are
         # supposed to figure out the size of the array required.
@@ -396,13 +401,13 @@ for name in DAQmxGetSysDevNames().split(', '):
     else:
         capabilities[model]["AI_start_delay"] = None
 
-    
+
 with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
     data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
     f.write(data)
 
 print("added/updated capabilities for %d models" % len(models))
-print("Total models with known capabilities: %d" %len(capabilities))
+print("Total models with known capabilities: %d" % len(capabilities))
 for model in capabilities:
     if model not in models:
         print(model, 'capabilities not updated')

@@ -21,6 +21,9 @@ import time
 import threading
 import logging
 
+from labscript_utils import check_version
+check_version('PyDAQmx', '1.4.1', '2.0.0')
+
 from PyDAQmx import *
 from PyDAQmx.DAQmxConstants import *
 from PyDAQmx.DAQmxTypes import *

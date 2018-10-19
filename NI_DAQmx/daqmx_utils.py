@@ -1,4 +1,9 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
+
+from labscript_utils import check_version
+
+check_version('PyDAQmx', '1.4.1', '2.0.0')
+
 import ctypes
 import PyDAQmx as daqmx
 import PyDAQmx.DAQmxConstants as c
@@ -20,7 +25,7 @@ def get_product_type(device_name):
     result = ctypes.create_string_buffer(BUFSIZE)
     daqmx.DAQmxGetDevProductType(device_name, result, types.uInt32(BUFSIZE))
     return result.value.decode('utf8')
-    
+
 
 def get_CI_chans(device_name):
     BUFSIZE = 4096
@@ -109,7 +114,7 @@ def incomplete_sample_detection(device_name):
         c.DAQmx_Val_LowFreq1Ctr,
         10.0,
         0,
-        ""
+        "",
     )
     meas_task.CfgImplicitTiming(c.DAQmx_Val_ContSamps, 1)
     # Specify that we are measuring the internal output of the other counter:
@@ -145,7 +150,7 @@ if __name__ == '__main__':
             model = get_product_type(name)
             print((model + '    ').rjust(16), end=' ')
             try:
-                result = has_incomplete_sample_detection(name)
+                result = incomplete_sample_detection(name)
             except ValueError as e:
                 result = str(e)
             print(result)
