@@ -18,6 +18,8 @@ if PY2:
 
 import labscript_utils.h5_lock
 import h5py
+from labscript_utils import VersionException, dedent
+from distutils.version import LooseVersion
 
 from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
@@ -28,6 +30,20 @@ class NI_DAQmxTab(DeviceTab):
         # Get capabilities from connection table properties:
         connection_table = self.settings['connection_table']
         properties = connection_table.find_by_name(self.device_name).properties
+
+        # Raise an error on old connection tables, since we are not backward compatible
+        # with them. In terms of old shot files being added to the queue once BLACS has
+        # started, BLACS will reject them as being incomatible since the connection
+        # table properties won't match. So we do not need to add a check for that.
+        version = properties.get('__version__', None)
+        if version is None:
+            msg = """Connection table was compiled with the old version of the NI_DAQmx
+                device class. The new BLACS tab is not backward compatible with old shot
+                files (including connection tables). Either downgrade labscript_devices
+                to 2.2.0 or less, or recompile the connection table with
+                labscript_devices 2.3.0 or greater.
+                """
+            raise VersionException(dedent(msg))
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']

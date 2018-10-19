@@ -17,6 +17,9 @@ from labscript_utils import PY2, check_version
 if PY2:
     str = unicode
 
+
+__version__ = '1.0.0'
+
 check_version('labscript', '2.5.0', '3.0.0')
 
 from labscript import (
@@ -79,7 +82,7 @@ class NI_DAQmx(IntermediateDevice):
                 "supports_semiperiod_measurement",
                 "clock_limit",
                 "wait_monitor_minimum_pulse_width",
-                "wait_monitor_supports_wait_completed_events"
+                "wait_monitor_supports_wait_completed_events",
             ],
             "device_properties": ["acquisition_rate"],
         }
@@ -111,8 +114,7 @@ class NI_DAQmx(IntermediateDevice):
         supports_semiperiod_measurement=False,
         **kwargs
     ):
-        """Generic class for NI_DAQmx devices. Reads capabilities from a file
-        that stores the capabilities of known devices."""
+        """Generic class for NI_DAQmx devices."""
 
         # Default static output setting based on whether the device supports buffered
         # output:
@@ -141,7 +143,7 @@ class NI_DAQmx(IntermediateDevice):
         self.MAX_name = MAX_name if MAX_name is not None else name
         self.static_AO = static_AO
         self.static_DO = static_DO
-        
+
         self.acquisition_rate = acquisition_rate
         self.AO_range = AO_range
         self.max_AI_multi_chan_rate = max_AI_multi_chan_rate
@@ -156,7 +158,7 @@ class NI_DAQmx(IntermediateDevice):
         self.supports_buffered_AO = supports_buffered_AO
         self.supports_buffered_DO = supports_buffered_DO
         self.supports_semiperiod_measurement = supports_semiperiod_measurement
-        
+
         if self.supports_buffered_DO and self.supports_buffered_AO:
             self.clock_limit = min(self.max_DO_sample_rate, self.max_AO_sample_rate)
         elif self.supports_buffered_DO:
@@ -191,6 +193,10 @@ class NI_DAQmx(IntermediateDevice):
             raise LabscriptError(dedent(msg))
 
         self.BLACS_connection = self.MAX_name
+
+        # Cannot be set with set_passed_properties because of name mangling with the
+        # initial double underscore:
+        self.set_property('__version__', __version__, 'connection_table_properties')
 
         # This is called late since it must be called after our clock_limit attribute is
         # set:
