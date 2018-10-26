@@ -18,9 +18,6 @@ if PY2:
 # or keep in local directory.
 import labscript_devices.atsapi as ats
 
-# Workaround for compound dtypes (numpy issue #10672)
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
-
 # TDQM progress indicator defaults
 tqdm_kwargs = {'file': sys.stdout, 'ascii': False, 'ncols': 80}
 
@@ -165,7 +162,7 @@ class AlazarTechBoard(Device):
         acquisitions_table_dtypes = [('connection', 'a256'), ('label', 'a256'), ('start', float),
                                      ('stop', float), ('wait label', 'a256'), ('scale factor', float), ('units', 'a256')]
         acquisition_table = np.empty(
-            len(acquisitions), dtype=dtype_workaround(acquisitions_table_dtypes))
+            len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
             acquisition_table[i] = acq
             grp = self.init_device_group(hdf5_file)
@@ -216,11 +213,11 @@ def find_clock_and_r(f, clocks):
     # that exceeds the requested frequency f.
     divisors, remainders = divmod(clocks, f)
     opts_dtypes = [('rem', 'i4'), ('div', 'i4'), ('clock', 'i4')]
-    opts = np.array(list(zip(remainders, divisors, clocks)), dtype=dtype_workaround(opts_dtypes))
-    opts.sort(order=b'rem' if PY2 else 'rem')
+    opts = np.array(list(zip(remainders, divisors, clocks)), dtype=opts_dtypes)
+    opts.sort(order='rem')
     minrem = opts['rem'][0]
     # This gets the option with minimum remainder and maximum divisor
-    bestopt = np.sort(opts[opts['rem'] == minrem], order=b'div' if PY2 else 'div')[-1]
+    bestopt = np.sort(opts[opts['rem'] == minrem], order='div')[-1]
     return bestopt['clock'], bestopt['div']
 
 
