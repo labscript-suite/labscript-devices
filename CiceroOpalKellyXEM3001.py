@@ -153,7 +153,8 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
     max_instructions = 2048
     
     @set_passed_properties(property_names = {
-        "connection_table_properties": ["reference_clock", "clock_frequency"]}
+        "connection_table_properties": ["reference_clock", "clock_frequency"],
+        "device_properties": ["trigger_delay", "wait_delay"]}
         )    
     def __init__(self, name, trigger_device=None, trigger_connection=None, serial='', reference_clock='internal', clock_frequency=100e6):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
@@ -253,10 +254,6 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
 
 @runviewer_parser
 class RunviewerClass(object):
-    clock_resolution = CiceroOpalKellyXEM3001.clock_resolution
-    trigger_delay = CiceroOpalKellyXEM3001.trigger_delay
-    wait_delay = CiceroOpalKellyXEM3001.wait_delay
-    
     def __init__(self, path, device):
         self.path = path
         self.name = device.name
@@ -278,28 +275,32 @@ class RunviewerClass(object):
         # get the pulse program
         with h5py.File(self.path, 'r') as f:
             pulse_program = f['devices/%s/PULSE_PROGRAM'%self.name][:]
-            
+            device_properties = labscript_utils.properties.get(f, self.name, 'device_properties')
+            connection_table_properties = labscript_utils.properties.get(f, self.name, 'connection_table_properties')
+        
+        clock_frequency = connection_table_properties['clock_frequency']
+
         time = []
         states = []
         trigger_index = 0
-        t = 0 if clock is None else clock_ticks[trigger_index]+self.trigger_delay
+        t = 0 if clock is None else clock_ticks[trigger_index]+device_properties['trigger_delay']
         trigger_index += 1
                
         for row in pulse_program:
             if row['on_period'] == 0: # WAIT
                 if clock is not None:
-                    t = clock_ticks[trigger_index]+self.trigger_delay
+                    t = clock_ticks[trigger_index]+device_properties['trigger_delay']
                     trigger_index += 1
                 else:
-                    t += self.wait_delay
+                    t += device_properties['wait_delay']
             else:    
                 for i in range(row['reps']):
                     time.append(t)
                     states.append(1)
-                    t += row['on_period']*self.clock_resolution
+                    t += row['on_period']/clock_frequency
                     time.append(t)
                     states.append(0)
-                    t += row['off_period']*self.clock_resolution
+                    t += row['off_period']/clock_frequency
         
         clock = (np.array(time), np.array(states))
         
@@ -508,7 +509,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             group = hdf5_file['devices/%s'%device_name]
             pulse_program = group['PULSE_PROGRAM'][:]
             device_properties = labscript_utils.properties.get(hdf5_file, device_name, 'device_properties')
-            connection_table_properties = labscript_utils.properties.get(hdf5_file, device_name, 'connection_table_properties')
+            self.connection_table_properties = labscript_utils.properties.get(hdf5_file, device_name, 'connection_table_properties')
             self.is_master_pseudoclock = device_properties['is_master_pseudoclock']
             
             # waits            
@@ -577,11 +578,12 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             # master_samples_generated = (master_samples_generated_2 << 16) + master_samples_generated_1
             
             master_samples_generated = bits_to_int(16, self.dev.GetWireOutValue(0x22), self.dev.GetWireOutValue(0x23))
-            
             self.logger.debug('Master samples generated: %d'%master_samples_generated)
         
+            clock_frequency = self.connection_table_properties['clock_frequency']
+
             # find time of current wait
-            wait_sample = int(self.wait_table[self.current_wait][1]/CiceroOpalKellyXEM3001.clock_resolution)
+            wait_sample = int(self.wait_table[self.current_wait][1]*clock_frequency)
             # for some reason this needs to be incremented by 1?
             #wait_sample += 1
             self.logger.debug('Wait sample: %d'%wait_sample)
@@ -589,7 +591,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                 # a wait has happened!
                 # let's make sure 2 waits have not happened before we noticed the first...
                 if len(self.wait_table) > self.current_wait+1:
-                    next_wait_sample = int(self.wait_table[self.current_wait+1][1]/CiceroOpalKellyXEM3001.clock_resolution)
+                    next_wait_sample = int(self.wait_table[self.current_wait+1][1]*clock_frequency)
                     assert next_wait_sample > master_samples_generated, 'Error: a wait happened too soon after another wait to determine the length of each wait individually.'
                 
                 # work out the length of the last wait
@@ -637,6 +639,8 @@ class CiceroOpalKellyXEM3001Worker(Worker):
         #       written
         #       self.wait_durations_analysed.post(self.h5_file)
     
+        clock_frequency = self.connection_table_properties['clock_frequency']
+
         if self.wait_table is not None:
             with h5py.File(self.h5_file,'a') as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so 
@@ -646,7 +650,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                 data['time'] = self.wait_table['time']
                 data['timeout'] = self.wait_table['timeout']
                 # convert to seconds
-                data['duration'] = self.measured_waits*CiceroOpalKellyXEM3001.clock_resolution
+                data['duration'] = self.measured_waits/clock_frequency
                 data['timed_out'] = data['duration'] >= data['timeout']
             
                 hdf5_file.create_dataset('/data/waits', data=data)
