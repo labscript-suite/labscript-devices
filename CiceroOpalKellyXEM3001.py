@@ -153,11 +153,14 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
     max_instructions = 2048
     
     @set_passed_properties(property_names = {
-        "connection_table_properties": ["reference_clock"]}
+        "connection_table_properties": ["reference_clock", "clock_frequency"]}
         )    
-    def __init__(self, name, trigger_device=None, trigger_connection=None, serial='', reference_clock='internal'):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, serial='', reference_clock='internal', clock_frequency=100e6):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = serial
+        
+        self.clock_limit = clock_frequency/2
+        self.clock_resolution = 1/clock_frequency
         
         # create Pseudoclock and clockline
         self._pseudoclock = CiceroOpalKellyXEM3001Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
@@ -303,7 +306,7 @@ class RunviewerClass(object):
         clocklines_and_triggers = {}
         for pseudoclock_name, pseudoclock in self.device.child_list.items():
             for clock_line_name, clock_line in pseudoclock.child_list.items():
-                if clock_line.parent_port == 'internal':
+                if clock_line.parent_port == 'Clock Out':
                     clocklines_and_triggers[clock_line_name] = clock
                     add_trace(clock_line_name, clock, self.name, clock_line.parent_port)
             
