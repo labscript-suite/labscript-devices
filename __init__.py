@@ -25,7 +25,7 @@ check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript', '2.1', '3')
 check_version('blacs', '2.4.0', '3.0.0')
 check_version('zprocess', '2.2.7', '3')
-check_version('numpy', '1.5.1', '2')
+check_version('numpy', '1.15.1', '2')
 
 from labscript_utils import labscript_suite_install_dir, dedent
 
