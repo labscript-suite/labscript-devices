@@ -327,21 +327,15 @@ class NovatechDDS9mWorker(Worker):
     def program_static(self,channel,type,value):
         if type == 'freq':
             command = b'F%d %.7f\r\n'%(channel,value/10.0**6)
-            self.connection.write(command)
-            if self.connection.readline() != b"OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'amp':
             command = b'V%d %u\r\n'%(channel,int(value*1023+0.5))
-            self.connection.write(command)
-            if self.connection.readline() != b"OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
         elif type == 'phase':
             command = b'P%d %u\r\n'%(channel,value*16384/360)
-            self.connection.write(command)
-            if self.connection.readline() != b"OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
         else:
             raise TypeError(type)
+        self.connection.write(command)
+        if self.connection.readline() != b"OK\r\n":
+            raise Exception('Error: Failed to execute command: %s' % command.decode('utf8'))
         # Now that a static update has been done, we'd better invalidate the saved STATIC_DATA:
         self.smart_cache['STATIC_DATA'] = None
      
@@ -355,7 +349,7 @@ class NovatechDDS9mWorker(Worker):
         # And back to manual mode
         self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
+            raise Exception('Error: Failed to execute command: "%s"' % self.phase_mode_command.decode('utf8'))
 
 
         # Store the initial values in case we have to abort and restore them:
