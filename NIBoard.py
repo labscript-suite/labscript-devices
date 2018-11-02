@@ -1,8 +1,14 @@
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import numpy as np
 from labscript_devices import runviewer_parser
 from labscript import IntermediateDevice, AnalogOut, DigitalOut, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
+from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 class NIBoard(IntermediateDevice):
     allowed_children = [AnalogOut, DigitalOut, AnalogIn]
@@ -60,7 +66,7 @@ class NIBoard(IntermediateDevice):
         times = pseudoclock.times[clockline]
                 
         analog_out_table = np.empty((len(times),len(analogs)), dtype=np.float32)
-        analog_connections = analogs.keys()
+        analog_connections = list(analogs.keys())
         analog_connections.sort()
         analog_out_attrs = []
         for i, connection in enumerate(analog_connections):
@@ -72,7 +78,7 @@ class NIBoard(IntermediateDevice):
                                   'the limit imposed by %s.'%self.name)
             analog_out_table[:,i] = output.raw_output
             analog_out_attrs.append(self.MAX_name +'/'+connection)
-        input_connections = inputs.keys()
+        input_connections = list(inputs.keys())
         input_connections.sort()
         input_attrs = []
         acquisitions = []
@@ -84,14 +90,14 @@ class NIBoard(IntermediateDevice):
         # characters. Can't imagine this would be an issue, but to not
         # specify the string length (using dtype=str) causes the strings
         # to all come out empty.
-        acquisitions_table_dtypes = [('connection','a256'), ('label','a256'), ('start',float),
-                                     ('stop',float), ('wait label','a256'),('scale factor',float), ('units','a256')]
+        acquisitions_table_dtypes = dtype_workaround([('connection','a256'), ('label','a256'), ('start',float),
+                                     ('stop',float), ('wait label','a256'),('scale factor',float), ('units','a256')])
         acquisition_table= np.empty(len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
             acquisition_table[i] = acq
         digital_out_table = []
         if digitals:
-            digital_out_table = self.convert_bools_to_bytes(digitals.values())
+            digital_out_table = self.convert_bools_to_bytes(list(digitals.values()))
         grp = self.init_device_group(hdf5_file)
         if all(analog_out_table.shape): # Both dimensions must be nonzero
             grp.create_dataset('ANALOG_OUTS',compression=config.compression,data=analog_out_table)

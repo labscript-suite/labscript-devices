@@ -18,9 +18,6 @@ if PY2:
 # or keep in local directory.
 import labscript_devices.atsapi as ats
 
-# Workaround for compound dtypes (numpy issue #10672)
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
-
 # TDQM progress indicator defaults
 tqdm_kwargs = {'file': sys.stdout, 'ascii': False, 'ncols': 80}
 
@@ -78,7 +75,6 @@ atsExternalClockAdvice = {
     'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
 }
 
-from labscript_devices import labscript_device
 from labscript import Device, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
 import labscript_utils.h5_lock
 import h5py
@@ -166,7 +162,7 @@ class AlazarTechBoard(Device):
         acquisitions_table_dtypes = [('connection', 'a256'), ('label', 'a256'), ('start', float),
                                      ('stop', float), ('wait label', 'a256'), ('scale factor', float), ('units', 'a256')]
         acquisition_table = np.empty(
-            len(acquisitions), dtype=dtype_workaround(acquisitions_table_dtypes))
+            len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
             acquisition_table[i] = acq
             grp = self.init_device_group(hdf5_file)
@@ -177,7 +173,7 @@ class AlazarTechBoard(Device):
                 input_attrs), location='device_properties')
 
 
-from labscript_devices import BLACS_tab, BLACS_worker
+from labscript_devices import BLACS_tab
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED
 from blacs.device_base_class import DeviceTab
@@ -217,11 +213,11 @@ def find_clock_and_r(f, clocks):
     # that exceeds the requested frequency f.
     divisors, remainders = divmod(clocks, f)
     opts_dtypes = [('rem', 'i4'), ('div', 'i4'), ('clock', 'i4')]
-    opts = np.array(list(zip(remainders, divisors, clocks)), dtype=dtype_workaround(opts_dtypes))
-    opts.sort(order=b'rem' if PY2 else 'rem')
+    opts = np.array(list(zip(remainders, divisors, clocks)), dtype=opts_dtypes)
+    opts.sort(order='rem')
     minrem = opts['rem'][0]
     # This gets the option with minimum remainder and maximum divisor
-    bestopt = np.sort(opts[opts['rem'] == minrem], order=b'div' if PY2 else 'div')[-1]
+    bestopt = np.sort(opts[opts['rem'] == minrem], order='div')[-1]
     return bestopt['clock'], bestopt['div']
 
 
@@ -274,7 +270,6 @@ def ats9462_clock(f):
 # to aborts never seeming to raise exceptions and the acquisition thread continuing on.
 
 
-@BLACS_worker
 class GuilessWorker(Worker):
     def init(self):
         global h5py

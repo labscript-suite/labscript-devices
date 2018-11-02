@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import  BLACS_tab
 from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
 import numpy as np
 
@@ -30,7 +30,7 @@ class ZaberStageTLS28M(StaticAnalogQuantity):
     maxval=282879
     description = 'Zaber Stage T-LS28-M'
 
-@labscript_device
+
 class ZaberStageController(Device):
     allowed_children = [ZaberStageTLSR150D,ZaberStageTLSR300D,ZaberStageTLS28M]
     generation = 0
@@ -121,7 +121,7 @@ class ZaberstageControllerTab(DeviceTab):
         self.create_worker("main_worker",ZaberWorker,{'com_port':self.com_port})
         self.primary_worker = "main_worker"
 
-@BLACS_worker    
+
 class ZaberWorker(Worker):
     def init(self):
         # TODO: Make this configurable

@@ -15,8 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from labscript_devices import runviewer_parser, labscript_device, BLACS_tab, BLACS_worker
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
+from labscript_devices import runviewer_parser, BLACS_tab
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -25,8 +24,7 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
-        
-@labscript_device
+
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
     allowed_children = [DDS, StaticDDS]
@@ -143,12 +141,12 @@ class NovaTechDDS9M(IntermediateDevice):
         clockline = self.parent_clock_line
         pseudoclock = clockline.parent_device
         times = pseudoclock.times[clockline]
-
-        out_table = np.zeros(len(times),dtype=dtype_workaround(dtypes))
+       
+        out_table = np.zeros(len(times),dtype=dtypes)
         out_table['freq0'].fill(1)
         out_table['freq1'].fill(1)
-
-        static_table = np.zeros(1, dtype=dtype_workaround(static_dtypes))
+        
+        static_table = np.zeros(1, dtype=static_dtypes)
         static_table['freq2'].fill(1)
         static_table['freq3'].fill(1)
         
@@ -261,7 +259,7 @@ class NovatechDDS9MTab(DeviceTab):
         self.supports_remote_value_check(True)
         self.supports_smart_programming(True) 
 
-@BLACS_worker        
+
 class NovatechDDS9mWorker(Worker):
     def init(self):
         global serial; import serial

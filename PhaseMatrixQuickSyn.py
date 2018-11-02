@@ -12,7 +12,7 @@
 #####################################################################
 
 import numpy as np
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 
 from labscript import Device, StaticDDS, StaticAnalogQuantity, StaticDigitalOut, config, LabscriptError, set_passed_properties
 import labscript_utils.properties
@@ -45,8 +45,8 @@ class QuickSynDDS(StaticDDS):
         """overridden from StaticDDS so as not to provide time resolution -
         output can be enabled or disabled only at the start of the shot"""
         self.gate.go_low()
-        
-@labscript_device              
+
+
 class PhaseMatrixQuickSyn(Device):
     description = 'QuickSyn Frequency Synthesiser'
     allowed_children = [QuickSynDDS]
@@ -197,9 +197,8 @@ class PhaseMatrixQuickSynTab(DeviceTab):
         value = self.status_ui.lock_recovery_button.isChecked()
         print value
         yield(self.queue_work(self._primary_worker,'update_lock_recovery',value))
-       
 
-@BLACS_worker
+
 class QuickSynWorker(Worker):
     def init(self):
         global serial; import serial

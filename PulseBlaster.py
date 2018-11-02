@@ -15,8 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
+from labscript_devices import BLACS_tab, runviewer_parser
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
@@ -69,8 +68,8 @@ def stop_profile(name):
     profiles[name]['min'] = profiles[name]['min'] if profiles[name]['min'] is not None and profiles[name]['min'] < runtime else runtime
     profiles[name]['max'] = profiles[name]['max'] if profiles[name]['max'] > runtime else runtime
     profiles[name]['average_time_per_call'] = profiles[name]['total_time']/profiles[name]['num_calls']
-          
-@labscript_device          
+
+
 class PulseBlaster(PseudoclockDevice):
     
     pb_instructions = {'CONTINUE':   0,
@@ -548,7 +547,7 @@ class PulseBlaster(PseudoclockDevice):
                     ('dds_en1', np.int32), ('phase_reset1', np.int32),
                     ('flags', np.int32), ('inst', np.int32),
                     ('inst_data', np.int32), ('length', np.float64)]
-        pb_inst_table = np.empty(len(pb_inst),dtype = dtype_workaround(pb_dtype))
+        pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
             instructionint = self.pb_instructions[inst['instruction']]
@@ -789,11 +788,10 @@ class PulseBlasterTab(DeviceTab):
         self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
 
 
-@BLACS_worker        
 class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
-        check_version('spinapi', '3.1.1', '4')
+        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
@@ -819,8 +817,10 @@ class PulseblasterWorker(Worker):
         pb_core_clock(75)
         
         # This is only set to True on a per-shot basis, so set it to False
-        # for manual mode
+        # for manual mode. Set associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
 
     def program_manual(self,values):
     
@@ -1022,7 +1022,7 @@ class PulseblasterWorker(Worker):
                 self.waits_pending = False
             except zprocess.TimeoutError:
                 pass
-        if self.time_based_stop_workaround:
+        if self.time_based_shot_end_time is not None:
             import time
             time_based_shot_over = time.time() > self.time_based_shot_end_time
         else:
@@ -1041,8 +1041,10 @@ class PulseblasterWorker(Worker):
             done_condition = time_based_shot_over
             
         # This is only set to True on a per-shot basis, so reset it to False
-        # for manual mode
+        # for manual mode. Reset associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
         
         if done_condition and not waits_pending:
             return True
