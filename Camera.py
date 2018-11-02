@@ -19,12 +19,11 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import BLACS_tab
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
 
-@labscript_device
+
 class Camera(TriggerableDevice):
     description = 'Generic Camera'        
     
@@ -114,7 +113,7 @@ class Camera(TriggerableDevice):
                         
     def generate_code(self, hdf5_file):
         self.do_checks()
-        table_dtypes = dtype_workaround([('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)])
+        table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)
@@ -204,7 +203,7 @@ class CameraTab(DeviceTab):
         self.ui.status_icon.setPixmap(pixmap)
         self.ui.server_status.setText(status_text)
 
-@BLACS_worker            
+
 class CameraWorker(Worker):
     def init(self):
         global socket; import socket

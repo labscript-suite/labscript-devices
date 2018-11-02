@@ -10,7 +10,7 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from labscript_devices import runviewer_parser, labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import runviewer_parser, BLACS_tab
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -19,25 +19,31 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
-        
-@labscript_device
+
 class NovaTechDDS9M(IntermediateDevice):
     description = 'NT-DDS9M'
     allowed_children = [DDS, StaticDDS]
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     @set_passed_properties(
-        property_names = {'connection_table_properties': ['update_mode']}
+        property_names = {'connection_table_properties': ['update_mode', 'synchronous_first_line_repeat', 'phase_mode']}
         )
     def __init__(self, name, parent_device, 
-                 com_port = "", baud_rate=115200, update_mode='synchronous', **kwargs):
+                 com_port = "", baud_rate=115200,
+                 update_mode='synchronous', synchronous_first_line_repeat=False,
+                 phase_mode='default', **kwargs):
 
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
         if not update_mode in ['synchronous', 'asynchronous']:
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')            
         
-        self.update_mode = update_mode        
+        if not phase_mode in ['default', 'aligned', 'continuous']:
+            raise LabscriptError('phase_mode must be \'default\', \'aligned\' or \'continuous\'')
+
+        self.update_mode = update_mode
+        self.phase_mode = phase_mode 
+        self.synchronous_first_line_repeat = synchronous_first_line_repeat
         
     def add_device(self, device):
         Device.add_device(self, device)
@@ -49,12 +55,7 @@ class NovaTechDDS9M(IntermediateDevice):
         as the argument) to check if there are certain unit calibration
         classes that they should apply to their outputs, if the user has
         not otherwise specified a calibration class"""
-        if device.connection in ['channel 0', 'channel 1']:
-            # Default calibration classes for the non-static channels:
-            return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
-        else:
-            return None, None, None
-        
+        return NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion, None
         
     def quantise_freq(self, data, device):
         if not isinstance(data, np.ndarray):
@@ -161,10 +162,24 @@ class NovaTechDDS9M(IntermediateDevice):
             static_table['amp%d'%connection] = dds.amplitude.raw_output[0]
             static_table['phase%d'%connection] = dds.phase.raw_output[0]
             
-        if self.update_mode == 'asynchronous':
-            # Duplicate the first line. Otherwise, we are one step ahead in the table
-            # from the start of a run. This problem is not completely understood, but this
-            # fixes it:
+        if self.update_mode == 'asynchronous' or self.synchronous_first_line_repeat:
+            # Duplicate the first line of the table. Otherwise, we are one step
+            # ahead in the table from the start of a run. In asynchronous
+            # updating mode, this is necessary since the first line of the
+            # table is already being output before the first trigger from
+            # the master clock. When using a simple delay line for synchronous
+            # output, this also seems to be required, in which case
+            # synchronous_first_line_repeat should be set to True.
+            # However, when a tristate driver is used as described at
+            # http://labscriptsuite.org/blog/implementation-of-the-novatech-dds9m/
+            # then is is not neccesary to duplicate the first line. Use of a
+            # tristate driver in this way is the correct way to use
+            # the novatech DDS, as per its instruction manual, and so is likely
+            # to be the most reliable. However, through trial and error we've
+            # determined that duplicating the first line like this gives correct
+            # output in asynchronous mode and in synchronous mode when using a
+            # simple delay line, at least for the specific device we tested.
+            # Your milage may vary.
             out_table = np.concatenate([out_table[0:1], out_table])
 
         grp = self.init_device_group(hdf5_file)
@@ -213,7 +228,10 @@ class NovatechDDS9MTab(DeviceTab):
         self.auto_place_widgets(("DDS Outputs",dds_widgets))
         
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
+        connection_table_properties = connection_object.properties
         
+        self.phase_mode = connection_table_properties.get('phase_mode', 'default')
+
         # Store the COM port to be used
         blacs_connection =  str(connection_object.BLACS_connection)
         if ',' in blacs_connection:
@@ -228,14 +246,15 @@ class NovatechDDS9MTab(DeviceTab):
         # Create and set the primary worker
         self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port,
                                                               'baud_rate': self.baud_rate,
-                                                              'update_mode': self.update_mode})
+                                                              'update_mode': self.update_mode,
+                                                              'phase_mode': self.phase_mode})
         self.primary_worker = "main_worker"
 
         # Set the capabilities of this device
         self.supports_remote_value_check(True)
         self.supports_smart_programming(True) 
 
-@BLACS_worker        
+
 class NovatechDDS9mWorker(Worker):
     def init(self):
         global serial; import serial
@@ -245,6 +264,14 @@ class NovatechDDS9mWorker(Worker):
         self.connection = serial.Serial(self.com_port, baudrate = self.baud_rate, timeout=0.1)
         self.connection.readlines()
         
+        # Set phase mode method
+        phase_mode_commands = {
+            'default': b'm 0',
+            'aligned': b'm a',
+            'continuous': b'm n',
+        }
+        self.phase_mode_command = phase_mode_commands[self.phase_mode]
+
         self.connection.write('e d\r\n')
         response = self.connection.readline()
         if response == 'e d\r\n':
@@ -257,9 +284,9 @@ class NovatechDDS9mWorker(Worker):
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         
-        self.connection.write('m 0\r\n')
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "m 0"')
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode.decode('utf8'))
         
         #return self.get_current_values()
         
@@ -314,6 +341,18 @@ class NovatechDDS9mWorker(Worker):
         self.smart_cache['STATIC_DATA'] = None
      
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
+
+        # Pretty please reset your memory pointer to zero:
+
+        # Transition to table mode:
+        self.connection.write(b'm t\r\n')
+        self.connection.readline()
+        # And back to manual mode
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
+        if self.connection.readline() != b"OK\r\n":
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
+
+
         # Store the initial values in case we have to abort and restore them:
         self.initial_values = initial_values
         # Store the final values to for use during transition_to_static:
@@ -416,9 +455,9 @@ class NovatechDDS9mWorker(Worker):
         return self.transition_to_manual(True)
     
     def transition_to_manual(self,abort = False):
-        self.connection.write('m 0\r\n')
+        self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "m 0"')
+            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
         self.connection.write('I a\r\n')
         if self.connection.readline() != "OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
@@ -472,17 +511,22 @@ class RunviewerClass(object):
         
         # get the data out of the H5 file
         data = {}
-        with h5py.File(self.path, 'r') as f:
-            if 'TABLE_DATA' in f['devices/%s'%self.name]:
-                table_data = f['devices/%s/TABLE_DATA'%self.name][:]
+        with h5py.File(self.path, 'r') as hdf5_file:
+            if 'TABLE_DATA' in hdf5_file['devices/%s' % self.name]:
+                table_data = hdf5_file['devices/%s/TABLE_DATA' % self.name][:]
+                connection_table_properties = labscript_utils.properties.get(hdf5_file, self.name, 'connection_table_properties')
+                update_mode = getattr(connection_table_properties, 'update_mode', 'synchronous')
+                synchronous_first_line_repeat = getattr(connection_table_properties, 'synchronous_first_line_repeat', False)
+                if update_mode == 'asynchronous' or synchronous_first_line_repeat:
+                    table_data = table_data[1:]
                 for i in range(2):
-                    for sub_chnl in ['freq', 'amp', 'phase']:                        
+                    for sub_chnl in ['freq', 'amp', 'phase']:
                         data['channel %d_%s'%(i,sub_chnl)] = table_data['%s%d'%(sub_chnl,i)][:]
                                 
-            if 'STATIC_DATA' in f['devices/%s'%self.name]:
-                static_data = f['devices/%s/STATIC_DATA'%self.name][:]
+            if 'STATIC_DATA' in hdf5_file['devices/%s'%self.name]:
+                static_data = hdf5_file['devices/%s/STATIC_DATA'%self.name][:]
                 for i in range(2,4):
-                    for sub_chnl in ['freq', 'amp', 'phase']:                        
+                    for sub_chnl in ['freq', 'amp', 'phase']:
                         data['channel %d_%s'%(i,sub_chnl)] = np.empty((len(clock_ticks),))
                         data['channel %d_%s'%(i,sub_chnl)].fill(static_data['%s%d'%(sub_chnl,i)][0])
             
@@ -497,4 +541,4 @@ class RunviewerClass(object):
                     add_trace(subchnl.name, data[connection], self.name, connection)
         
         return {}
-    
+
