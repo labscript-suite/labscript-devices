@@ -263,6 +263,7 @@ class NovatechDDS9MTab(DeviceTab):
 class NovatechDDS9mWorker(Worker):
     def init(self):
         global serial; import serial
+        global socket; import socket
         global h5py; import labscript_utils.h5_lock, h5py
         self.smart_cache = {'STATIC_DATA': None, 'TABLE_DATA': ''}
         
