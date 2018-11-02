@@ -28,7 +28,6 @@ if PY2:
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
 from labscript import IntermediateDevice, DigitalOut, AnalogOut, config
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
 import numpy as np
 
 @labscript_device
@@ -62,7 +61,7 @@ class DummyIntermediateDevice(IntermediateDevice):
             dtypes.append((device.name, device_dtype))
 
         # create dataset
-        out_table = np.zeros(len(times), dtype=dtype_workaround(dtypes))
+        out_table = np.zeros(len(times), dtype=dtypes)
         for device in self.child_devices:
             out_table[device.name][:] = device.raw_output
 
