@@ -19,7 +19,6 @@ if PY2:
 import labscript_utils.h5_lock
 import h5py
 from labscript_utils import VersionException, dedent
-from distutils.version import LooseVersion
 
 from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
