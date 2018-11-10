@@ -34,7 +34,6 @@ from labscript import (
     LabscriptError,
     set_passed_properties,
 )
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
 from labscript_utils import dedent
 from .utils import split_conn_DO, split_conn_AO, split_conn_AI
 import numpy as np
@@ -321,7 +320,7 @@ class NI_DAQmx(IntermediateDevice):
             return None
         n_timepoints = 1 if self.static_AO else len(times)
         connections = sorted(analogs, key=split_conn_AO)
-        dtypes = dtype_workaround([(c, np.float32) for c in connections])
+        dtypes = [(c, np.float32) for c in connections]
         analog_out_table = np.empty(n_timepoints, dtype=dtypes)
         for connection, output in analogs.items():
             analog_out_table[connection] = output.raw_output
@@ -349,7 +348,7 @@ class NI_DAQmx(IntermediateDevice):
                 columns[port] = (port_str, int_type)
                 bits_by_port[port] = [0] * int_type_nbits
             bits_by_port[port][line] = output.raw_output
-        dtypes = dtype_workaround([columns[port] for port in sorted(columns)])
+        dtypes = [columns[port] for port in sorted(columns)]
         digital_out_table = np.empty(n_timepoints, dtype=dtypes)
         for port, bits in bits_by_port.items():
             # Pack the bits from each port into an integer:
@@ -381,17 +380,15 @@ class NI_DAQmx(IntermediateDevice):
         # characters. Can't imagine this would be an issue, but to not
         # specify the string length (using dtype=str) causes the strings
         # to all come out empty.
-        acquisitions_table_dtypes = dtype_workaround(
-            [
-                ('connection', 'a256'),
-                ('label', 'a256'),
-                ('start', float),
-                ('stop', float),
-                ('wait label', 'a256'),
-                ('scale factor', float),
-                ('units', 'a256'),
-            ]
-        )
+        acquisitions_table_dtypes = [
+            ('connection', 'a256'),
+            ('label', 'a256'),
+            ('start', float),
+            ('stop', float),
+            ('wait label', 'a256'),
+            ('scale factor', float),
+            ('units', 'a256'),
+        ]
         acquisition_table = np.empty(len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
             acquisition_table[i] = acq

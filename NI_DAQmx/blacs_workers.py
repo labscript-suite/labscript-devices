@@ -38,7 +38,6 @@ from zprocess.utils import _reraise
 import labscript_utils.properties as properties
 from labscript_utils import dedent
 from labscript_utils.connections import _ensure_str
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
 
 from blacs.tab_base_classes import Worker
 
@@ -560,7 +559,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # array with channel names:
         start_time = time.time()
         dtypes = [(chan, np.float32) for chan in self.buffered_chans]
-        raw_data = np.concatenate(self.acquired_data).view(dtype_workaround(dtypes))
+        raw_data = np.concatenate(self.acquired_data).view(dtypes)
         raw_data = raw_data.reshape((len(raw_data),))
         self.acquired_data = None
         self.buffered_chans = None
@@ -621,7 +620,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
                 values = raw_data[connection][i_start : i_end + 1]
                 dtypes = [('t', np.float64), ('values', np.float32)]
-                data = np.empty(len(values), dtype=dtype_workaround(dtypes))
+                data = np.empty(len(values), dtype=dtypes)
                 data['t'] = times
                 data['values'] = values
                 measurements.create_dataset(label, data=data)
@@ -891,7 +890,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 ('duration', float),
                 ('timed_out', bool),
             ]
-            data = np.empty(len(self.wait_table), dtype=dtype_workaround(dtypes))
+            data = np.empty(len(self.wait_table), dtype=dtypes)
             data['label'] = self.wait_table['label']
             data['time'] = self.wait_table['time']
             data['timeout'] = self.wait_table['timeout']
