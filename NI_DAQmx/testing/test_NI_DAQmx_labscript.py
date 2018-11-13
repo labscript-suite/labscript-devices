@@ -12,7 +12,8 @@ from labscript import (
     StaticDigitalOut,
     AnalogIn,
     WaitMonitor,
-    wait
+    wait,
+    add_time_marker
 )
 
 import sys
@@ -68,6 +69,8 @@ t += 1
 ai0.acquire('acq1', t, t+1)
 t += ao0.ramp(t, duration=1, initial=1, final=10, samplerate=5)
 # do1.go_high(t)
+
+add_time_marker(t, 'MOT_LOAD', color=(0,64,0))
 
 t += 1
 

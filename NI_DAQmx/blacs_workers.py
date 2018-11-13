@@ -743,7 +743,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                         self.send_resume_trigger(pulse_width)
                         # Wait for it to respond to that:
                         self.logger.debug('Waiting for pulse indicating end of wait')
-                        semiperiods = self.read_edges(2, timeout)
+                        semiperiods = self.read_edges(2, timeout=None)
                     # Alright, now we're at the end of the wait.
                     self.semiperiods.extend(semiperiods)
                     self.logger.debug('Wait completed')
