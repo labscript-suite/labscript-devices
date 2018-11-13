@@ -19,9 +19,21 @@ if PY2:
 
     open = io.open
 
-from labscript_utils import check_version
 
-check_version('PyDAQmx', '1.4.1', '2.0.0')
+from labscript_utils import check_version, VersionException
+
+try:
+    check_version('PyDAQmx', '1.4.1', '2.0.0')
+except VersionException:
+    import PyDAQmx.DAQmxFunctions
+    import PyDAQmx
+
+    if hasattr(PyDAQmx.DAQmxFunctions, 'DAQWarning') and PyDAQmx.__version__ == '1.4':
+        # It is actually v1.4.1. v1.4.1 has a bug in that it reports itself as v 1.4.
+        pass
+    else:
+        raise
+
 
 import numpy as np
 import os
@@ -139,6 +151,7 @@ DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
     if clock_terminal not in DAQmxGetDevTerminals(device_name):
+        assert False
         return False
     npts = 10
     task = Task()

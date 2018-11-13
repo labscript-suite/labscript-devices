@@ -1,8 +1,19 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
 
-from labscript_utils import check_version
+from labscript_utils import check_version, VersionException
 
-check_version('PyDAQmx', '1.4.1', '2.0.0')
+try:
+    check_version('PyDAQmx', '1.4.1', '2.0.0')
+except VersionException:
+    import PyDAQmx.DAQmxFunctions
+    import PyDAQmx
+
+    if hasattr(PyDAQmx.DAQmxFunctions, 'DAQWarning') and PyDAQmx.__version__ == '1.4':
+        # It is actually v1.4.1. v1.4.1 has a bug in that it reports itself as v 1.4.
+        pass
+    else:
+        raise
+
 
 import ctypes
 import PyDAQmx as daqmx
