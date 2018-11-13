@@ -149,19 +149,19 @@ DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
 DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 
-def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
-    if clock_terminal not in DAQmxGetDevTerminals(device_name):
-        assert False
-        return False
+def port_supports_buffered(device_name, port, clock_terminal=None):
+    all_terminals = DAQmxGetDevTerminals(device_name)
+    if clock_terminal is None:
+        clock_terminal = all_terminals[0]
     npts = 10
     task = Task()
-    clock_terminal = '/' + device_name + '/' + clock_terminal
+    clock_terminal_full = '/' + device_name + '/' + clock_terminal
     data = np.zeros(npts, dtype=np.uint8)
     task.CreateDOChan(
         device_name + "/" + port + '/line0', "", c.DAQmx_Val_ChanForAllLines
     )
     task.CfgSampClkTiming(
-        clock_terminal, 100, c.DAQmx_Val_Rising, c.DAQmx_Val_FiniteSamps, npts
+        clock_terminal_full, 100, c.DAQmx_Val_Rising, c.DAQmx_Val_FiniteSamps, npts
     )
     written = int32()
     try:
@@ -173,10 +173,15 @@ def port_supports_buffered(device_name, port, clock_terminal='PFI0'):
         PyDAQmx.DAQmxFunctions.PhysicalChanNotSupportedGivenSampTimingType653xError,
     ):
         return False
-    except PyDAQmx.DAQmxFunctions.RouteNotSupportedByHW_RoutingError as e:
-        valid_terms = e.message.split('Suggested Values: ')[1].split('\n')[0]
-        # Try again with one of the suggested terminals:
-        return port_supports_buffered(device_name, port, valid_terms[0].split(', ')[0])
+    except PyDAQmx.DAQmxFunctions.RouteNotSupportedByHW_RoutingError:
+        # Try again with a different terminal
+        current_terminal_index = all_terminals.index(clock_terminal)
+        if current_terminal_index == len(all_terminals) - 1:
+            # There are no more terminals. No terminals can be used as clocks,
+            # therefore we cannot do externally clocked buffered output.
+            return False
+        next_terminal_to_try = all_terminals[current_terminal_index + 1]
+        return port_supports_buffered(device_name, port, next_terminal_to_try)
     else:
         return True
     finally:

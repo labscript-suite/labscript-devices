@@ -100,19 +100,19 @@
         "ports": {
             "port0": {
                 "num_lines": 8,
-                "supports_buffered": false
+                "supports_buffered": true
             },
             "port1": {
                 "num_lines": 8,
-                "supports_buffered": false
+                "supports_buffered": true
             },
             "port2": {
                 "num_lines": 8,
-                "supports_buffered": false
+                "supports_buffered": true
             },
             "port3": {
                 "num_lines": 8,
-                "supports_buffered": false
+                "supports_buffered": true
             },
             "port4": {
                 "num_lines": 6,
