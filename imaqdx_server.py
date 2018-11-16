@@ -43,8 +43,15 @@ __author__ = 'dt'
 
 
 def _ensure_str(s):
-    """convert bytestrings and numpy strings to python strings"""
-    return s.decode() if isinstance(s, bytes) else str(s)
+    """Convert bytestrings and numpy strings to python strings.
+    Leave other types unchanged.
+    """
+    if isinstance(s, bytes):
+        return s.decode()
+    elif isinstance(s, np.string_):
+        return str(s)
+    else:
+        return s
 
 
 def enumerate_cameras(connectedOnly=True):
@@ -68,8 +75,10 @@ class IMAQdx_Camera(object):
                 hb = hi.to_bytes(4, 'big')
                 lb = lo.to_bytes(4, 'big')
                 xx = int.from_bytes(hb+lb, 'big')
-                xx = hex(xx).split('x')[-1].upper()
-
+                if not xx == sn:
+                    xx = hex(xx).split('x')[-1].upper()
+                if isinstance(sn, str):
+                    sn = sn.upper()
                 if xx == sn:
                     self.camera = cam
                     print(f'Connected to {sn}.')
