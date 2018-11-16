@@ -306,10 +306,8 @@ class IMAQdxCameraServer(CameraServer):
         self.camera = camera
         self.camera_name = camera_name
         self.imgs = []
-
-    def __init__(self, *args, **kwargs):
-        CameraServer.__init__(self, *args, **kwargs)
         self.acquisition_thread = None
+
 
     def transition_to_buffered(self, h5_filepath):
         self.n_images = 0
