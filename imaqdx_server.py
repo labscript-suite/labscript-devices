@@ -319,26 +319,64 @@ class IMAQdxCameraServer(CameraServer):
 
     def transition_to_buffered(self, h5_filepath):
         self.n_images = 0
-        # How many images to get
-        with h5py.File(h5_filepath, 'r') as f:
+        # Parse the h5 file for number of exposures and camera properties
+        with h5py.File(h5_filepath, 'r') as h5_file:
             # groupname = self.camera_name
-            group = f['devices'][self.camera_name]
+            group = h5_file['devices'][self.camera_name]
             if not 'EXPOSURES' in group:
-                print('no camera exposures in this shot.')
+                print('No camera exposures in this shot.')
                 return
+            self.exposures = group['EXPOSURES'].value
             self.n_images = len(group['EXPOSURES'])
 
-            # This should be empty if the experiment doesn't define any
-            # new properties
-            imaqdx_properties = group.attrs['added_properties']
-            if len(imaqdx_properties):
-                print('Overwriting connection table attributes.')
-                cam.set_attributes_dict(dict(imaqdx_properties))
+            # Get the imaqdx_properties from the device_properties
+            self.device_properties = labscript_utils.properties.get(
+                h5_file, self.camera_name, 'device_properties')
+            imaqdx_properties = self.device_properties['added_properties']
 
-        print(f'Configured for {self.n_images} images.')
+            # Get the exposure time
+            exposure_time = self.device_properties['exposure_time']
 
+            # Get the stop time of the experiment
+            devices = [self.camera_name.encode()]
+            connection_table = h5_file['/connection table'].value
+            try:
+                while not devices[-1] == b'None' and len(devices) < len(connection_table):
+                    parent_device = connection_table[connection_table['name'] == devices[-1]]['parent'][0]
+                    devices.append(parent_device)
+                parent_device = devices[-2]
+                stop_time = h5_file[b'/devices/' + parent_device].attrs['stop_time']
+            except KeyError:
+                print('Could not determine experiment duration.')
+                stop_time = None
+
+        # Set the camera properties
+        timeout_attr = 'AcquisitionAttributes::Timeout'
+        exposure_attr = 'CameraAttributes::Controls::Exposure::ExposureTimeAbs'
+        if timeout_attr not in imaqdx_properties and stop_time is not None:
+            print('Setting {} to {:.3f}s'.format(timeout_attr, stop_time + 60))
+            cam.set_attribute(timeout_attr, 1e3 * (stop_time + 60))
+        if exposure_attr not in imaqdx_properties and exposure_time is not None:
+            print('Setting {} to {:.3f}ms'.format(exposure_attr, 1e3 * exposure_time))
+            cam.set_attribute(exposure_attr, 1e6 * exposure_time)
+        if len(imaqdx_properties):
+            print('Updating the following IMAQdx properties:')
+            for key, val in imaqdx_properties.items():
+                print('{:}: {:}'.format(key, val))
+            print('\n')
+            cam.set_attributes_dict(imaqdx_properties)
+
+        # Get the camera properties
+        self.exposure_time = cam.get_attribute(exposure_attr)
+        self.width = cam.get_attribute('CameraAttributes::ImageFormat::Width')
+        self.height = cam.get_attribute('CameraAttributes::ImageFormat::Height')
+        self.binning_horizontal = cam.get_attribute('CameraAttributes::ImageMode::BinningHorizontal')
+        self.binning_vertical = cam.get_attribute('CameraAttributes::ImageMode::BinningVertical')
+        # self.pixel_format = cam.get_attribute('CameraAttributes::ImageFormat::PixelFormat')
+
+
+        print(f'Configuring camera for {self.n_images} images.')
         self.camera.configure_acquisition()
-
         self.imgs = []
         self.acquisition_thread = threading.Thread(target=self.camera.grab_multiple,
                                                    args=(self.n_images, self.imgs),
