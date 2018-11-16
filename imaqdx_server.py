@@ -85,9 +85,7 @@ class IMAQdx_Camera(object):
                     break
             else:
                 raise Exception('Need to define either alias or sn to connect to camera.')
-                    
-                    
-            # dir(cam) for attributes
+
 
         # Open it in controller mode
         try:
@@ -165,12 +163,11 @@ class IMAQdx_Camera(object):
         try:
             attr = nv.IMAQdxGetAttribute(self.imaqdx,
                                          bytes(attr, encoding='utf8'))
-        except TypeError:
-            print('Cannot get attribute of type '
-                  'IMAQdxAttributeTypeCommand = IMAQdxAttributeType(6).')
+        except nv.ImaqDxError as e:
+            print('ImaqDxError: ' + str(e))
             return None
 
-        # it can either be a number or IMAQdxEnumItem. Return value or name
+        # It can either be a number or IMAQdxEnumItem. Return value or name
         try:
             return attr.Name.decode('utf8')
         except AttributeError:
@@ -181,9 +178,9 @@ class IMAQdx_Camera(object):
         try:
             return nv.IMAQdxEnumerateAttributeValues(self.imaqdx,
                                                      bytes(attr, encoding='utf8'))
-        except ImaqDxError:
-            print('Attribute is not enum.')
-            # not sure this is the only case here.
+        except nv.ImaqDxError as e:
+            print('ImaqDxError: ' + str(e))
+            return None
 
     # class IMAQdxValueType(Enumeration): pass
     # IMAQdxValueTypeU32 = IMAQdxValueType(0)
