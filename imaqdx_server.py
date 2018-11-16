@@ -218,7 +218,7 @@ class IMAQdx_Camera(object):
 
         return self._decode_image_data(self.img)
 
-    def configure_aqquisition(self, continuous=True, bufferCount=5):
+    def configure_acquisition(self, continuous=True, bufferCount=5):
 
         nv.IMAQdxConfigureAcquisition(self.imaqdx, continuous=continuous,
                                       bufferCount=bufferCount)
@@ -236,16 +236,18 @@ class IMAQdx_Camera(object):
         return self._decode_image_data(self.img)
 
     def grab_multiple(self, n_images, imgs, waitForNextBuffer=True):
+        print(f'Attempting to grab {n_images} images.')
         idx = 0
         # for _ in range(n_images):
         while idx < n_images:
             if self._abort_acquisition:
+                print('Abort during acquisition.')
                 self._abort_acquisition = False
                 break
             try:
                 imgs.append(self.grab(waitForNextBuffer))
-                # print('Got an image.')
                 idx += 1
+                print(f'Got image {idx} of {n_images}.')
             except nv.ImaqDxError as e:
                 if e.code == nv.IMAQdxErrorTimeout.value:
                     # print('Acquisition timeout.')
@@ -253,7 +255,7 @@ class IMAQdx_Camera(object):
             except Exception:
                 raise
 
-        print(f'got {len(imgs)} images.')
+        print(f'Got all {len(imgs)} images.')
 
 
     def abort_acquisition(self):
@@ -285,7 +287,7 @@ class IMAQdx_Camera(object):
 
         # bitdepth in bytes
         bitdepth = len(img_array[0]) // (img_array[1] * img_array[2])
-        print(bitdepth)
+        # print(bitdepth)
         if bitdepth == 1:
             dtype = np.uint8
         elif bitdepth == 2:
@@ -335,7 +337,7 @@ class IMAQdxCameraServer(CameraServer):
 
         print(f'Configured for {self.n_images} images.')
 
-        self.camera.configure_aqquisition()
+        self.camera.configure_acquisition()
 
         self.imgs = []
         self.acquisition_thread = threading.Thread(target=self.camera.grab_multiple,
