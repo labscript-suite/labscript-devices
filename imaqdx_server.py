@@ -1,8 +1,8 @@
 #####################################################################
 #                                                                   #
-# /labscript_utils/imaqdx_server.py                                 #
+# /labscript_devices/imaqdx_server.py                               #
 #                                                                   #
-# Copyright 2017, Joint Quantum Institute                           #
+# Copyright 2018, Joint Quantum Institute                           #
 #                                                                   #
 # This file is part of labscript_utils, in the labscript suite      #
 # (see http://labscriptsuite.org), and is licensed under the        #
@@ -24,6 +24,7 @@ import time
 import zprocess
 from labscript_utils import check_version
 from labscript_utils.camera_server import CameraServer
+import labscript_utils.properties
 import labscript_utils.shared_drive
 # importing this wraps zlock calls around HDF file openings and closings:
 import labscript_utils.h5_lock
@@ -31,15 +32,12 @@ import h5py
 check_version('zprocess', '1.3.3', '3.0')
 import threading
 
-__author__ = 'dt'
+__author__ = ['dt', 'rpanderson', 'cbillington']
 
-# for help on these functions
-# IMAQdx
-# <NI_install_path>\NI-IMAQdx\Docs\NI-IMAQdx_Function_Reference.chm
-
-# NIVision contains imaq functions of which I need only imaqCreateImage()
-# and imaqImageToArray()
+# NIVision contains IMAQdx functions
 # <NI_install_path>\Vision\Documentation\NIVisionCVI.chm
+# for help on these functions
+# <NI_install_path>\NI-IMAQdx\Docs\NI-IMAQdx_Function_Reference.chm
 
 
 def _ensure_str(s):
@@ -59,8 +57,6 @@ def enumerate_cameras(connectedOnly=True):
 
 class IMAQdx_Camera(object):
     def __init__(self, sn=None, alias=None):
-
-        # TODO change init to serial number
 
         cams = enumerate_cameras()
         for cam in cams:
@@ -87,7 +83,6 @@ class IMAQdx_Camera(object):
                 raise Exception('Need to define either alias or sn to connect to camera.')
 
 
-        # Open it in controller mode
         try:
             print('Opening camera in controller mode.')
             print('self.camera.InterfaceName is', self.camera.InterfaceName)
@@ -97,7 +92,7 @@ class IMAQdx_Camera(object):
         except AttributeError:
             print('Camera not found.')
 
-        # keep an img object so I don't have to create it every time
+        # Keep an img attribute so we don't have to create it every time
         print('Creating image object.')
         self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16)
 
@@ -112,8 +107,6 @@ class IMAQdx_Camera(object):
     def enumerate_attributes(self, root='', writeable=True, visibility='simple'):
         # root can be AcquisitionAttributes, CameraAttributes,
         # CameraInformation and the like
-
-        # TODO only encode if it's string. If it's bytes just pass it
 
         if visibility == 'simple':
             visibility = nv.IMAQdxAttributeVisibilitySimple
@@ -205,7 +198,7 @@ class IMAQdx_Camera(object):
     def set_attribute(self, attr, value):
         # attr names need to be bytes but values can be strings
         attr = _ensure_str(attr).encode('utf8')
-        assert isinstance(value, (bytes, str))
+        assert isinstance(value, (bytes, str, float))
         nv.IMAQdxSetAttribute(self.imaqdx, attr, value)
 
     def set_attributes_dict(self, attr_dict):
@@ -261,24 +254,6 @@ class IMAQdx_Camera(object):
     def abort_acquisition(self):
         self._abort_acquisition = True
 
-    # def sequence(self, num_of_images):
-    #     # Don't use this function
-    #     raise Exception("Don't use this function.")
-    #
-    #     img_list = []
-    #
-    #     for _ in range(num_of_images):
-    #         img_list.append(nv.imaqCreateImage(nv.IMAQ_IMAGE_U16))
-    #
-    #     imgs = nv.iterableToArray(img_list, type=nv.Image)
-    #     nv.IMAQdxSequence(self.imaqdx, imgs[0])
-    #
-    #     # TODO this fails. Pointer in ImaqArray created above seems to
-    #     # be pointing to nothing?
-    #     # for idx in range(num_of_images):
-    #     #     img_list[idx] = self._decode_image_data(imgs[0][idx])
-    #
-    #     return imgs
 
     def _decode_image_data(self, img):
 
@@ -301,18 +276,18 @@ class IMAQdx_Camera(object):
 
         return data.copy()
 
-    # TODO use
-    # nv.IMAQdxReadAttributes()
-    # nv.IMAQdxWriteAttributes()
-    # to write attrs NOT to default file. Then I can compare with h5_properties
-    # and only set the ones tha are different.
-
 
 class IMAQdxCameraServer(CameraServer):
-    def __init__(self, port, camera, camera_name):
+    """Subclass of CameraServer for IMAQdx cameras."""
+
+    def __init__(self, port, camera, camera_name, 
+                 image_path='images/', named_exposures=True, imageify=True):
         CameraServer.__init__(self, port)
         self.camera = camera
         self.camera_name = camera_name
+        self.image_path = image_path
+        self.named_exposures = named_exposures
+        self.imageify = imageify
         self.imgs = []
         self.acquisition_thread = None
 
@@ -321,7 +296,6 @@ class IMAQdxCameraServer(CameraServer):
         self.n_images = 0
         # Parse the h5 file for number of exposures and camera properties
         with h5py.File(h5_filepath, 'r') as h5_file:
-            # groupname = self.camera_name
             group = h5_file['devices'][self.camera_name]
             if not 'EXPOSURES' in group:
                 print('No camera exposures in this shot.')
@@ -355,24 +329,24 @@ class IMAQdxCameraServer(CameraServer):
         exposure_attr = 'CameraAttributes::Controls::Exposure::ExposureTimeAbs'
         if timeout_attr not in imaqdx_properties and stop_time is not None:
             print('Setting {} to {:.3f}s'.format(timeout_attr, stop_time + 60))
-            cam.set_attribute(timeout_attr, 1e3 * (stop_time + 60))
+            self.camera.set_attribute(timeout_attr, 1e3 * (stop_time + 60))
         if exposure_attr not in imaqdx_properties and exposure_time is not None:
             print('Setting {} to {:.3f}ms'.format(exposure_attr, 1e3 * exposure_time))
-            cam.set_attribute(exposure_attr, 1e6 * exposure_time)
+            self.camera.set_attribute(exposure_attr, 1e6 * exposure_time)
         if len(imaqdx_properties):
             print('Updating the following IMAQdx properties:')
             for key, val in imaqdx_properties.items():
                 print('{:}: {:}'.format(key, val))
             print('\n')
-            cam.set_attributes_dict(imaqdx_properties)
+            self.camera.set_attributes_dict(imaqdx_properties)
 
         # Get the camera properties
-        self.exposure_time = cam.get_attribute(exposure_attr)
-        self.width = cam.get_attribute('CameraAttributes::ImageFormat::Width')
-        self.height = cam.get_attribute('CameraAttributes::ImageFormat::Height')
-        self.binning_horizontal = cam.get_attribute('CameraAttributes::ImageMode::BinningHorizontal')
-        self.binning_vertical = cam.get_attribute('CameraAttributes::ImageMode::BinningVertical')
-        # self.pixel_format = cam.get_attribute('CameraAttributes::ImageFormat::PixelFormat')
+        self.exposure_time = self.camera.get_attribute(exposure_attr)
+        self.width = self.camera.get_attribute('CameraAttributes::ImageFormat::Width')
+        self.height = self.camera.get_attribute('CameraAttributes::ImageFormat::Height')
+        self.binning_horizontal = self.camera.get_attribute('CameraAttributes::ImageMode::BinningHorizontal')
+        self.binning_vertical = self.camera.get_attribute('CameraAttributes::ImageMode::BinningVertical')
+        self.pixel_format = self.camera.get_attribute('CameraAttributes::ImageFormat::PixelFormat')
 
 
         print(f'Configuring camera for {self.n_images} images.')
@@ -387,36 +361,11 @@ class IMAQdxCameraServer(CameraServer):
     def transition_to_static(self, h5_filepath):
 
         start_time = time.time()
-        # with h5py.File(h5_filepath) as f:
-        #     # for dev in f['devices']:
-        #     #     attrs = dict(f['devices'][dev].attrs)
-        #     #     if 'visa_resource' in attrs.keys():
-        #     #         if self.scope.visa.resource_name == attrs['visa_resource']:
-        #     #             groupname = dev
-        #
-        #     groupname = self.camera_name
-        #     # print(groupname)
-        #
-        #     group = f['devices'][groupname]
-        #     if not 'EXPOSURES' in group:
-        #         print('no camera exposures in this shot.')
-        #         return
-
-        # print(self.group)
-
         if self.n_images:
-        #         print('no camera exposures in this shot.')
-        #         return
-
-            # n_images = len(self.group['EXPOSURES'])
-
             self.acquisition_thread.join(timeout=1)
             if self.acquisition_thread.is_alive():
                 print('Timeout in acquisition thread. Returning empty images.')
                 self.imgs = []
-                # zprocess.raise_exception_in_thread(sys.exc_info())
-                               # for _ in range(n_images):
-                #     self.imgs.append(np.zeros((500, 500)))
                 self.camera.abort_acquisition()
             self.acquisition_thread.join()
             self.acquisition_thread = None
@@ -431,13 +380,48 @@ class IMAQdxCameraServer(CameraServer):
             #     # Just save the first however many we were expecting:
             #     self.imgs = self.imgs[:n_images]
 
-            with h5py.File(h5_filepath) as f:
-                group = f.create_group('/data/images' + self.camera_name)
-                group.create_dataset('Raw',data=np.array(self.imgs))
-        print(self.camera_name + ' camera shots saving time: %s s' %str(time.time() - start_time))
-
+            with h5py.File(h5_filepath) as h5_file:
+                # Use orientation for image path, camera_name if orientation unspecified
+                if self.device_properties['orientation']:
+                    image_path = self.image_path + _ensure_str(self.device_properties['orientation'])
+                else:
+                    image_path = self.image_path + _ensure_str(self.camera_name)
+                image_group = h5_file.require_group(image_path)
+                image_group.attrs['camera'] = self.camera_name.encode('utf8')
+                image_group.attrs.create(
+                    'ExposureTimeAbs', self.exposure_time, dtype='float64')
+                image_group.attrs.create(
+                    'Width', self.width, dtype='int64')
+                image_group.attrs.create(
+                    'Height', self.height, dtype='int64')
+                if self.binning_horizontal:
+                    image_group.attrs.create(
+                        'BinningHorizontal', self.binning_horizontal, dtype='int8')
+                if self.binning_vertical:
+                    image_group.attrs.create(
+                        'BinningVertical', self.binning_vertical, dtype='int8')
+                if self.named_exposures:
+                    for i, exposure in enumerate(self.exposures):
+                        group = image_group.require_group(exposure['name'])
+                        dset = group.create_dataset(exposure['frametype'], data=self.imgs[i],
+                                                    dtype='uint16', compression='gzip')
+                        if self.imageify:
+                            # Specify this dataset should be viewed as an image
+                            dset.attrs['CLASS'] = np.string_('IMAGE')
+                            dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
+                            dset.attrs['IMAGE_SUBCLASS'] = np.string_(
+                                'IMAGE_GRAYSCALE')
+                            dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
+                        print('Saved frame {:}'.format(exposure['frametype']))
+                else:
+                    image_group.create_dataset('Raw', data=np.array(self.imgs))
+        else:
+            print('No camera exposures in this shot.\n\n')
+            return
+        print(self.camera_name + ' saving time: {:.3f}ms'.format(1e3*(time.time()-start_time)))
+        print('Stopping IMAQdx acquisition.\n\n')
         self.camera.stop_acquisition()
-        # print('to static out')
+
 
     def abort(self):
         if self.acquisition_thread is not None:
@@ -449,12 +433,6 @@ class IMAQdxCameraServer(CameraServer):
 
 if __name__ == '__main__':
 
-    from labscript_utils.labconfig import LabConfig
-    import labscript_utils.properties
-    import h5py
-    print('Reading labconfig')
-    lc = LabConfig()
-
     import sys
     try:
         camera_name = sys.argv[1]
@@ -462,32 +440,45 @@ if __name__ == '__main__':
         print('Call me with the name of a camera as defined in BLACS.')
         sys.exit(0)
 
+    from labscript_utils.labconfig import LabConfig
+    print('Reading labconfig')
+    lc = LabConfig()
+
     h5_filepath = lc.get('paths', 'connection_table_h5')
-    print('Getting properties of {:} from connection table: {:}'.format(camera_name, h5_filepath))
-    with h5py.File(h5_filepath, 'r') as f:
-        h5_attrs = labscript_utils.properties.get(f, camera_name,
-                                                   'device_properties')
-        blacs_port = labscript_utils.properties.get(f, camera_name,
-                                    'connection_table_properties')['BIAS_port']
+    print(f'Getting properties of {camera_name} from connection table: {h5_filepath}')
+    with h5py.File(h5_filepath, 'r') as h5_file:
+        device_properties = labscript_utils.properties.get(
+            h5_file, camera_name, 'device_properties')
+        port = labscript_utils.properties.get(
+            h5_file, camera_name, 'connection_table_properties')['BIAS_port']
 
-    # get the properties in a dict
-    print('Converting camera properties to dictionary.')
-    imaqdx_properties = dict(h5_attrs['added_properties'])
-    # imaqdx_properties = dict(imaqdx_array)
-
-    sn = _ensure_str(h5_attrs['serial_number'])
+    print('Getting imaqdx_properties from device_properties:')
+    imaqdx_properties = device_properties['added_properties']
     # print(imaqdx_properties)
 
-    print('Instantiating IMAQdx_Camera.')
-    # cam = IMAQdx_Camera(alias=camera_name)
-    cam = IMAQdx_Camera(sn=sn)
-    # cam.write_attribute_values_to_file()
-    print('Setting camera attributes.')
-    cam.set_attributes_dict(imaqdx_properties)
-    # Get the attributes from the shared connection table.
-    # Then overwrite them per experiment if the experiment defines any new ones
+    # Get server settings
+    server_kwargs = {}
+    for option in ['image_path', 'named_exposures', 'imageify']:
+        if lc.get('imaqdx_server', option, fallback=None):
+            if option is 'image_path':
+                val = lc.get('imaqdx_server', option)
+            else:
+                val = lc.getboolean('imaqdx_server', option)
+            server_kwargs[option] = val
+            print(f'Overriding {option} with {val}.')
 
-    print('starting camera server on port %d...' % blacs_port)
-    server = IMAQdxCameraServer(blacs_port, cam, camera_name)
+    # Get the serial number
+    serial_number = _ensure_str(device_properties['serial_number'])
+    print(f'Instantiating IMAQdx_Camera (SN = {serial_number}).')
+    camera = IMAQdx_Camera(sn=serial_number)
+    if len(imaqdx_properties):
+        print('Setting IMAQdx properties:')
+        for key, val in imaqdx_properties.items():
+            print('{:}: {:}'.format(key, val))
+        print('\n')
+        camera.set_attributes_dict(imaqdx_properties)
+
+    print(f'Starting camera server on port {port}...')
+    server = IMAQdxCameraServer(port, camera, camera_name, **server_kwargs)
     server.shutdown_on_interrupt()
-    cam.close()
+    camera.close()
