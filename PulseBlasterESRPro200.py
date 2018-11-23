@@ -16,7 +16,7 @@ if PY2:
     str = unicode
 
 from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker
+from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker, PulseBlaster_No_DDS_Parser
 
 
 @labscript_device
@@ -40,4 +40,8 @@ class pulseblasteresrpro200(Pulseblaster_No_DDS_Tab):
 class PulseblasterESRPro200Worker(PulseblasterNoDDSWorker):
     core_clock_freq = 200.0
     
-     
+
+@runviewer_parser
+class PulseblasterESRPro200Parser(PulseBlaster_No_DDS_Parser):
+    num_dds = 0
+    num_flags = 21
