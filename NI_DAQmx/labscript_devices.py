@@ -278,6 +278,8 @@ class NI_DAQmx(IntermediateDevice):
 
     def _check_bounds(self, analogs):
         """Check that all analog outputs are in bounds"""
+        if not analogs:
+            return
         vmin, vmax = self.AO_range
         for output in analogs.values():
             if any((output.raw_output < vmin) | (output.raw_output > vmax)):
