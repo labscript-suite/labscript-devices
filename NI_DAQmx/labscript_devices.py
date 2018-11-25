@@ -265,7 +265,7 @@ class NI_DAQmx(IntermediateDevice):
 
     def _check_even_children(self, analogs, digitals):
         """Check that there are an even number of children of each type."""
-        errmsg = """{0} {1} must have an even numer of {2}s in order to guarantee an
+        errmsg = """{0} {1} must have an even number of {2}s in order to guarantee an
             even total number of samples, which is a limitation of the DAQmx library.
             Please add a dummy {2} device or remove one you're not using, so that there
             is an even number."""
