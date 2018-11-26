@@ -10,19 +10,20 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
 
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-    
+from labscript_utils import check_version
 check_version('labscript', '2.0.1', '3')
+check_version('zprocess', '2.4.8', '3')
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
+from labscript_devices import BLACS_tab
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
 
-@labscript_device
+
 class Camera(TriggerableDevice):
     description = 'Generic Camera'        
     
@@ -33,7 +34,7 @@ class Camera(TriggerableDevice):
     @set_passed_properties(
         property_names = {
             "connection_table_properties": ["BIAS_port"],
-            "device_properties": ["SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
+            "device_properties": ["serial_number", "SDK", "effective_pixel_size", "exposure_time", "orientation", "trigger_edge_type", "minimum_recovery_time"]}
         )
     def __init__(self, name, parent_device, connection,
                  BIAS_port = 1027, serial_number = 0x0, SDK='', effective_pixel_size=0.0,
@@ -46,15 +47,12 @@ class Camera(TriggerableDevice):
         self.exposure_time = exposure_time
         self.orientation = orientation
         self.BLACS_connection = BIAS_port
-        if isinstance(serial_number,str):
+        if isinstance(serial_number, str) or isinstance(serial_number, bytes):
             serial_number = int(serial_number,16)
-        self.serial_number = np.uint64(serial_number)
+        self.sn = np.uint64(serial_number)
         self.sdk = str(SDK)
         self.effective_pixel_size = effective_pixel_size
         self.exposures = []
-        
-        # Force uint64 type for serial_number
-        self.set_property('serial_number', self.serial_number, location='device_properties')
         
         # DEPRECATED: backward compatibility:
         if 'exposuretime' in kwargs:
@@ -129,12 +127,17 @@ class Camera(TriggerableDevice):
             
 
 import os
+
+from qtutils.qt.QtCore import *
+from qtutils.qt.QtGui import *
+
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
 
 from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
+import qtutils.icons
 
 @BLACS_tab
 class CameraTab(DeviceTab):
@@ -147,8 +150,7 @@ class CameraTab(DeviceTab):
         port = int(self.settings['connection_table'].find_by_name(self.settings["device_name"]).BLACS_connection)
         self.ui.port_label.setText(str(port)) 
         
-        self.ui.is_responding.setVisible(False)
-        self.ui.is_not_responding.setVisible(False)
+        self.ui.check_connectivity_pushButton.setIcon(QIcon(':/qtutils/fugue/arrow-circle'))
         
         self.ui.host_lineEdit.returnPressed.connect(self.update_settings_and_check_connectivity)
         self.ui.use_zmq_checkBox.toggled.connect(self.update_settings_and_check_connectivity)
@@ -158,7 +160,6 @@ class CameraTab(DeviceTab):
         return {'host': str(self.ui.host_lineEdit.text()), 'use_zmq': self.ui.use_zmq_checkBox.isChecked()}
     
     def restore_save_data(self, save_data):
-        print 'restore save data running'
         if save_data:
             host = save_data['host']
             self.ui.host_lineEdit.setText(host)
@@ -181,28 +182,30 @@ class CameraTab(DeviceTab):
        
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def update_settings_and_check_connectivity(self, *args):
-        self.ui.saying_hello.setVisible(True)
-        self.ui.is_responding.setVisible(False)
-        self.ui.is_not_responding.setVisible(False)
+        icon = QIcon(':/qtutils/fugue/hourglass')
+        pixmap = icon.pixmap(QSize(16, 16))
+        status_text = 'Checking...'
+        self.ui.status_icon.setPixmap(pixmap)
+        self.ui.server_status.setText(status_text)
         kwargs = self.get_save_data()
         responding = yield(self.queue_work(self.primary_worker, 'update_settings_and_check_connectivity', **kwargs))
         self.update_responding_indicator(responding)
         
     def update_responding_indicator(self, responding):
-        self.ui.saying_hello.setVisible(False)
         if responding:
-            self.ui.is_responding.setVisible(True)
-            self.ui.is_not_responding.setVisible(False)
+            icon = QIcon(':/qtutils/fugue/tick')
+            pixmap = icon.pixmap(QSize(16, 16))
+            status_text = 'Server is responding'
         else:
-            self.ui.is_responding.setVisible(False)
-            self.ui.is_not_responding.setVisible(True)
+            icon = QIcon(':/qtutils/fugue/exclamation')
+            pixmap = icon.pixmap(QSize(16, 16))
+            status_text = 'Server not responding'
+        self.ui.status_icon.setPixmap(pixmap)
+        self.ui.server_status.setText(status_text)
 
-@BLACS_worker            
+
 class CameraWorker(Worker):
-    def init(self):#, port, host, use_zmq):
-#        self.port = port
-#        self.host = host
-#        self.use_zmq = use_zmq
+    def init(self):
         global socket; import socket
         global zmq; import zmq
         global zprocess; import zprocess
@@ -219,7 +222,7 @@ class CameraWorker(Worker):
         if not self.use_zmq:
             return self.initialise_sockets(self.host, self.port)
         else:
-            response = zprocess.zmq_get_raw(self.port, self.host, data='hello')
+            response = zprocess.zmq_get_string(self.port, self.host, data='hello')
             if response == 'hello':
                 return True
             else:
@@ -232,8 +235,8 @@ class CameraWorker(Worker):
         assert str(int(port)) == port, 'Port must be an integer.'
         s.settimeout(10)
         s.connect((host, int(port)))
-        s.send('hello\r\n')
-        response = s.recv(1024)
+        s.send(b'hello\r\n')
+        response = s.recv(1024).decode('utf8')
         s.close()
         if 'hello' in response:
             return True
@@ -244,10 +247,10 @@ class CameraWorker(Worker):
         h5file = shared_drive.path_to_agnostic(h5file)
         if not self.use_zmq:
             return self.transition_to_buffered_sockets(h5file,self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, data=h5file)
+        response = zprocess.zmq_get_string(self.port, self.host, data=h5file)
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10)
+        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return {} # indicates final values of buffered run, we have none
@@ -256,12 +259,12 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('%s\r\n'%h5file)
-        response = s.recv(1024)
+        s.send(b'%s\r\n' % h5file.encode('utf8'))
+        response = s.recv(1024).decode('utf8')
         if not 'ok' in response:
             s.close()
             raise Exception(response)
-        response = s.recv(1024)
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)
@@ -270,10 +273,10 @@ class CameraWorker(Worker):
     def transition_to_manual(self):
         if not self.use_zmq:
             return self.transition_to_manual_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'done')
+        response = zprocess.zmq_get_string(self.port, self.host, 'done')
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_raw(self.port, self.host, timeout = 10)
+        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success
@@ -282,12 +285,12 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('done\r\n')
-        response = s.recv(1024)
+        s.send(b'done\r\n')
+        response = s.recv(1024).decode('utf8')
         if response != 'ok\r\n':
             s.close()
             raise Exception(response)
-        response = s.recv(1024)
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)
@@ -302,7 +305,7 @@ class CameraWorker(Worker):
     def abort(self):
         if not self.use_zmq:
             return self.abort_sockets(self.host, self.port)
-        response = zprocess.zmq_get_raw(self.port, self.host, 'abort')
+        response = zprocess.zmq_get_string(self.port, self.host, 'abort')
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success 
@@ -311,8 +314,8 @@ class CameraWorker(Worker):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(120)
         s.connect((host, int(port)))
-        s.send('abort\r\n')
-        response = s.recv(1024)
+        s.send(b'abort\r\n')
+        response = s.recv(1024).decode('utf8')
         if not 'done' in response:
             s.close()
             raise Exception(response)

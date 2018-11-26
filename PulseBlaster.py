@@ -10,7 +10,12 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
+from labscript_devices import BLACS_tab, runviewer_parser
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
 
@@ -63,8 +68,8 @@ def stop_profile(name):
     profiles[name]['min'] = profiles[name]['min'] if profiles[name]['min'] is not None and profiles[name]['min'] < runtime else runtime
     profiles[name]['max'] = profiles[name]['max'] if profiles[name]['max'] > runtime else runtime
     profiles[name]['average_time_per_call'] = profiles[name]['total_time']/profiles[name]['num_calls']
-          
-@labscript_device          
+
+
 class PulseBlaster(PseudoclockDevice):
     
     pb_instructions = {'CONTINUE':   0,
@@ -95,13 +100,34 @@ class PulseBlaster(PseudoclockDevice):
     
     @set_passed_properties(
         property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
-                          "device_properties": ["pulse_width"]}
+                          "device_properties": ["pulse_width", "max_instructions",
+                                                "time_based_stop_workaround",
+                                                "time_based_stop_workaround_extra_time"]}
         )
-    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '', programming_scheme='pb_start/BRANCH', pulse_width=None, **kwargs):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '',
+                 programming_scheme='pb_start/BRANCH', pulse_width=None, max_instructions=4000,
+                 time_based_stop_workaround=False, time_based_stop_workaround_extra_time=0.5, **kwargs):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
+        
+        # time_based_stop_workaround is for old pulseblaster models which do
+        # not respond correctly to status checks. These models provide no way
+        # to know when the shot has completed. So if
+        # time_based_stop_workaround=True, we fall back to simply waiting
+        # until stop_time (plus the timeout of all waits) and assuming in the
+        # BLACS worker that the end of the shot occurs at this time.
+        # time_based_stop_workaround_extra_time is a configurable duration for
+        # how much longer than stop_time we should wait, to allow for software
+        # timing variation. Note that since the maximum duration of all waits
+        # is included in the calculation of the time at which the experiemnt
+        # should be stopped, attention should be paid to the timeout argument
+        # of all waits, since if it is larger than necessary, this will
+        # increase the duration of your shots even if the waits are actually
+        # short in duration.
+        
+        
         # If we are the master pseudoclock, there are two ways we can start and stop the PulseBlaster.
         #
         # 'pb_start/BRANCH':
@@ -124,23 +150,26 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
         self.programming_scheme = programming_scheme
 
-        if pulse_width is None:
-            pulse_width = 0.5/self.clock_limit # the shortest possible
-        if pulse_width < 0.5/self.clock_limit:
-            message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
-                       '( = %s seconds)'%str(0.5/self.clock_limit))
-            raise LabscriptError(message)
-        # Round pulse width up to the nearest multiple of clock resolution:
-        quantised_pulse_width = 2*pulse_width/self.clock_resolution
-        quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
-        # This will be used as the high time of clock ticks:
-        self.pulse_width = quantised_pulse_width*self.clock_resolution/2
+        if pulse_width is not None:            
+            if pulse_width < 0.5/self.clock_limit:
+                message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
+                           '( = %s seconds)'%str(0.5/self.clock_limit))
+                raise LabscriptError(message)
+            # Round pulse width up to the nearest multiple of clock resolution:
+            quantised_pulse_width = 2*pulse_width/self.clock_resolution
+            quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
+            # This will be used as the high time of clock ticks:
+            self.pulse_width = quantised_pulse_width*self.clock_resolution/2
+            # This pulse width, if larger than the minimum, may limit how fast we can tick.
+            # Update self.clock_limit accordingly.
+            minimum_low_time = 0.5/self.clock_limit
+            if self.pulse_width > minimum_low_time:
+                self.clock_limit = 1/(self.pulse_width + minimum_low_time)
+        else:
+            pulse_width = 'symmetric'
+            self.pulse_width = None
 
-        # This pulse width, if larger than the minimum, may limit how fast we can tick.
-        # Update self.clock_limit accordingly.
-        minimum_low_time = 0.5/self.clock_limit
-        if self.pulse_width > minimum_low_time:
-            self.clock_limit = 1/(self.pulse_width + minimum_low_time)
+        self.max_instructions = max_instructions
 
         # Create the internal pseudoclock
         self._pseudoclock = Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
@@ -371,6 +400,10 @@ class PulseBlaster(PseudoclockDevice):
                     flags[flag_index] = 1
                     # We are not just using the internal clock line
                     only_internal = False
+                    
+            if only_internal and self.pulse_width is not None:
+                raise LabscriptError('You cannot set a pulse_width for %s (%s) if it is not used as a pseudoclock for another device'%(self.name, self.description))
+                    
             
             for output in dig_outputs:
                 flagindex = int(output.connection.split()[1])
@@ -408,7 +441,10 @@ class PulseBlaster(PseudoclockDevice):
             # to be inserted. How many times does the delay of the
             # loop/endloop instructions go into 55 secs?
             if not only_internal:
-                quotient, remainder = divmod(instruction['step']/2.0,55.0)
+                if self.pulse_width is not None:
+                    quotient, remainder = divmod(instruction['step'],55.0)
+                else:
+                    quotient, remainder = divmod(instruction['step']/2.0,55.0)
             else:
                 quotient, remainder = divmod(instruction['step'],55.0)
                 
@@ -419,10 +455,15 @@ class PulseBlaster(PseudoclockDevice):
                 quotient, remainder = quotient - 1, remainder + 55.0
                 
             if not only_internal:
+                if self.pulse_width is not None:
+                    delay = self.pulse_width
+                else:
+                    delay = remainder
+            
                 # The loop and endloop instructions will only use the remainder:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LOOP',
-                                'data': instruction['reps'], 'delay': self.pulse_width*1e9})
+                                'data': instruction['reps'], 'delay': delay*1e9})
                 
                 for clock_line in instruction['enabled_clocks']:
                     if clock_line != self._direct_output_clock_line:
@@ -435,13 +476,22 @@ class PulseBlaster(PseudoclockDevice):
                 # many multiples of 55 seconds (one multiple of 55 seconds
                 # for each of the other two loop and endloop instructions):
                 if quotient:
+                    if self.pulse_width is not None:
+                        delay = 55/2.0
+                    else:
+                        delay = 55
+                    
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(2*quotient), 'delay': 55*1e9})
+                                'data': int(2*quotient), 'delay': delay*1e9}) 
                                 
+                if self.pulse_width is not None:
+                    delay = 2*remainder-self.pulse_width
+                else:
+                    delay = remainder
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'END_LOOP',
-                                'data': j, 'delay': (2*remainder - self.pulse_width)*1e9})
+                                'data': j, 'delay': delay*1e9})
                                 
                 # Two instructions were used in the case of there being no LONG_DELAY, 
                 # otherwise three. This increment is done here so that the j referred
@@ -458,7 +508,7 @@ class PulseBlaster(PseudoclockDevice):
                 if quotient:
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(quotient), 'delay': 55*1e9})
+                                'data': int(2*quotient), 'delay': 55/2.0*1e9}) 
                 j += 2 if quotient else 1
                 
 
@@ -483,6 +533,10 @@ class PulseBlaster(PseudoclockDevice):
                             'data': 0, 'delay': 10.0/self.clock_limit*1e9})
         else:
             raise AssertionError('Invalid programming scheme %s'%str(self.programming_scheme))
+            
+        if len(pb_inst) > self.max_instructions:
+            raise LabscriptError("The Pulseblaster memory cannot store more than {:d} instuctions, but the PulseProgram contains {:d} instructions.".format(self.max_instructions, len(pb_inst))) 
+            
         return pb_inst
         
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
@@ -550,7 +604,14 @@ from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MOD
 from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
+import qtutils.icons
 import os
+
+# We can't import * from QtCore & QtGui, as one of them has a function called bin() which overrides the builtin, which is used in the pulseblaster worker
+from qtutils.qt import QtCore
+from qtutils.qt import QtGui
+
+    
 
 @BLACS_tab
 class PulseBlasterTab(DeviceTab):
@@ -619,6 +680,13 @@ class PulseBlasterTab(DeviceTab):
         ui.start_button.clicked.connect(self.start)
         ui.stop_button.clicked.connect(self.stop)
         ui.reset_button.clicked.connect(self.reset)
+        # Add icons
+        ui.start_button.setIcon(QtGui.QIcon(':/qtutils/fugue/control'))
+        ui.start_button.setToolTip('Start')
+        ui.stop_button.setIcon(QtGui.QIcon(':/qtutils/fugue/control-stop-square'))
+        ui.stop_button.setToolTip('Stop')
+        ui.reset_button.setIcon(QtGui.QIcon(':/qtutils/fugue/arrow-circle'))
+        ui.reset_button.setToolTip('Reset')
         
         # initialise dictionaries of data to display and get references to the QLabels
         self.status_states = ['stopped', 'reset', 'running', 'waiting']
@@ -636,7 +704,7 @@ class PulseBlasterTab(DeviceTab):
         # PulseBlasterDirectOutputs
         if parent_device_name == self.device_name:
             device = self.connection_table.find_by_name(self.device_name)
-            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            pseudoclock = device.child_list[list(device.child_list.keys())[0]] # there should always be one (and only one) child, the Pseudoclock
             clockline = None
             for child_name, child in pseudoclock.child_list.items():
                 # store a reference to the internal clockline
@@ -648,7 +716,7 @@ class PulseBlasterTab(DeviceTab):
                 
             if clockline is not None:
                 # There should only be one child of this clock line, the direct outputs
-                direct_outputs = clockline.child_list[clockline.child_list.keys()[0]] 
+                direct_outputs = clockline.child_list[list(clockline.child_list.keys())[0]]
                 # look to see if the port is used by a child of the direct outputs
                 return DeviceTab.get_child_from_connection_table(self, direct_outputs.name, port)
             else:
@@ -664,12 +732,15 @@ class PulseBlasterTab(DeviceTab):
         # When called with a queue, this function writes to the queue
         # when the pulseblaster is waiting. This indicates the end of
         # an experimental run.
-        self.status, waits_pending = yield(self.queue_work(self._primary_worker,'check_status'))
+        self.status, waits_pending, time_based_shot_over = yield(self.queue_work(self._primary_worker,'check_status'))
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = self.status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             done_condition = self.status['stopped']
+            
+        if time_based_shot_over is not None:
+            done_condition = time_based_shot_over
             
         if notify_queue is not None and done_condition and not waits_pending:
             # Experiment is over. Tell the queue manager about it, then
@@ -685,7 +756,13 @@ class PulseBlasterTab(DeviceTab):
                 
         # Update widgets with new status
         for state in self.status_states:
-            self.status_widgets[state].setText(str(self.status[state]))
+            if self.status[state]:
+                icon = QtGui.QIcon(':/qtutils/fugue/tick')
+            else:
+                icon = QtGui.QIcon(':/qtutils/fugue/cross')
+            
+            pixmap = icon.pixmap(QtCore.QSize(16, 16))
+            self.status_widgets[state].setPixmap(pixmap)
                         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
@@ -711,12 +788,11 @@ class PulseBlasterTab(DeviceTab):
         self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
 
 
-@BLACS_worker        
 class PulseblasterWorker(Worker):
     def init(self):
         from labscript_utils import check_version
-        check_version('spinapi', '3.1.1', '4')
-        exec 'from spinapi import *' in globals()
+        check_version('spinapi', '3.2.0', '4')
+        exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
         
@@ -739,6 +815,12 @@ class PulseblasterWorker(Worker):
         pb_select_board(self.board_number)
         pb_init()
         pb_core_clock(75)
+        
+        # This is only set to True on a per-shot basis, so set it to False
+        # for manual mode. Set associated attributes to None:
+        self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
 
     def program_manual(self,values):
     
@@ -800,6 +882,9 @@ class PulseblasterWorker(Worker):
             pb_start()
         else:
             raise ValueError('invalid programming_scheme: %s'%str(self.programming_scheme))
+        if self.time_based_stop_workaround:
+            import time
+            self.time_based_shot_end_time = time.time() + self.time_based_shot_duration
     
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
         self.h5file = h5file
@@ -808,6 +893,14 @@ class PulseblasterWorker(Worker):
             pb_stop()
         with h5py.File(h5file,'r') as hdf5_file:
             group = hdf5_file['devices/%s'%device_name]
+            
+            # Is this shot using the fixed-duration workaround instead of checking the PulseBlaster's status?
+            self.time_based_stop_workaround = group.attrs.get('time_based_stop_workaround', False)
+            if self.time_based_stop_workaround:
+                self.time_based_shot_duration = (group.attrs['stop_time']
+                                                 + hdf5_file['waits'][:]['timeout'].sum()
+                                                 + group.attrs['time_based_stop_workaround_extra_time'])
+            
             # Program the DDS registers:
             ampregs = []
             freqregs = []
@@ -916,7 +1009,7 @@ class PulseblasterWorker(Worker):
                              'dds 1':{'freq':finalfreq1, 'amp':finalamp1, 'phase':finalphase1, 'gate':en1},
                             }
             # Since we are converting from an integer to a binary string, we need to reverse the string! (see notes above when we create flags variables)
-            return_flags = bin(flags)[2:].rjust(12,'0')[::-1]
+            return_flags = str(bin(flags)[2:]).rjust(12,'0')[::-1]
             for i in range(12):
                 return_values['flag %d'%i] = return_flags[i]
                 
@@ -929,16 +1022,30 @@ class PulseblasterWorker(Worker):
                 self.waits_pending = False
             except zprocess.TimeoutError:
                 pass
-        return pb_read_status(), self.waits_pending
+        if self.time_based_shot_end_time is not None:
+            import time
+            time_based_shot_over = time.time() > self.time_based_shot_end_time
+        else:
+            time_based_shot_over = None
+        return pb_read_status(), self.waits_pending, time_based_shot_over
 
     def transition_to_manual(self):
-        status, waits_pending = self.check_status()
+        status, waits_pending, time_based_shot_over = self.check_status()
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
             done_condition = True # status['stopped']
             
+        if time_based_shot_over is not None:
+            done_condition = time_based_shot_over
+            
+        # This is only set to True on a per-shot basis, so reset it to False
+        # for manual mode. Reset associated attributes to None:
+        self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
+        
         if done_condition and not waits_pending:
             return True
         else:
@@ -1072,7 +1179,7 @@ class PulseBlasterParser(object):
                     
             else: # Continue
                 if row['inst'] == 8: #WAIT
-                    print 'Wait at %.9f'%t
+                    print('Wait at %.9f'%t)
                     pass
                 clock.append(t)
                 self._add_pulse_program_row_to_traces(traces,row,dds)
@@ -1085,7 +1192,7 @@ class PulseBlasterParser(object):
             
             i += 1            
                 
-        print 'Stop time: %.9f'%t 
+        print('Stop time: %.9f'%t)
         # now put together the traces
         to_return = {}
         clock = np.array(clock, dtype=np.float64)

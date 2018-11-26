@@ -10,12 +10,15 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import  BLACS_tab, runviewer_parser
 from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker
 
 
-@labscript_device
 class PulseBlasterESRPro500(PulseBlaster_No_DDS):
     description = 'SpinCore PulseBlaster ESR-PRO-500'
     clock_limit = 50.0e6 # can probably go faster
@@ -32,7 +35,6 @@ class pulseblasteresrpro500(Pulseblaster_No_DDS_Tab):
         Pulseblaster_No_DDS_Tab.__init__(self,*args,**kwargs)
     
     
-@BLACS_worker
 class PulseblasterESRPro500Worker(PulseblasterNoDDSWorker):
     core_clock_freq = 500.0
     
