@@ -556,8 +556,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
             data_group.create_group(self.device_name)
             waits_in_use = len(hdf5_file['waits']) > 0
 
-        if not self.acquired_data:
-            msg = """No data was acquired. Perhaps the acqusitiion task was not
+        if len(self.buffered_chans) and not self.acquired_data:
+            msg = """No data was acquired. Perhaps the acquisition task was not
                 triggered to start, is the device connected to a pseudoclock?"""
             raise RuntimeError(dedent(msg))
         # Concatenate our chunks of acquired data and recast them as a structured
