@@ -457,6 +457,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         num_chans = len(chans)
 
+        if num_chans < 1:
+            return
+
         # Get data MAX_READ_PTS points at a time or once every MAX_READ_INTERVAL
         # seconds, whichever is faster:
         num_samples = min(self.MAX_READ_PTS, int(rate * self.MAX_READ_INTERVAL))
@@ -492,15 +495,16 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
     def stop_task(self):
         with self.tasklock:
-            if self.task is None:
+            if len(self.buffered_chans) and self.task is None:
                 raise RuntimeError('Task not running')
-            # Read remaining data:
-            self.read(self.task, None, -1)
-            # Stop the task:
-            self.task.StopTask()
-            self.task.ClearTask()
-            self.task = None
-            self.read_array = None
+            if self.task is not None:
+                # Read remaining data:
+                self.read(self.task, None, -1)
+                # Stop the task:
+                self.task.StopTask()
+                self.task.ClearTask()
+                self.task = None
+                self.read_array = None
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
@@ -558,16 +562,19 @@ class NI_DAQmxAcquisitionWorker(Worker):
             raise RuntimeError(dedent(msg))
         # Concatenate our chunks of acquired data and recast them as a structured
         # array with channel names:
-        start_time = time.time()
-        dtypes = [(chan, np.float32) for chan in self.buffered_chans]
-        raw_data = np.concatenate(self.acquired_data).view(dtypes)
-        raw_data = raw_data.reshape((len(raw_data),))
-        self.acquired_data = None
-        self.buffered_chans = None
-        self.extract_measurements(raw_data, waits_in_use)
-        self.h5_file = None
-        self.buffered_rate = None
-        msg = 'data written, time taken: %ss' % str(time.time() - start_time)
+        if self.acquired_data:
+            start_time = time.time()
+            dtypes = [(chan, np.float32) for chan in self.buffered_chans]
+            raw_data = np.concatenate(self.acquired_data).view(dtypes)
+            raw_data = raw_data.reshape((len(raw_data),))
+            self.acquired_data = None
+            self.buffered_chans = None
+            self.extract_measurements(raw_data, waits_in_use)
+            self.h5_file = None
+            self.buffered_rate = None
+            msg = 'data written, time taken: %ss' % str(time.time() - start_time)
+        else:
+            msg = 'No acquisitions in this shot.'
         self.logger.info(msg)
 
         return True
