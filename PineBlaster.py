@@ -12,7 +12,7 @@
 #####################################################################
 
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
-from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
+from labscript_devices import runviewer_parser, BLACS_tab
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -30,8 +30,8 @@ class PineBlasterPseudoclock(Pseudoclock):
             Pseudoclock.add_device(self, device)
         else:
             raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
- 
-@labscript_device     
+
+
 class PineBlaster(PseudoclockDevice):
     description = 'PineBlaster'
     clock_limit = 10e6
@@ -234,7 +234,6 @@ class PineblasterTab(DeviceTab):
         yield(self.queue_work(self.primary_worker, 'start_run'))
 
 
-@BLACS_worker        
 class PineblasterWorker(Worker):
     def init(self):
         global h5py; import labscript_utils.h5_lock, h5py
