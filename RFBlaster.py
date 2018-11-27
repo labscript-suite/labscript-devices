@@ -488,7 +488,7 @@ class RFBlasterWorker(Worker):
                 response = b''.join(urlopen(req, timeout=self.timeout).readlines())
                 self.netlogger.info('Connected!')
                 break
-            except URLError, HTTPError as e:
+            except (URLError, HTTPError) as e:
                 self.netlogger.warning(str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
