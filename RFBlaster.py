@@ -466,11 +466,11 @@ class RFBlasterWorker(Worker):
     def http_request(self, form=None): 
         """Make a HTTP request to the RFBlaster, optionally submitting a form"""
         if PY2:
-            from urllib2 import urlopen, Request, URLError
-            # TODO: also catch urllib2.httplib.BadStatusLine, urllib2.socket.error
+            from urllib2 import urlopen, Request, URLError, httplib
+            HTTPError = httplib.HTTPException
         else:
             from urllib.request import urlopen, Request
-            from urllib.error import URLError
+            from urllib.error import URLError, HTTPError
         
         req = Request(self.address)
         if form is not None:
@@ -488,7 +488,7 @@ class RFBlasterWorker(Worker):
                 response = b''.join(urlopen(req, timeout=self.timeout).readlines())
                 self.netlogger.info('Connected!')
                 break
-            except URLError as e:
+            except URLError, HTTPError as e:
                 self.netlogger.warning(str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
