@@ -374,11 +374,6 @@ class PulseblasterNoDDSWorker(Worker):
                     else:
                         initial_flags += '0'
 
-                # THE FACT THAT THERE ARE TWO INSTRUCTIONS HERE MATTER BECAUSE
-                # JUMP AND LOOP INSTRUCTIONS NEED TO BRANCH TO SPECFIC POINTS
-                # AND THE COMPILER HAS PLANNED FOR THERE TO BE TWO ADDED
-                # INSTRUCTIONS UP FRONT.
-                
                 if self.programming_scheme == 'pb_start/BRANCH':
                     # Line zero is a wait on the final state of the program in 'pb_start/BRANCH' mode 
                     pb_inst_pbonly(flags,WAIT,0,100)
