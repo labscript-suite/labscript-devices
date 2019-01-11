@@ -126,25 +126,8 @@ class CiceroOpalKellyXEM3001DummyIntermediateDevice(IntermediateDevice):
 #
 @labscript_device     
 class CiceroOpalKellyXEM3001(PseudoclockDevice):
+    # note: most parameters set in __init__ as they depend on reference clock frequency
     description = 'CiceroOpalKellyXEM3001'
-    clock_limit = 50e6
-    clock_resolution = 10e-9 
-
-    # Todo: confirm this.
-    #       It should only be 150ns as we've set the debounce count in the worker process
-    #       to be 10 clock cycles (100ns), and I think it takes 3 clock cycles to propagate to the state
-    #       machine of the FPGA code (due to the three uses of the non-blocking <= verilog operator
-    #       in the debounce code) and then another 2 cycles before the output goes high
-    #       (one to move out of the wait for retrigger code and then one because the update of the
-    #        output state is non-blocking)
-    trigger_delay = 150e-9
-    # Todo: confirm this
-    #       I believe it is 1 clock cycle
-    wait_delay = 10e9
-
-    # We'll set this to be 2x the debounce count (which is hard coded as 100ns at the moment
-    # in the BLACS worker process)
-    trigger_minimum_duration = 200e-9
     trigger_edge_type = 'rising' 
     allowed_children = [CiceroOpalKellyXEM3001Pseudoclock, CiceroOpalKellyXEM3001DummyPseudoclock]
     
@@ -153,15 +136,33 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
     max_instructions = 2048
     
     @set_passed_properties(property_names = {
-        "connection_table_properties": ["reference_clock", "clock_frequency"],
+        "connection_table_properties": ["reference_clock", "clock_frequency", "trigger_debounce_clock_ticks"],
         "device_properties": ["trigger_delay", "wait_delay"]}
         )    
-    def __init__(self, name, trigger_device=None, trigger_connection=None, serial='', reference_clock='internal', clock_frequency=100e6):
+    def __init__(self, name, trigger_device=None, trigger_connection=None, serial='', reference_clock='internal', clock_frequency=100e6, use_wait_monitor=False, trigger_debounce_clock_ticks=10):
+        # set device properties based on clock frequency
+        self.clock_limit = clock_frequency/2
+        self.clock_resolution = 1/clock_frequency
+        # We'll set this to be 2x the debounce count
+        self.trigger_minimum_duration = 2*trigger_debounce_clock_ticks/clock_frequency
+        # Todo: confirm this.
+        #       It should only be 5 clock cycles + the debounce_clock_ticks
+        #       as I think it takes 3 clock cycles to propagate to the state
+        #       machine of the FPGA code (due to the three uses of the non-blocking <= verilog operator
+        #       in the debounce code) and then another 2 cycles before the output goes high
+        #       (one to move out of the wait for retrigger code and then one because the update of the
+        #        output state is non-blocking)\
+        #
+        self.trigger_delay = (5+trigger_debounce_clock_ticks)/clock_frequency
+        # Todo: confirm this
+        #       I believe it is 1 clock cycle
+        self.wait_delay = self.clock_resolution
+        
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
         self.BLACS_connection = serial
         
-        self.clock_limit = clock_frequency/2
-        self.clock_resolution = 1/clock_frequency
+        if trigger_debounce_clock_ticks >= 2**16:
+            raise LabscriptError('The %s %s trigger_debounce_clock_ticks parameter must be between 0 and 65535'%(self.description, self.name))
         
         # create Pseudoclock and clockline
         self._pseudoclock = CiceroOpalKellyXEM3001Pseudoclock('%s_pseudoclock'%name, self, 'clock') # possibly a better connection name than 'clock'?
@@ -172,6 +173,9 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
         self.__wait_monitor_dummy_pseudoclock = CiceroOpalKellyXEM3001DummyPseudoclock('%s__dummy_wait_pseudoclock'%name, self, '_')
         self.__wait_monitor_dummy_clock_line = CiceroOpalKellyXEM3001DummyClockLine('%s__dummy_wait_clock_line'%name, self.__wait_monitor_dummy_pseudoclock, '_')
         self.__wait_monitor_intermediate_device = CiceroOpalKellyXEM3001DummyIntermediateDevice('%s_internal_wait_monitor_outputs'%name, self.__wait_monitor_dummy_clock_line)
+        
+        if use_wait_monitor:
+            WaitMonitor('%s__wait_monitor'%name, self.internal_wait_monitor_outputs, 'internal', self.internal_wait_monitor_outputs, 'internal', self.internal_wait_monitor_outputs, 'internal')
         
     @property
     def internal_wait_monitor_outputs(self):
@@ -480,9 +484,6 @@ class CiceroOpalKellyXEM3001Worker(Worker):
         self.dev.ConfigureFPGA(bytes(fpga_path))
         assert self.dev.IsFrontPanelEnabled(), 'Flashing of the FPGA failed. The device is not configured with the .bit file correctly'
 
-        # set debounce to be 100ns
-        self.dev.SetWireInValue(0x01, 0x0A)
-        self.dev.UpdateWireIns()
         
         return True
     
@@ -523,6 +524,10 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                 self.wait_table = None # This device doesn't need to worry about looking at waits
                 self.measured_waits = None
                 
+        # set debounce counter
+        self.dev.SetWireInValue(0x01, self.connection_table_properties['trigger_debounce_clock_ticks'])
+        self.dev.UpdateWireIns()
+        
         # consistency check
         if self.wait_table is not None and not self.is_master_pseudoclock:
             raise RuntimeError('Something has gone wrong in labscript. You should not be able to configure this device as the wait monitor while it is a secondary pseudoclock. Please contact the developers on the mailing list.')
@@ -534,6 +539,12 @@ class CiceroOpalKellyXEM3001Worker(Worker):
         
         # program the FPGA
         assert self.dev.WriteToPipeIn(0x80, data) == len(data)
+
+        # If not the master pseudoclock, then we need to start the device
+        # now so that the internal state machine can hit the first wait 
+        # instruction and be prepared to output on the first trigger
+        if not self.is_master_pseudoclock:
+            self.start_run()
         
         return {'Clock Out':0} # always finish on 0
             
@@ -595,12 +606,6 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                     assert next_wait_sample > master_samples_generated, 'Error: a wait happened too soon after another wait to determine the length of each wait individually.'
                 
                 # work out the length of the last wait
-                
-                # read number of samples the clock has spent waiting
-                # retrigger_wait_samples_1 = self.dev.GetWireOutValue(0x26)
-                # retrigger_wait_samples_2 = self.dev.GetWireOutValue(0x27)
-                # retrigger_wait_samples = (retrigger_wait_samples_2 << 16) + retrigger_wait_samples_1
-                
                 retrigger_wait_samples = bits_to_int(16, self.dev.GetWireOutValue(0x26), self.dev.GetWireOutValue(0x27))
                 self.logger.debug('Retrigger wait samples: %d'%retrigger_wait_samples)
                 # store length of wait (must be stored in clock samples so that
