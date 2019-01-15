@@ -211,6 +211,10 @@ class CiceroOpalKellyXEM3001(PseudoclockDevice):
         reduced_instructions = []
         current_wait_index = 0
         wait_table = sorted(compiler.wait_table)
+        
+        if not self.is_master_pseudoclock:
+            reduced_instructions.append({'on': 0, 'off': ((self.trigger_edge_type=='rising') << 1) + 1, 'reps': 0})
+                
         for instruction in self.pseudoclock.clock:
             if instruction == 'WAIT':
                 # The following period and reps indicates a wait instruction
@@ -287,11 +291,12 @@ class RunviewerClass(object):
         time = []
         states = []
         trigger_index = 0
-        t = 0 if clock is None else clock_ticks[trigger_index]+device_properties['trigger_delay']
-        trigger_index += 1
+        # t = 0 if clock is None else clock_ticks[trigger_index]+device_properties['trigger_delay']
+        # trigger_index += 1
+        t = 0
                
         for row in pulse_program:
-            if row['on_period'] == 0: # WAIT
+            if row['reps'] == 0: # WAIT
                 if clock is not None:
                     t = clock_ticks[trigger_index]+device_properties['trigger_delay']
                     trigger_index += 1
