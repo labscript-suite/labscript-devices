@@ -138,21 +138,6 @@ class NI_DAQmxTab(DeviceTab):
         )
         self.primary_worker = "main_worker"
 
-        # Only need an acquisition worker if we have analog inputs:
-        if num_AI > 0:
-            self.create_worker(
-                "acquisition_worker",
-                'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxAcquisitionWorker',
-                {
-                    'MAX_name': self.MAX_name,
-                    'num_AI': num_AI,
-                    'AI_range': properties['AI_range'],
-                    'AI_start_delay': properties['AI_start_delay'],
-                    'clock_terminal': clock_terminal,
-                },
-            )
-            self.add_secondary_worker("acquisition_worker")
-
         # We only need a wait monitor worker if we are if fact the device with
         # the wait monitor input.
         with h5py.File(connection_table.filepath, 'r') as f:
@@ -188,6 +173,25 @@ class NI_DAQmxTab(DeviceTab):
                 },
             )
             self.add_secondary_worker("wait_monitor_worker")
+
+        # Only need an acquisition worker if we have analog inputs. It is important that
+        # the acquisition worker is created after the wait monitor worker if there is
+        # one, because the creation order determines the order that transition_to_manual
+        # runs, and the acquisition processing requires processing that is done in the
+        # wait monitor during transition_to_manual.
+        if num_AI > 0:
+            self.create_worker(
+                "acquisition_worker",
+                'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxAcquisitionWorker',
+                {
+                    'MAX_name': self.MAX_name,
+                    'num_AI': num_AI,
+                    'AI_range': properties['AI_range'],
+                    'AI_start_delay': properties['AI_start_delay'],
+                    'clock_terminal': clock_terminal,
+                },
+            )
+            self.add_secondary_worker("acquisition_worker")
 
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
