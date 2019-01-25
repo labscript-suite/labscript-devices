@@ -86,12 +86,10 @@ class NI_DAQmxOutputWorker(Worker):
         # Create tasks:
         if self.num_AO > 0:
             self.AO_task = Task()
-            self.AO_data = np.zeros((self.num_AO,), dtype=np.float64)
         else:
             self.AO_task = None
 
         if self.ports:
-            num_DO = sum(port['num_lines'] for port in self.ports.values())
             self.DO_task = Task()
         else:
             self.DO_task = None
@@ -117,38 +115,31 @@ class NI_DAQmxOutputWorker(Worker):
 
     def program_manual(self, front_panel_values):
         written = int32()
-        for i in range(self.num_AO):
-            self.AO_data[i] = front_panel_values['ao%d' % i]
         if self.AO_task is not None:
+            AO_data = np.zeros(self.num_AO, dtype=np.float64)
+            for i in range(self.num_AO):
+                AO_data[i] = front_panel_values['ao%d' % i]
             self.AO_task.WriteAnalogF64(
-                1, True, 1, DAQmx_Val_GroupByChannel, self.AO_data, written, None
+                1, True, 1, DAQmx_Val_GroupByChannel, AO_data, written, None
             )
         if self.DO_task is not None:
-            for port_str in sorted(self.ports, key=split_conn_port):
-                # Due to two bugs in DAQmx, we will always pack our data into a uint32
-                # and write using WriteDigitalU32. The first bug is some kind of use of
-                # uninitialised memory when using WriteDigitalLines, discussed here:
-                #     https://bitbucket.org/labscript_suite
-                #         /labscript_devices/pull-requests/56/#comment-83671312
-                # The second is that using a smaller int dtype sometimes fails even
-                # though it is the correct int size for the size of the port. Using a 32
-                # bit int always works, the additional bits are ignored. This is
-                # discussed here:
-                #     https://forums.ni.com/t5/Multifunction-DAQ
-                #         /problem-with-correlated-DIO-on-USB-6341/td-p/3344066
-                data = np.array([0], dtype=np.uint32)
-                for i in range(self.ports[port_str]["num_lines"]):
-                    data[0] |= front_panel_values['%s/line%d' % (port_str, i)] << i
-                self.DO_task.WriteDigitalU32(
-                    1,  # npts
-                    False,  # autostart
-                    10.0,  # timeout
-                    DAQmx_Val_GroupByChannel,
-                    data,
-                    written,
-                    None,
-                )
-
+            # Due to two bugs in DAQmx, we will always pack our data into a uint32 and
+            # write using WriteDigitalU32. The first bug is some kind of use of
+            # uninitialised memory when using WriteDigitalLines, discussed here:
+            # https://bitbucket.org/labscript_suite
+            #     /labscript_devices/pull-requests/56/#comment-83671312
+            # The second is that using a smaller int dtype sometimes fails even though
+            # it is the correct int size for the size of the port. Using a 32 bit int
+            # always works, the additional bits are ignored. This is discussed here:
+            # https://forums.ni.com/t5/Multifunction-DAQ
+            #     /problem-with-correlated-DIO-on-USB-6341/td-p/3344066
+            DO_data = np.zeros(len(self.ports), dtype=np.uint32)
+            for conn, value in front_panel_values.items():
+                port, line = split_conn_DO(conn)
+                DO_data[port] |= value << line
+            self.DO_task.WriteDigitalU32(
+                1, True, 10.0, DAQmx_Val_GroupByChannel, data, written, None
+            )
         # TODO: return coerced/quantised values
         return {}
 
