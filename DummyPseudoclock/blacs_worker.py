@@ -49,3 +49,6 @@ class DummyPseudoclockWorker(Worker):
 
     def shutdown(self):
         return
+
+    def abort_buffered(self):
+        return self.transition_to_manual()
