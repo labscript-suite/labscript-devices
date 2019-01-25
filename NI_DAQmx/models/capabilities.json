@@ -60,6 +60,35 @@
         "supports_buffered_DO": true,
         "supports_semiperiod_measurement": true
     },
+    "PCIe-6738": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 0,
+        "num_AO": 32,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 2,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
     "PXI-6733": {
         "AI_range": null,
         "AI_start_delay": null,
@@ -154,6 +183,42 @@
         "supports_buffered_AO": false,
         "supports_buffered_DO": false,
         "supports_semiperiod_measurement": false
+    },
+    "USB-6229": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 2.5e-07,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 250000.0,
+        "max_AI_single_chan_rate": 250000.0,
+        "max_AO_sample_rate": 833333.3333333334,
+        "max_DO_sample_rate": 1000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
     },
     "USB-6343": {
         "AI_range": [
