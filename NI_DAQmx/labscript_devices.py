@@ -288,18 +288,6 @@ class NI_DAQmx(IntermediateDevice):
                 msg = msg % (output.description, output.name, vmin, vmax, self.name)
                 raise LabscriptError(dedent(msg))
 
-    def _check_digitals_do_something(self, DO_table):
-        """Check that digital outs are not all zero all the time."""
-        if DO_table is None:
-            return
-        for port in DO_table.dtype.names:
-            if DO_table[port].sum() > 0:
-                return
-        msg = """digital outs being all zero for the entire experiment triggers a bug in
-            NI-DAQmx that prevents experiments from running. Please ensure at least one
-            digital out is nonzero at some time."""
-        raise LabscriptError(dedent(msg))
-
     def _check_AI_not_too_fast(self, AI_table):
         if AI_table is None:
             return
@@ -431,7 +419,6 @@ class NI_DAQmx(IntermediateDevice):
         AI_table = self._make_analog_input_table(inputs)
 
         self._check_AI_not_too_fast(AI_table)
-        self._check_digitals_do_something(DO_table)
 
         grp = self.init_device_group(hdf5_file)
         if AO_table is not None:

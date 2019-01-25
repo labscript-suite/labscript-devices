@@ -194,7 +194,14 @@ class NI_DAQmxOutputWorker(Worker):
                 line_final_value = bool((1 << line) & port_final_value)
                 final_values['%s/line%d' % (port_str, line)] = int(line_final_value)
 
-        if self.static_DO:
+        # Check if DOs are all zero for the whole shot. If they are this triggers a
+        # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
+        # case, run it as a non-buffered task.
+        self.all_zero = all(DO_table[port].sum() == 0 for port in DO_table.dtype.names)
+        if self.all_zero:
+            DO_table = DO_table[0:1]
+
+        if self.static_DO or self.all_zero:
             # Static DO. Start the task and write data, no timing configuration.
             self.DO_task.StartTask()
             # Write data for each port:
@@ -339,7 +346,7 @@ class NI_DAQmxOutputWorker(Worker):
             tasks.append([self.AO_task, self.static_AO, 'AO'])
             self.AO_task = None
         if self.DO_task is not None:
-            tasks.append([self.DO_task, self.static_DO, 'DO'])
+            tasks.append([self.DO_task, self.static_DO or self.all_zero, 'DO'])
             self.DO_task = None
 
         for task, static, name in tasks:
