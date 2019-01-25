@@ -139,7 +139,7 @@ class NI_DAQmxOutputWorker(Worker):
                     port, line = split_conn_DO(conn)
                     DO_data[port] |= value << line
             self.DO_task.WriteDigitalU32(
-                1, True, 10.0, DAQmx_Val_GroupByChannel, data, written, None
+                1, True, 10.0, DAQmx_Val_GroupByChannel, DO_data, written, None
             )
         # TODO: return coerced/quantised values
         return {}
