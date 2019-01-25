@@ -203,7 +203,7 @@ class NI_DAQmxOutputWorker(Worker):
             self.DO_task.StartTask()
             # Write data for each port:
             for port_str in ports:
-                data = DO_table[port_str]
+                data = DO_table[port_str].copy(order='C')
                 write_method = write_methods[data.dtype.type]
                 write_method(
                     1,  # npts
@@ -229,11 +229,12 @@ class NI_DAQmxOutputWorker(Worker):
                 DAQmx_Val_FiniteSamps,
                 npts,
             )
+            self.DO_task.CfgOutputBuffer(npts)
 
             # Write data for each port:
             for port_str in ports:
                 # All but the last sample as mentioned above
-                data = DO_table[port_str][:-1]
+                data = DO_table[port_str][:-1].copy(order='C')
                 write_method = write_methods[data.dtype.type]
                 write_method(
                     npts,
