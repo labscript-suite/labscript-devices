@@ -135,8 +135,9 @@ class NI_DAQmxOutputWorker(Worker):
             #     /problem-with-correlated-DIO-on-USB-6341/td-p/3344066
             DO_data = np.zeros(len(self.ports), dtype=np.uint32)
             for conn, value in front_panel_values.items():
-                port, line = split_conn_DO(conn)
-                DO_data[port] |= value << line
+                if conn.startswith('port'):
+                    port, line = split_conn_DO(conn)
+                    DO_data[port] |= value << line
             self.DO_task.WriteDigitalU32(
                 1, True, 10.0, DAQmx_Val_GroupByChannel, data, written, None
             )
