@@ -544,7 +544,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # acquisition if abort() was called when we are not in buffered mode, or if
         # there were no acuisitions this shot.
         if not self.buffered_mode:
-            return
+            return True
 
         self.stop_task()
         self.buffered_mode = False
