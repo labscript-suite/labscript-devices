@@ -410,7 +410,7 @@ for name in DAQmxGetSysDevNames().split(', '):
 
 
 with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
-    data = json.dumps(capabilities, sort_keys=True, indent=4, separators=(',', ': '))
+    data = json.dumps(capabilities, sort_keys=True, indent=4)
     f.write(data)
 
 print("added/updated capabilities for %d models" % len(models))
