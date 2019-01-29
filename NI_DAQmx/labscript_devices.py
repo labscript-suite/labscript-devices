@@ -283,8 +283,8 @@ class NI_DAQmx(IntermediateDevice):
         vmin, vmax = self.AO_range
         for output in analogs.values():
             if any((output.raw_output < vmin) | (output.raw_output > vmax)):
-                msg = """%s %s ' % (output.description, output.name) can only have
-                    values between %e and %e Volts the limit imposed by %s."""
+                msg = """%s %s can only have values between %e and %e Volts, the limit
+                    imposed by %s."""
                 msg = msg % (output.description, output.name, vmin, vmax, self.name)
                 raise LabscriptError(dedent(msg))
 
