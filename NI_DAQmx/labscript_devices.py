@@ -281,12 +281,20 @@ class NI_DAQmx(IntermediateDevice):
         if not analogs:
             return
         vmin, vmax = self.AO_range
+        # Floating point rounding error can produce values that would mathematically be
+        # within bounds, but have ended up numerically out of bounds. We allow
+        # out-of-bounds values within a small threshold through, but apply clipping to
+        # keep them numerically within bounds. 1e-10 of the total range corresponds to >
+        # 32 bits of precision, so this is not changing the voltages at all since none
+        # of the DACs are that precise.
+        eps = abs(vmax - vmin) * 1e-10
         for output in analogs.values():
-            if any((output.raw_output < vmin) | (output.raw_output > vmax)):
+            if any((output.raw_output < vmin - eps) | (output.raw_output > vmax + eps)):
                 msg = """%s %s can only have values between %e and %e Volts, the limit
                     imposed by %s."""
                 msg = msg % (output.description, output.name, vmin, vmax, self.name)
                 raise LabscriptError(dedent(msg))
+            np.clip(output.raw_output, vmin, vmax, out=output.raw_output)
 
     def _check_AI_not_too_fast(self, AI_table):
         if AI_table is None:
