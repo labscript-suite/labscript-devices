@@ -118,6 +118,19 @@ class NI_DAQmxTab(DeviceTab):
             widget_list.append((name, DO_widgets, split_conn_DO))
         self.auto_place_widgets(*widget_list)
 
+        # We only need a wait monitor worker if we are if fact the device with
+        # the wait monitor input.
+        with h5py.File(connection_table.filepath, 'r') as f:
+            waits = f['waits']
+            wait_acq_device = waits.attrs['wait_monitor_acquisition_device']
+            wait_acq_connection = waits.attrs['wait_monitor_acquisition_connection']
+            wait_timeout_device = waits.attrs['wait_monitor_timeout_device']
+            wait_timeout_connection = waits.attrs['wait_monitor_timeout_connection']
+            try:
+                timeout_trigger_type = waits.attrs['wait_monitor_timeout_trigger_type']
+            except KeyError:
+                timeout_trigger_type = 'rising'
+
         # Create and set the primary worker
         self.create_worker(
             "main_worker",
@@ -134,22 +147,12 @@ class NI_DAQmxTab(DeviceTab):
                 'static_AO': static_AO,
                 'static_DO': static_DO,
                 'DO_hardware_names': DO_hardware_names,
+                'wait_timeout_device': wait_timeout_device,
+                'wait_timeout_connection': wait_timeout_connection,
+                'wait_timeout_rearm_value': int(timeout_trigger_type == 'falling')
             },
         )
         self.primary_worker = "main_worker"
-
-        # We only need a wait monitor worker if we are if fact the device with
-        # the wait monitor input.
-        with h5py.File(connection_table.filepath, 'r') as f:
-            waits = f['waits']
-            wait_acq_device = waits.attrs['wait_monitor_acquisition_device']
-            wait_acq_connection = waits.attrs['wait_monitor_acquisition_connection']
-            wait_timeout_device = waits.attrs['wait_monitor_timeout_device']
-            wait_timeout_connection = waits.attrs['wait_monitor_timeout_connection']
-            try:
-                timeout_trigger_type = waits.attrs['wait_monitor_timeout_trigger_type']
-            except KeyError:
-                timeout_trigger_type = 'rising'
 
         if wait_acq_device == self.device_name:
             if wait_timeout_device != self.device_name:

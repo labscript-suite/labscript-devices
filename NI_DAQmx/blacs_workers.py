@@ -333,6 +333,11 @@ class NI_DAQmxOutputWorker(Worker):
         final_values.update(DO_final_values)
         final_values.update(AO_final_values)
 
+        # If we are the wait timeout device, then the final value of the timeout line
+        # should be its rearm value:
+        if self.wait_timeout_device == self.device_name:
+            final_values[self.wait_timeout_connection] = self.wait_timeout_rearm_value
+
         return final_values
 
     def transition_to_manual(self, abort=False):
@@ -685,7 +690,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             rearm_value = 1
         else:
             msg = 'timeout_trigger_type  must be "rising" or "falling", not "{}".'
-            raise ValueError(msg.format(trigger_type))
+            raise ValueError(msg.format(self.timeout_trigger_type))
         self.timeout_trigger = np.array([trigger_value], dtype=np.uint8)
         self.timeout_rearm = np.array([rearm_value], dtype=np.uint8)
 
