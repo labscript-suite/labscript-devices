@@ -10,9 +10,13 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
-from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
+from labscript_devices import runviewer_parser, BLACS_tab
 
 import numpy as np
 import labscript_utils.h5_lock, h5py
@@ -30,8 +34,8 @@ class PineBlasterPseudoclock(Pseudoclock):
             Pseudoclock.add_device(self, device)
         else:
             raise LabscriptError('You have connected %s to %s (the Pseudoclock of %s), but %s only supports children that are ClockLines. Please connect your device to %s.clockline instead.'%(device.name, self.name, self.parent_device.name, self.name, self.parent_device.name))
- 
-@labscript_device     
+
+
 class PineBlaster(PseudoclockDevice):
     description = 'PineBlaster'
     clock_limit = 10e6
@@ -208,7 +212,7 @@ class PineblasterTab(DeviceTab):
         # This is a direct output, let's search for it on the internal Pseudoclock
         if parent_device_name == self.device_name:
             device = self.connection_table.find_by_name(self.device_name)
-            pseudoclock = device.child_list[device.child_list.keys()[0]] # there should always be one (and only one) child, the Pseudoclock
+            pseudoclock = device.child_list[list(device.child_list.keys())[0]] # there should always be one (and only one) child, the Pseudoclock
             clockline = None
             for child_name, child in pseudoclock.child_list.items():
                 # store a reference to the internal clockline
@@ -234,7 +238,6 @@ class PineblasterTab(DeviceTab):
         yield(self.queue_work(self.primary_worker, 'start_run'))
 
 
-@BLACS_worker        
 class PineblasterWorker(Worker):
     def init(self):
         global h5py; import labscript_utils.h5_lock, h5py
@@ -245,8 +248,8 @@ class PineblasterWorker(Worker):
         self.pineblaster = serial.Serial(self.usbport, 115200, timeout=1)
         # Device has a finite startup time:
         time.sleep(5)
-        self.pineblaster.write('hello\r\n')
-        response = self.pineblaster.readline()
+        self.pineblaster.write(b'hello\r\n')
+        response = self.pineblaster.readline().decode()
         
         if response == 'hello\r\n':
             return
@@ -261,8 +264,8 @@ class PineblasterWorker(Worker):
         
     def program_manual(self, values):    
         value = values['internal'] # there is only one value
-        self.pineblaster.write('go high\r\n' if value else 'go low\r\n')
-        response = self.pineblaster.readline()
+        self.pineblaster.write(b'go high\r\n' if value else b'go low\r\n')
+        response = self.pineblaster.readline().decode()
         assert response == 'ok\r\n', 'PineBlaster said \'%s\', expected \'ok\''%repr(response)
         return {}
         
@@ -284,28 +287,28 @@ class PineblasterWorker(Worker):
                 
             # Only program instructions that differ from what's in the smart cache:
             if self.smart_cache[i] != instruction:
-                self.pineblaster.write('set %d %d %d\r\n'%(i, instruction['period'], instruction['reps']))
-                response = self.pineblaster.readline()
+                self.pineblaster.write(b'set %d %d %d\r\n'%(i, instruction['period'], instruction['reps']))
+                response = self.pineblaster.readline().decode()
                 assert response == 'ok\r\n', 'PineBlaster said \'%s\', expected \'ok\''%repr(response)
                 self.smart_cache[i] = instruction
                 
         if not self.is_master_pseudoclock:
             # Get ready for a hardware trigger:
-            self.pineblaster.write('hwstart\r\n')
-            response = self.pineblaster.readline()
+            self.pineblaster.write(b'hwstart\r\n')
+            response = self.pineblaster.readline().decode()
             assert response == 'ok\r\n', 'PineBlaster said \'%s\', expected \'ok\''%repr(response)
             
         return {'internal':0} # always finish on 0
             
     def start_run(self):
         # Start in software:
-        self.pineblaster.write('start\r\n')
-        response = self.pineblaster.readline()
+        self.pineblaster.write(b'start\r\n')
+        response = self.pineblaster.readline().decode()
         assert response == 'ok\r\n', 'PineBlaster said \'%s\', expected \'ok\''%repr(response)
     
     def status_monitor(self):
         # Wait to see if it's done within the timeout:
-        response = self.pineblaster.readline()
+        response = self.pineblaster.readline().decode()
         if response:
             assert response == 'done\r\n'
             return True
@@ -316,7 +319,7 @@ class PineblasterWorker(Worker):
         if not self.is_master_pseudoclock:
             # If we're the master pseudoclock then this already happened
             # in status_monitor, so we don't need to do it again
-            response = self.pineblaster.readline()
+            response = self.pineblaster.readline().decode()
             assert response == 'done\r\n', 'PineBlaster said \'%s\', expected \'ok\''%repr(response)
             # print 'done!'
         return True
@@ -328,7 +331,7 @@ class PineblasterWorker(Worker):
         return self.abort()
     
     def abort(self):
-        self.pineblaster.write('restart\r\n')
+        self.pineblaster.write(b'restart\r\n')
         time.sleep(5)
         self.shutdown()
         self.init()

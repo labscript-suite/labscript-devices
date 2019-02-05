@@ -15,8 +15,7 @@ from labscript_utils import PY2
 if PY2:
     str = unicode
 
-from labscript_utils.numpy_dtype_workaround import dtype_workaround
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_devices.PulseBlaster import PulseBlaster, PulseBlasterParser
 from labscript import PseudoclockDevice, config
 
@@ -24,26 +23,7 @@ import numpy as np
 
 import time
 
-def check_version(module_name, at_least, less_than, version=None):
 
-    class VersionException(Exception):
-        pass
-
-    def get_version_tuple(version_string):
-        version_tuple = [int(v.replace('+', '-').split('-')[0]) for v in version_string.split('.')]
-        while len(version_tuple) < 3:
-            version_tuple += (0,)
-        return version_tuple
-
-    if version is None:
-        version = __import__(module_name).__version__
-    at_least_tuple, less_than_tuple, version_tuple = [get_version_tuple(v) for v in [at_least, less_than, version]]
-    if not at_least_tuple <= version_tuple < less_than_tuple:
-        raise VersionException(
-            '{module_name} {version} found. {at_least} <= {module_name} < {less_than} required.'.format(**locals()))
-            
-            
-@labscript_device
 class PulseBlaster_No_DDS(PulseBlaster):
 
     description = 'generic DO only Pulseblaster'
@@ -53,7 +33,7 @@ class PulseBlaster_No_DDS(PulseBlaster):
     
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:
-        pb_dtype= dtype_workaround([('flags',np.int32), ('inst',np.int32), ('inst_data',np.int32), ('length',np.float64)])
+        pb_dtype= [('flags',np.int32), ('inst',np.int32), ('inst_data',np.int32), ('length',np.float64)]
         pb_inst_table = np.empty(len(pb_inst),dtype = pb_dtype)
         for i,inst in enumerate(pb_inst):
             flagint = int(inst['flags'][::-1],2)
@@ -251,12 +231,12 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         self.start()
         self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
 
-@BLACS_worker        
+
 class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):
         from labscript_utils import check_version
-        check_version('spinapi', '3.1.1', '4')
+        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess
@@ -280,8 +260,10 @@ class PulseblasterNoDDSWorker(Worker):
         pb_core_clock(self.core_clock_freq)
         
         # This is only set to True on a per-shot basis, so set it to False
-        # for manual mode
+        # for manual mode. Set associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
 
     def program_manual(self,values):
         # Program the DDS registers:
@@ -434,7 +416,7 @@ class PulseblasterNoDDSWorker(Worker):
                 self.waits_pending = False
             except zprocess.TimeoutError:
                 pass
-        if self.time_based_stop_workaround:
+        if self.time_based_shot_end_time is not None:
             import time
             time_based_shot_over = time.time() > self.time_based_shot_end_time
         else:
@@ -453,8 +435,10 @@ class PulseblasterNoDDSWorker(Worker):
             done_condition = time_based_shot_over
         
         # This is only set to True on a per-shot basis, so reset it to False
-        # for manual mode
+        # for manual mode. Reset associated attributes to None:
         self.time_based_stop_workaround = False
+        self.time_based_shot_duration = None
+        self.time_based_shot_end_time = None
         
         if done_condition and not waits_pending:
             return True

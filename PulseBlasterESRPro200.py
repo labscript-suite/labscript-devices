@@ -16,35 +16,30 @@ if PY2:
     str = unicode
 
 from labscript_devices import BLACS_tab, runviewer_parser
-from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker
-from labscript_devices.PulseBlaster import PulseBlasterParser
+from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker, PulseBlaster_No_DDS_Parser
 
 
-class PulseBlaster_SP2_24_100_32k(PulseBlaster_No_DDS):
-    description = 'SpinCore PulseBlaster-SP2-24-100-32k'
-    clock_limit = 5.0e6
-    clock_resolution = 10e-9
-    n_flags = 24
-    
-    def __init__(self, *args, **kwargs):
-        if 'max_instructions' not in kwargs:
-            kwargs['max_instructions'] = 32000
-        PulseBlaster_No_DDS.__init__(self, *args, **kwargs)
+class PulseBlasterESRPro200(PulseBlaster_No_DDS):
+    description = 'SpinCore PulseBlaster ESR-PRO-200'
+    clock_limit = 200.0e6
+    clock_resolution = 5e-9
+    n_flags = 21
 
 
-@BLACS_tab    
-class PulseBlaster_SP2_24_100_32k_Tab(Pulseblaster_No_DDS_Tab):
-    num_DO = 24
+@BLACS_tab
+class pulseblasteresrpro200(Pulseblaster_No_DDS_Tab):
+    # Capabilities
+    num_DO = 21
     def __init__(self,*args,**kwargs):
-        self.device_worker_class = PulseBlaster_SP2_24_100_32k_Worker 
+        self.device_worker_class = PulseblasterESRPro200Worker 
         Pulseblaster_No_DDS_Tab.__init__(self,*args,**kwargs)
-    
-    
-class PulseBlaster_SP2_24_100_32k_Worker(PulseblasterNoDDSWorker):
-    core_clock_freq = 100.0
-    
-     
+
+
+class PulseblasterESRPro200Worker(PulseblasterNoDDSWorker):
+    core_clock_freq = 200.0
+
+
 @runviewer_parser
-class PulseBlaster_SP2_24_100_32k_Parser(PulseBlasterParser):
+class PulseblasterESRPro200Parser(PulseBlaster_No_DDS_Parser):
     num_dds = 0
-    num_flags = 24
+    num_flags = 21
