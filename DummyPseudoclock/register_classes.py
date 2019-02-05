@@ -14,6 +14,6 @@ import labscript_devices
 
 labscript_devices.register_classes(
     'DummyPseudoclock',
-    BLACS_tab='labscript_devices.DummyPseudoclock.blacs_tab.DummyPseudoclockTab',
+    BLACS_tab='labscript_devices.DummyPseudoclock.blacs_tabs.DummyPseudoclockTab',
     runviewer_parser=None, #TODO make a runviwer parser for Dummy pseudoclock!
 )
