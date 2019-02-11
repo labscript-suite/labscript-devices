@@ -355,9 +355,7 @@ class PulseblasterNoDDSWorker(Worker):
             
                 self.smart_cache['ready_to_go'] = True
                 self.smart_cache['initial_values'] = initial_values
-                # Line zero is a wait on the final state of the program:
-                pb_inst_pbonly(flags,WAIT,0,100)
-                
+
                 # create initial flags string
                 # NOTE: The spinapi can take a string or integer for flags.
                 # If it is a string: 
@@ -375,6 +373,14 @@ class PulseblasterNoDDSWorker(Worker):
                         initial_flags += '1'
                     else:
                         initial_flags += '0'
+
+                if self.programming_scheme == 'pb_start/BRANCH':
+                    # Line zero is a wait on the final state of the program in 'pb_start/BRANCH' mode 
+                    pb_inst_pbonly(flags,WAIT,0,100)
+                else:
+                    # Line zero otherwise just contains the initial flags 
+                    pb_inst_pbonly(initial_flags,CONTINUE,0,100)
+                                        
                 # Line one is a continue with the current front panel values:
                 pb_inst_pbonly(initial_flags, CONTINUE, 0, 100)
                 # Now the rest of the program:
