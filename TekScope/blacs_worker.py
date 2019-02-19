@@ -11,10 +11,7 @@ class TekScopeWorker(Worker):
     def init(self):
         global h5py; import labscript_utils.h5_lock, h5py
         global TekScope
-        if PY2:
-            from TekScope import TekScope
-        else:
-            from .TekScope import TekScope
+        from .TekScope import TekScope
         self.scope = TekScope(self.addr, termination=self.termination)
         manufacturer, model, sn, revision = self.scope.idn.split(',')
         assert manufacturer.lower() == 'tektronix'

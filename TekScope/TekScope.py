@@ -6,7 +6,7 @@ class TekScope:
     def __init__(self, addr='USB?*::INSTR', 
                  timeout=1, termination='\n'):
         rm = pyvisa.ResourceManager()
-        devs = rm.list_resources('USB?*::INSTR')
+        devs = rm.list_resources(addr)
         self.dev = rm.open_resource(devs[0])
         self.dev.timeout = 1000 * timeout
         self.dev.read_termination = termination
@@ -93,6 +93,7 @@ class TekScope:
         # create a dictionary of the waveform preamble
         wfmp = {}
         for key, x in zip(keys, wfstr):
+            x = str(x)
             if x[0] == '"':                             # is it an enclosed string?
                 x = x.split('"')[1]
             elif str.isdigit(x):                        # is it an integer
@@ -149,7 +150,7 @@ class TekScope:
         self.dev.close()
 
 if __name__ == '__main__':
-    scope = TekScope(addr='USB?*::INSTR', timeout=5, preamble_string='WFMP')
+    scope = TekScope(addr='TCP?*::INSTR', timeout=10)
     manufacturer, model, sn, revision = scope.idn.split(',')
     assert manufacturer.lower() == 'tektronix'
     "Device is made by {:s}, not by Tektronix, and is actually a {:s}".format(manufacturer, model)
