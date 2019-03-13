@@ -295,7 +295,7 @@ class NovatechDDS9mWorker(Worker):
         # if requested start with a default baud rate and update
         if self.default_baud_rate is not None:
             self.connection = serial.Serial(self.com_port, baudrate=self.default_baud_rate, timeout=0.1)
-            self.connection.write(b'{}\n'.format(bauds[self.baud_rate]))
+            self.connection.write(b'%s\r\n' % bauds[self.baud_rate])
             
             # Flush any junk from the buffer
             self.connection.readlines()
@@ -520,7 +520,7 @@ class NovatechDDS9mWorker(Worker):
         
         # return to the default baud rate
         if self.default_baud_rate is not None:
-            self.connection.write(b'{}\n'.format(bauds[self.default_baud_rate]))
+            self.connection.write(b'%s\r\n' % bauds[self.default_baud_rate])
             self.connection.readlines()        
         
         self.connection.close()
