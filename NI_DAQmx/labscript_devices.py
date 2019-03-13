@@ -132,6 +132,9 @@ class NI_DAQmx(IntermediateDevice):
             msg = """If parent_device is given, then clock_terminal must be specified as
                 well as the terminal to which the parent pseudoclock is connected."""
             raise ValueError(dedent(msg))
+        if acquisition_rate is not None and num_AI == 0:
+            msg = "Cannot set set acquisition rate on device with no analog inputs"
+            raise ValueError(msg)
         # Acquisition rate cannot be larger than the single channel rate:
         if acquisition_rate is not None and acquisition_rate > max_AI_single_chan_rate:
             msg = """acquisition_rate %f is larger than the maximum single-channel rate
