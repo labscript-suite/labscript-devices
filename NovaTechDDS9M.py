@@ -292,16 +292,38 @@ class NovatechDDS9mWorker(Worker):
         global h5py; import labscript_utils.h5_lock, h5py
         self.smart_cache = {'STATIC_DATA': None, 'TABLE_DATA': ''}
         
-        # if requested start with a default baud rate and update
         if self.default_baud_rate is not None:
-            self.connection = serial.Serial(self.com_port, baudrate=self.default_baud_rate, timeout=0.1)
-            self.connection.write(b'%s\r\n' % bauds[self.baud_rate])
-            
-            # Flush any junk from the buffer
-            self.connection.readlines()
-            self.connection.close()
+            initial_baud_rate = self.default_baud_rate
+        else:
+            initial_baud_rate = self.baud_rate
+
+        self.connection = serial.Serial(
+            self.com_port, baudrate=initial_baud_rate, timeout=0.1
+        )
         
-        self.connection = serial.Serial(self.com_port, baudrate=self.baud_rate, timeout=0.1)
+        # Check if the novatech will talk to us on this baud rate:
+        if not self.check_connection():
+            # Nope. Try all baud rates, from slowest to fastest:
+            for rate in sorted(bauds):
+                self.connection.baudrate = rate
+                if self.check_connection():
+                    # found it!
+                    break
+            else:
+                # None of them worked.
+                msg = "Error: tried all baud rates but got no response from NovaTech."
+                raise RuntimeError(msg)
+
+        # If the baud rate we are using to initially talk to the device is not the one
+        # we want to use to program it, switch now to the desired baud rate:
+        if self.connection.baudrate != self.baud_rate:
+            self.connection.write(b'%s\r\n' % bauds[self.baud_rate])
+            # ensure command finishes before switching rates in pyserial:
+            time.sleep(0.1)
+            self.connection.baudrate = self.baud_rate
+            if not self.check_connection():
+                msg = 'Error: Failed to execute command %s' % bauds[self.baud_rate]
+                raise RuntimeError(msg)           
         
         # Set phase mode method
         phase_mode_commands = {
@@ -317,7 +339,8 @@ class NovatechDDS9mWorker(Worker):
             # if echo was enabled, then the command to disable it echos back at us!
             response = self.connection.readline()
         if response != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "e d", recieved "%s".'%response)
+            msg = 'Error: Failed to execute command: "e d", received "%s".' % response
+            raise Exception(msg)
 
         self.connection.write(b'I a\r\n')
         if self.connection.readline() != b"OK\r\n":
@@ -329,6 +352,20 @@ class NovatechDDS9mWorker(Worker):
         
         #return self.get_current_values()
         
+    def check_connection(self):
+        """Sends non-command and tests for correct response, returns True if connection
+        appears to be working correctly, else returns False"""
+        # check twice since false positive possible on first check. use readlines in
+        # case echo is on
+        self.connection.write(b'\r\n')
+        self.connection.readlines()       
+        self.connection.write(b'\r\n')
+        try:
+            return self.connection.readlines()[-1] == b'OK\r\n'
+        except IndexError:
+            # empty response, probably not connected
+            return False
+
     def check_remote_values(self):
         # Get the currently output values:
         self.connection.write(b'QUE\r\n')
@@ -521,6 +558,7 @@ class NovatechDDS9mWorker(Worker):
         # return to the default baud rate
         if self.default_baud_rate is not None:
             self.connection.write(b'%s\r\n' % bauds[self.default_baud_rate])
+            time.sleep(0.1)
             self.connection.readlines()        
         
         self.connection.close()
