@@ -54,10 +54,10 @@ class NovaTechDDS9M(IntermediateDevice):
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')            
         
         if not baud_rate in bauds:     
-            raise LabscriptError('baud_rate must be one of {0}'.format(bauds.keys()))            
+            raise LabscriptError('baud_rate must be one of {0}'.format(list(bauds)))            
 
         if not default_baud_rate in bauds and default_baud_rate is not None:     
-            raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(bauds.keys()))            
+            raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(list(bauds)))            
 
         if not phase_mode in ['default', 'aligned', 'continuous']:
             raise LabscriptError('phase_mode must be \'default\', \'aligned\' or \'continuous\'')
