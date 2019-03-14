@@ -20,5 +20,5 @@ from labscript_devices import deprecated_import_alias
 
 # For backwards compatibility with old experiment scripts:
 DummyPseudoclock = deprecated_import_alias(
-    "labscript_devices.DummyPseudoclock.labscript_device.DummyPseudoclock"
+    "labscript_devices.DummyPseudoclock.labscript_devices.DummyPseudoclock"
 )
