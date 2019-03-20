@@ -142,19 +142,17 @@ def port_supports_buffered(device_name, port, clock_terminal=None):
     all_terminals = DAQmxGetDevTerminals(device_name)
     if clock_terminal is None:
         clock_terminal = all_terminals[0]
-    npts = 10
+    npts = 16
     task = Task()
     clock_terminal_full = '/' + device_name + '/' + clock_terminal
-    data = np.zeros(npts, dtype=np.uint8)
-    task.CreateDOChan(
-        device_name + "/" + port + '/line0', "", c.DAQmx_Val_ChanForAllLines
-    )
+    data = np.zeros(npts, dtype=np.uint32)
+    task.CreateDOChan(device_name + "/" + port, "", c.DAQmx_Val_ChanForAllLines)
     task.CfgSampClkTiming(
         clock_terminal_full, 100, c.DAQmx_Val_Rising, c.DAQmx_Val_FiniteSamps, npts
     )
     written = int32()
     try:
-        task.WriteDigitalLines(
+        task.WriteDigitalU32(
             npts, False, 10.0, c.DAQmx_Val_GroupByScanNumber, data, byref(written), None
         )
     except (
@@ -162,6 +160,13 @@ def port_supports_buffered(device_name, port, clock_terminal=None):
         PyDAQmx.DAQmxFunctions.PhysicalChanNotSupportedGivenSampTimingType653xError,
     ):
         return False
+    except (
+        PyDAQmx.DAQmxFunctions.CantUsePort3AloneGivenSampTimingTypeOn653xError,
+        PyDAQmx.DAQmxFunctions.CantUsePort1AloneGivenSampTimingTypeOn653xError,
+    ):
+        # Ports that throw this error on 653x devices do support buffered output, though
+        # there are requirements that multiple ports be used together.
+        return True
     except PyDAQmx.DAQmxFunctions.RouteNotSupportedByHW_RoutingError:
         # Try again with a different terminal
         current_terminal_index = all_terminals.index(clock_terminal)
