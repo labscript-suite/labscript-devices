@@ -103,6 +103,8 @@ class NI_DAQmxOutputWorker(Worker):
 
         # Setup DO channels
         for port_str in sorted(self.ports, key=split_conn_port):
+            if not self.ports[port_str]['num_lines']:
+                continue
             # Add each port to the task:
             con = '%s/%s' % (self.MAX_name, port_str)
             self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
