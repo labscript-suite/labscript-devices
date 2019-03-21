@@ -218,7 +218,7 @@ class LightCrafterWorker(Worker):
                 'pattern_definition':   b'\x04\x01',
                 'start_pattern_sequence': b'\x04\x02',
                 'display_pattern' :     b'\x04\x05',
-                'advance_pattern_sequence' : b'\x04\x02',
+                'advance_pattern_sequence' : b'\x04\x03',
                 }
     send_packet_type = {   'read': b'\x04',
                             'write': b'\x02',
