@@ -347,13 +347,20 @@ class LightCrafterWorker(Worker):
             oldtable = self.smart_cache['IMAGE_TABLE']
             self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['pattern'])
             num_of_patterns = len(table_data)
+            # We will pad the images we send up to a multiple of four:
+            padded_num_of_patterns = num_of_patterns + (-num_of_patterns % 4)
             
             # bit depth, number of patterns, invert patterns?, trigger type, trigger delay (4 bytes), trigger period (4 bytes), exposure time (4 bytes), led select
-            self.send(self.send_packet_type['write'], self.command['sequence_setting'],  struct.pack('<BBBBiiiB',1,num_of_patterns,0,2,0,0,250,0))
+            self.send(self.send_packet_type['write'], self.command['sequence_setting'],  struct.pack('<BBBBiiiB',1,padded_num_of_patterns,0,2,0,0,0,0))
             if fresh or len(oldtable)!=len(table_data) or (oldtable != table_data).any():
-                for i, im in enumerate(table_data):
+                for i in range(padded_num_of_patterns):
+                    if i < num_of_patterns:
+                        im = table_data[i]
+                    else:
+                        # Padding uses the final image:
+                        im = table_data[-1]
                     self.send(self.send_packet_type['write'], self.command['pattern_definition'], struct.pack('<B',i) + im.tostring())
-            
+                
             self.send(self.send_packet_type['write'], self.command['display_pattern'], struct.pack('<H',0))
             self.send(self.send_packet_type['write'], self.command['start_pattern_sequence'], struct.pack('<B',1))
             self.smart_cache['IMAGE_TABLE'] = table_data
