@@ -245,7 +245,7 @@ class PulseBlaster(PseudoclockDevice):
                     connection = int(connection)
                 except:
                     raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(output.description,output.name,str(output.connection)) + 
-                                         'Format must be \'flag n\' with n an integer less than %d, or \'dds n\' with n less than 2, or \'phase_reset n\' with n less than 2.'%self.n_flags)
+                                         'Format must be \'flag n\' with n an integer less than %d, or \'dds n\' with n less than 2.'%self.n_flags)
                 # run checks on the connection string to make sure it is valid
                 # TODO: Most of this should be done in add_device() No?
                 if prefix == 'flag' and not self.flag_valid(connection):
