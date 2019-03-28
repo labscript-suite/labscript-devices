@@ -415,7 +415,7 @@ class PulseBlaster(PseudoclockDevice):
                     flags[flagindex] = int(output.raw_output[i])
                 elif output.connection.split()[0] == 'phase_reset':
                     ddsnumber = flagindex = int(output.connection.split()[1])
-                    phase_resets[ddsnumber] = output.gate.raw_output[i]
+                    phase_resets[ddsnumber] = output.raw_output[i]
                     
             for output in dds_outputs:
                 ddsnumber = int(output.connection.split()[1])
