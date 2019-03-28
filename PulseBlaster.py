@@ -239,11 +239,11 @@ class PulseBlaster(PseudoclockDevice):
                 # get connection number and prefix
                 try:
                     prefix, connection = output.connection.split()
-                    assert prefix == 'flag' or prefix == 'dds'
+                    assert prefix == 'flag' or prefix == 'dds' or prefix == 'phase_reset'
                     connection = int(connection)
                 except:
                     raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(output.description,output.name,str(output.connection)) + 
-                                         'Format must be \'flag n\' with n an integer less than %d, or \'dds n\' with n less than 2.'%self.n_flags)
+                                         'Format must be \'flag n\' with n an integer less than %d, or \'dds n\' with n less than 2, or \'phase_reset n\' with n less than 2.'%self.n_flags)
                 # run checks on the connection string to make sure it is valid
                 # TODO: Most of this should be done in add_device() No?
                 if prefix == 'flag' and not self.flag_valid(connection):
@@ -255,7 +255,9 @@ class PulseBlaster(PseudoclockDevice):
                 if prefix == 'dds' and not connection < 2:
                     raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
                                          'DDS output connection number must be a integer less than 2.')
-                
+                if prefix == 'phase_reset' and not connection < 2:
+                    raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
+                                         'DDS phase reset connection number must be a integer less than 2.')
                 # Check that the connection string doesn't conflict with another output
                 for other_output in dig_outputs + dds_outputs:
                     if output.connection == other_output.connection:
@@ -357,11 +359,12 @@ class PulseBlaster(PseudoclockDevice):
         ampregs = [0]*2
         phaseregs = [0]*2
         dds_enables = [0]*2
-            
-        pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+        phase_resets = [0]*2
+        
+        pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets': phase_resets,
                         'flags': ''.join([str(flag) for flag in flags]), 'instruction': 'STOP',
                         'data': 0, 'delay': 10.0/self.clock_limit*1e9})
-        pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+        pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets': phase_resets,
                         'flags': ''.join([str(flag) for flag in flags]), 'instruction': 'STOP',
                         'data': 0, 'delay': 10.0/self.clock_limit*1e9})    
         j += 2
@@ -387,6 +390,7 @@ class PulseBlaster(PseudoclockDevice):
             ampregs = [1]*2
             phaseregs = [1]*2
             dds_enables = [0]*2
+            phase_resets = [0]*2
             
             # This flag indicates whether we need a full clock tick, or are just updating an internal output
             only_internal = True
@@ -406,8 +410,13 @@ class PulseBlaster(PseudoclockDevice):
                     
             
             for output in dig_outputs:
-                flagindex = int(output.connection.split()[1])
-                flags[flagindex] = int(output.raw_output[i])
+                if output.connection.split()[0] == 'flag':
+                    flagindex = int(output.connection.split()[1])
+                    flags[flagindex] = int(output.raw_output[i])
+                elif output.connection.split()[0] == 'phase_reset':
+                    ddsnumber = flagindex = int(output.connection.split()[1])
+                    phase_resets[ddsnumber] = output.gate.raw_output[i]
+                    
             for output in dds_outputs:
                 ddsnumber = int(output.connection.split()[1])
                 freqregs[ddsnumber] = freqs[ddsnumber][output.frequency.raw_output[i]]
@@ -461,7 +470,7 @@ class PulseBlaster(PseudoclockDevice):
                     delay = remainder
             
                 # The loop and endloop instructions will only use the remainder:
-                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LOOP',
                                 'data': instruction['reps'], 'delay': delay*1e9})
                 
@@ -481,7 +490,7 @@ class PulseBlaster(PseudoclockDevice):
                     else:
                         delay = 55
                     
-                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
                                 'data': int(2*quotient), 'delay': delay*1e9}) 
                                 
@@ -489,7 +498,7 @@ class PulseBlaster(PseudoclockDevice):
                     delay = 2*remainder-self.pulse_width
                 else:
                     delay = remainder
-                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'END_LOOP',
                                 'data': j, 'delay': delay*1e9})
                                 
@@ -501,12 +510,12 @@ class PulseBlaster(PseudoclockDevice):
                 # We only need to update a direct output, so no need to tick the clocks
                 
                 # The loop and endloop instructions will only use the remainder:
-                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'CONTINUE',
                                 'data': 0, 'delay': remainder*1e9})
                 # If there was a nonzero quotient, let's wait that many multiples of 55 seconds:
                 if quotient:
-                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
                                 'data': int(2*quotient), 'delay': 55/2.0*1e9}) 
                 j += 2 if quotient else 1
@@ -518,7 +527,7 @@ class PulseBlaster(PseudoclockDevice):
             # the same values and a WAIT instruction. The PulseBlaster then
             # waits on instuction zero, which is a state ready for either
             # further static updates or buffered mode.
-            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                             'flags': flagstring, 'instruction': 'BRANCH',
                             'data': 0, 'delay': 10.0/self.clock_limit*1e9})
         elif self.programming_scheme == 'pb_stop_programming/STOP':
@@ -528,7 +537,7 @@ class PulseBlaster(PseudoclockDevice):
             # repeated triggers coming to it, such as a 50Hz/60Hz line trigger. We can't have it sit
             # on a WAIT instruction as above, or it will trigger and run repeatedly when that's not what
             # we wanted.
-            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+            pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                             'flags': flagstring, 'instruction': 'STOP',
                             'data': 0, 'delay': 10.0/self.clock_limit*1e9})
         else:
@@ -561,7 +570,10 @@ class PulseBlaster(PseudoclockDevice):
             amp1 = inst['amps'][1]
             en0 = inst['enables'][0]
             en1 = inst['enables'][1]
-            pb_inst_table[i] = (freq0,phase0,amp0,en0,0,freq1,phase1,amp1,en1,0, flagint, 
+            phase_reset0 = inst['phase_resets'][0]
+            phase_reset1 = inst['phase_resets'][1]
+            
+            pb_inst_table[i] = (freq0,phase0,amp0,en0,phase_reset0,freq1,phase1,amp1,en1,phase_reset1, flagint, 
                                 instructionint, dataint, delaydouble)     
                                 
         # Okay now write it to the file: 
