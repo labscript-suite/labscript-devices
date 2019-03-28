@@ -28,6 +28,8 @@ class x(object):
 
 import time
 
+import types
+
 profiles = {}
 def profile(funct):
     func = funct.__name__
@@ -239,7 +241,7 @@ class PulseBlaster(PseudoclockDevice):
                 # get connection number and prefix
                 try:
                     prefix, connection = output.connection.split()
-                    assert prefix == 'flag' or prefix == 'dds' or prefix == 'phase_reset'
+                    assert prefix == 'flag' or prefix == 'dds'
                     connection = int(connection)
                 except:
                     raise LabscriptError('%s %s has invalid connection string: \'%s\'. '%(output.description,output.name,str(output.connection)) + 
@@ -255,9 +257,7 @@ class PulseBlaster(PseudoclockDevice):
                 if prefix == 'dds' and not connection < 2:
                     raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
                                          'DDS output connection number must be a integer less than 2.')
-                if prefix == 'phase_reset' and not connection < 2:
-                    raise LabscriptError('%s is set as connected to output connection %d of %s. '%(output.name, connection, self.name) +
-                                         'DDS phase reset connection number must be a integer less than 2.')
+                
                 # Check that the connection string doesn't conflict with another output
                 for other_output in dig_outputs + dds_outputs:
                     if output.connection == other_output.connection:
@@ -410,19 +410,15 @@ class PulseBlaster(PseudoclockDevice):
                     
             
             for output in dig_outputs:
-                if output.connection.split()[0] == 'flag':
-                    flagindex = int(output.connection.split()[1])
-                    flags[flagindex] = int(output.raw_output[i])
-                elif output.connection.split()[0] == 'phase_reset':
-                    ddsnumber = flagindex = int(output.connection.split()[1])
-                    phase_resets[ddsnumber] = output.raw_output[i]
-                    
+                flagindex = int(output.connection.split()[1])
+                flags[flagindex] = int(output.raw_output[i])
             for output in dds_outputs:
                 ddsnumber = int(output.connection.split()[1])
                 freqregs[ddsnumber] = freqs[ddsnumber][output.frequency.raw_output[i]]
                 ampregs[ddsnumber] = amps[ddsnumber][output.amplitude.raw_output[i]]
                 phaseregs[ddsnumber] = phases[ddsnumber][output.phase.raw_output[i]]
                 dds_enables[ddsnumber] = output.gate.raw_output[i]
+                phase_resets[ddsnumber] = output.phase_reset.raw_output[i]
                 
             # if self.fast_clock_flag is not None:
                 # for fast_flag in self.fast_clock_flag:
@@ -592,6 +588,12 @@ class PulseBlaster(PseudoclockDevice):
         self.write_pb_inst_to_h5(pb_inst, hdf5_file)
         
 
+def hold_phase(self, t):
+	self.phase_reset.go_high(t)
+
+def release_phase(self, t):
+	self.phase_reset.go_low(t)
+
 class PulseBlasterDirectOutputs(IntermediateDevice):
     allowed_children = [DDS, DigitalOut]
     clock_limit = PulseBlaster.clock_limit
@@ -608,7 +610,13 @@ class PulseBlasterDirectOutputs(IntermediateDevice):
                 raise LabscriptError('You cannot specify a digital gate ' +
                                      'for a DDS connected to %s. '% (self.name) + 
                                      'The digital gate is always internal to the Pulseblaster.')
+			
+            # Add in a digital quantity to control the internal phase reset line for the DDS:
+            device.phase_reset = DigitalQuantity(device.name + '_phase_reset', device, 'phase_reset')
             
+            # Add a convenience function to control the phase [similar to enable()/disable() functions for the gate]:
+            device.hold_phase = types.MethodType( hold_phase, device )
+            device.release_phase = types.MethodType( release_phase, device )
 
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
