@@ -14,8 +14,6 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
 
 from labscript_utils import check_version
-check_version('labscript', '2.0.1', '3')
-check_version('zprocess', '2.4.8', '3')
 from labscript_utils import PY2
 if PY2:
     str = unicode
@@ -28,19 +26,15 @@ import numpy as np
 
 
 class IMAQdxCamera(TriggerableDevice):
-    description = 'IMAQdx Camera'        
-    
+    description = 'IMAQdx Camera'
+
     @set_passed_properties(
         property_names={
-            "connection_table_properties": [
-                "serial_number",
-                "SDK",
-                "orientation",
-                "minimum_recovery_time",
-            ],
+            "connection_table_properties": ["serial_number", "orientation"],
             "device_properties": [
                 "trigger_edge_type",
                 "trigger_duration",
+                "minimum_recovery_time",
                 "imaqdx_attributes",
             ],
         }
@@ -51,7 +45,6 @@ class IMAQdxCamera(TriggerableDevice):
         parent_device,
         connection,
         serial_number=0x0,
-        SDK='',
         trigger_duration=None,
         orientation='side',
         trigger_edge_type='rising',
@@ -66,8 +59,9 @@ class IMAQdxCamera(TriggerableDevice):
         if isinstance(serial_number, (str, bytes)):
             serial_number = int(serial_number, 16)
         self.serial_number = serial_number
-        self.BLACS_connection = self.serial_number
-        self.SDK = str(SDK)
+        self.BLACS_connection = str(self.serial_number)[2:]
+        if imaqdx_attributes is None:
+            imaqdx_attributes = {}
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
@@ -84,7 +78,7 @@ class IMAQdxCamera(TriggerableDevice):
         self.trigger(t, trigger_duration)
         self.exposures.append((t, name, frametype, trigger_duration))
         return trigger_duration
-    
+
     def generate_code(self, hdf5_file):
         self.do_checks()
         table_dtypes = [

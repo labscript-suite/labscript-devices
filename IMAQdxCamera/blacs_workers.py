@@ -1,4 +1,6 @@
-class CameraWorker(Worker):
+from blacs.tab_base_classes import Worker
+
+class IMAQdxCameraWorker(Worker):
     def init(self):
         global socket; import socket
         global zmq; import zmq
@@ -7,7 +9,7 @@ class CameraWorker(Worker):
         
         self.host = ''
         self.use_zmq = False
-        
+
     def update_settings_and_check_connectivity(self, host, use_zmq):
         self.host = host
         self.use_zmq = use_zmq
