@@ -11,36 +11,39 @@ from blacs.device_base_class import DeviceTab
 from qtutils import UiLoader
 import qtutils.icons
 
+from qtutils.qt import QtWidgets, QtGui, QtCore
+import numpy as np
+import pyqtgraph as pg
+
 
 class IMAQdxCameraTab(DeviceTab):
     def initialise_GUI(self):
         layout = self.get_tab_layout()
-        ui_filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'blacs_tab.ui')
+        ui_filepath = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'blacs_tab.ui'
+        )
         self.ui = UiLoader().load(ui_filepath)
         layout.addWidget(self.ui)
-
-        # TODO: button to view current attributes. Connect button to function in worker
-        # that gets them, and return it as a dict.
+        self.image = pg.ImageView()
+        self.image.setSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding
+        )
+        self.ui.horizontalLayout.addWidget(self.image)
+        self.ui.pushButton_stop.hide()
+        self.acquiring = False
+        self.ui.pushButton_acquire.clicked.connect(self.on_acquire_clicked)
+        self.ui.pushButton_stop.clicked.connect(self.on_stop_clicked)
+        self.ui.pushButton_snap.clicked.connect(self.on_snap_clicked)
+        self.ui.pushButton_snap.clicked.connect(self.show_attributes)
+        # data = np.random.randn(1024, 1024)
         
     def get_save_data(self):
+        # TODO: save the settings of the image widget?
         return {}
-        # return {'host': str(self.ui.host_lineEdit.text()), 'use_zmq': self.ui.use_zmq_checkBox.isChecked()}
     
     def restore_save_data(self, save_data):
+        # TODO: restore the settings of the image widget?
         pass
-        # if save_data:
-        #     host = save_data['host']
-        #     self.ui.host_lineEdit.setText(host)
-        #     if 'use_zmq' in save_data:
-        #         use_zmq = save_data['use_zmq']
-        #         self.ui.use_zmq_checkBox.setChecked(use_zmq)
-        # else:
-        #     self.logger.warning('No previous front panel state to restore')
-        
-        # call update_settings if primary_worker is set
-        # this will be true if you load a front panel from the file menu after the tab has started
-        # if self.primary_worker:
-        #     self.update_settings_and_check_connectivity()
             
     def initialise_workers(self):
         table = self.settings['connection_table']
@@ -55,26 +58,30 @@ class IMAQdxCameraTab(DeviceTab):
             worker_initialisation_kwargs,
         )
         self.primary_worker = "main_worker"
-       
-    # @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
-    # def update_settings_and_check_connectivity(self, *args):
-    #     icon = QIcon(':/qtutils/fugue/hourglass')
-    #     pixmap = icon.pixmap(QSize(16, 16))
-    #     status_text = 'Checking...'
-    #     self.ui.status_icon.setPixmap(pixmap)
-    #     self.ui.server_status.setText(status_text)
-    #     kwargs = self.get_save_data()
-    #     responding = yield(self.queue_work(self.primary_worker, 'update_settings_and_check_connectivity', **kwargs))
-    #     self.update_responding_indicator(responding)
-        
-    # def update_responding_indicator(self, responding):
-    #     if responding:
-    #         icon = QIcon(':/qtutils/fugue/tick')
-    #         pixmap = icon.pixmap(QSize(16, 16))
-    #         status_text = 'Server is responding'
-    #     else:
-    #         icon = QIcon(':/qtutils/fugue/exclamation')
-    #         pixmap = icon.pixmap(QSize(16, 16))
-    #         status_text = 'Server not responding'
-    #     self.ui.status_icon.setPixmap(pixmap)
-    #     self.ui.server_status.setText(status_text)
+    
+    def on_acquire_clicked(self, button):
+        self.ui.pushButton_snap.setEnabled(False)
+        self.ui.pushButton_acquire.hide()
+        self.ui.pushButton_stop.show()
+        self.acquiring = True
+        self.acquire()
+
+    def on_stop_clicked(self, button):
+        self.ui.pushButton_snap.setEnabled(True)
+        self.ui.pushButton_acquire.show()
+        self.ui.pushButton_stop.hide()
+        self.acquiring = False
+
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def on_snap_clicked(self, *button):
+        data = yield (self.queue_work(self.primary_worker, 'snap'))
+        self.image.setImage(data)
+
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def acquire(self):
+        success = yield (self.queue_work(self.primary_worker, 'start_acquisition'))
+        if not success:
+            self.on_stop_clicked()
+        while self.acquiring:
+            data = yield (self.queue_work(self.primary_worker, 'snap'))
+            self.image.setImage(data)
