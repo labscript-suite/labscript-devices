@@ -4,7 +4,12 @@ from qtutils.qt.QtCore import *
 from qtutils.qt.QtGui import *
 
 from blacs.tab_base_classes import Worker, define_state
-from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
+from blacs.tab_base_classes import (
+    MODE_MANUAL,
+    MODE_TRANSITION_TO_BUFFERED,
+    MODE_TRANSITION_TO_MANUAL,
+    MODE_BUFFERED,
+)
 
 from blacs.device_base_class import DeviceTab
 
@@ -22,7 +27,15 @@ class IMAQdxCameraTab(DeviceTab):
         ui_filepath = os.path.join(
             os.path.dirname(os.path.realpath(__file__)), 'blacs_tab.ui'
         )
+        attributes_ui_filepath = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'attributes_dialog.ui'
+        )
         self.ui = UiLoader().load(ui_filepath)
+
+        self.attributes_dialog = UiLoader().load(attributes_ui_filepath)
+        self.attributes_dialog.setModal(True)
+        self.attributes_dialog.setWindowTitle("{} attributes".format(self.device_name))
+
         layout.addWidget(self.ui)
         self.image = pg.ImageView()
         self.image.setSizePolicy(
@@ -34,17 +47,17 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.pushButton_acquire.clicked.connect(self.on_acquire_clicked)
         self.ui.pushButton_stop.clicked.connect(self.on_stop_clicked)
         self.ui.pushButton_snap.clicked.connect(self.on_snap_clicked)
-        self.ui.pushButton_snap.clicked.connect(self.show_attributes)
-        # data = np.random.randn(1024, 1024)
-        
+        self.ui.pushButton_attributes.clicked.connect(self.on_attributes_clicked)
+        self.attributes_dialog.pushButton_copy.clicked.connect(self.on_copy_clicked)
+
     def get_save_data(self):
         # TODO: save the settings of the image widget?
         return {}
-    
+
     def restore_save_data(self, save_data):
         # TODO: restore the settings of the image widget?
         pass
-            
+
     def initialise_workers(self):
         table = self.settings['connection_table']
         properties = table.find_by_name(self.device_name).properties
@@ -58,7 +71,15 @@ class IMAQdxCameraTab(DeviceTab):
             worker_initialisation_kwargs,
         )
         self.primary_worker = "main_worker"
-    
+
+    def on_attributes_clicked(self, button):
+        attributes_text = yield (
+            self.queue_work(self.primary_worker, 'get_attributes_as_text')
+        )
+        self.attributes_dialog.plainTextEdit.setPlainText(attributes_text)
+        self.attributes_dialog.setModal(True)
+        self.attributes_dialog.show()
+
     def on_acquire_clicked(self, button):
         self.ui.pushButton_snap.setEnabled(False)
         self.ui.pushButton_acquire.hide()
@@ -72,6 +93,11 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.pushButton_stop.hide()
         self.acquiring = False
 
+    def on_copy_clicked(self, button):
+        text = self.attributes_dialog.plainTextEdit.toPlainText()
+        clipboard = QtGui.QApplication.instance().clipboard()
+        clipboard.setText(text)
+
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def on_snap_clicked(self, *button):
         data = yield (self.queue_work(self.primary_worker, 'snap'))
@@ -83,5 +109,6 @@ class IMAQdxCameraTab(DeviceTab):
         if not success:
             self.on_stop_clicked()
         while self.acquiring:
-            data = yield (self.queue_work(self.primary_worker, 'snap'))
+            data = yield (self.queue_work(self.primary_worker, 'acquisition_next'))
             self.image.setImage(data)
+        data = yield (self.queue_work(self.primary_worker, 'stop_acquisition'))
