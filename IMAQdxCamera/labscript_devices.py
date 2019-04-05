@@ -23,7 +23,8 @@ from labscript_utils import dedent
 from labscript_devices import BLACS_tab
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np
-
+import labscript_utils.h5_lock
+import h5py
 
 class IMAQdxCamera(TriggerableDevice):
     description = 'IMAQdx Camera'
@@ -62,6 +63,7 @@ class IMAQdxCamera(TriggerableDevice):
         self.BLACS_connection = str(self.serial_number)[2:]
         if imaqdx_attributes is None:
             imaqdx_attributes = {}
+        self.imaqdx_attributes = imaqdx_attributes
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
@@ -81,10 +83,11 @@ class IMAQdxCamera(TriggerableDevice):
 
     def generate_code(self, hdf5_file):
         self.do_checks()
+        vlenstr = h5py.special_dtype(vlen=str)
         table_dtypes = [
             ('time', float),
-            ('name', 'a256'),
-            ('frametype', 'a256'),
+            ('name', vlenstr),
+            ('frametype', vlenstr),
             ('trigger_duration', float),
         ]
         data = np.array(self.exposures, dtype=table_dtypes)

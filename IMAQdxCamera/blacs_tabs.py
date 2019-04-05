@@ -42,9 +42,8 @@ class IMAQdxCameraTab(DeviceTab):
         self.attributes_dialog.setWindowTitle("{} attributes".format(self.device_name))
         self.attributes_dialog.pushButton_copy.clicked.connect(self.on_copy_clicked)
         self.attributes_dialog.comboBox.currentIndexChanged.connect(
-            self.on_attr_options_changed
+            self.on_attr_visibility_level_changed
         )
-        self.attributes_dialog.checkBox.stateChanged.connect(self.on_attr_options_changed)
 
         layout.addWidget(self.ui)
         self.image = pg.ImageView()
@@ -58,15 +57,11 @@ class IMAQdxCameraTab(DeviceTab):
     def get_save_data(self):
         return {
             'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
-            'attribute_comments': self.attributes_dialog.checkBox.checkState(),
         }
 
     def restore_save_data(self, save_data):
         self.attributes_dialog.comboBox.setCurrentText(
             save_data.get('attribute_visibility', 'simple')
-        )
-        self.attributes_dialog.checkBox.setCheckState(
-            save_data.get('attribute_comments', QtCore.Qt.Checked)
         )
 
     def initialise_workers(self):
@@ -98,16 +93,15 @@ class IMAQdxCameraTab(DeviceTab):
                 self.primary_worker,
                 'get_attributes_as_text',
                 self.attributes_dialog.comboBox.currentText(),
-                self.attributes_dialog.checkBox.checkState() == QtCore.Qt.Checked,
             )
         )
         self.attributes_dialog.plainTextEdit.setPlainText(attributes_text)
 
     def on_attributes_clicked(self, button):
         self.attributes_dialog.show()
-        self.on_attr_options_changed(None)
+        self.on_attr_visibility_level_changed(None)
 
-    def on_attr_options_changed(self, value):
+    def on_attr_visibility_level_changed(self, value):
         self.attributes_dialog.plainTextEdit.setPlainText("Reading attributes...")
         self.update_attributes()
 
