@@ -45,12 +45,12 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_acquire">
+        <widget class="QPushButton" name="pushButton_continuous">
          <property name="toolTip">
           <string>Acquire images continuously</string>
          </property>
          <property name="text">
-          <string>Acquire</string>
+          <string>Continuous</string>
          </property>
          <property name="icon">
           <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">

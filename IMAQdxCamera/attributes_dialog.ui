@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>608</width>
-    <height>613</height>
+    <width>619</width>
+    <height>523</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -27,6 +27,91 @@
       <bool>true</bool>
      </property>
     </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <property name="topMargin">
+      <number>6</number>
+     </property>
+     <item>
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>Visibility level</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboBox">
+       <item>
+        <property name="text">
+         <string>Simple</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
+          <normaloff>:/qtutils/fugue/table.png</normaloff>:/qtutils/fugue/table.png</iconset>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Intermediate</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
+          <normaloff>:/qtutils/fugue/tables.png</normaloff>:/qtutils/fugue/tables.png</iconset>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Advanced</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
+          <normaloff>:/qtutils/fugue/tables-stacks.png</normaloff>:/qtutils/fugue/tables-stacks.png</iconset>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <property name="topMargin">
+      <number>8</number>
+     </property>
+     <item>
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="checkBox">
+       <property name="text">
+        <string>Show descriptions</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QPlainTextEdit" name="plainTextEdit">
@@ -90,8 +175,8 @@
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>350</x>
-     <y>278</y>
+     <x>597</x>
+     <y>602</y>
     </hint>
     <hint type="destinationlabel">
      <x>395</x>

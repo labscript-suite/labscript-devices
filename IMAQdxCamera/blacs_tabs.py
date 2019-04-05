@@ -1,7 +1,11 @@
 import os
 
-from qtutils.qt.QtCore import *
-from qtutils.qt.QtGui import *
+from qtutils import UiLoader
+import qtutils.icons
+
+from qtutils.qt import QtWidgets, QtGui, QtCore
+import numpy as np
+import pyqtgraph as pg
 
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import (
@@ -13,12 +17,9 @@ from blacs.tab_base_classes import (
 
 from blacs.device_base_class import DeviceTab
 
-from qtutils import UiLoader
-import qtutils.icons
-
-from qtutils.qt import QtWidgets, QtGui, QtCore
-import numpy as np
-import pyqtgraph as pg
+import labscript_utils.properties
+import labscript_utils.h5_lock
+import h5py
 
 
 class IMAQdxCameraTab(DeviceTab):
@@ -31,10 +32,19 @@ class IMAQdxCameraTab(DeviceTab):
             os.path.dirname(os.path.realpath(__file__)), 'attributes_dialog.ui'
         )
         self.ui = UiLoader().load(ui_filepath)
+        self.ui.pushButton_continuous.clicked.connect(self.on_continuous_clicked)
+        self.ui.pushButton_stop.clicked.connect(self.on_stop_clicked)
+        self.ui.pushButton_snap.clicked.connect(self.on_snap_clicked)
+        self.ui.pushButton_attributes.clicked.connect(self.on_attributes_clicked)
 
         self.attributes_dialog = UiLoader().load(attributes_ui_filepath)
         self.attributes_dialog.setModal(True)
         self.attributes_dialog.setWindowTitle("{} attributes".format(self.device_name))
+        self.attributes_dialog.pushButton_copy.clicked.connect(self.on_copy_clicked)
+        self.attributes_dialog.comboBox.currentIndexChanged.connect(
+            self.on_attr_options_changed
+        )
+        self.attributes_dialog.checkBox.stateChanged.connect(self.on_attr_options_changed)
 
         layout.addWidget(self.ui)
         self.image = pg.ImageView()
@@ -44,26 +54,35 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.horizontalLayout.addWidget(self.image)
         self.ui.pushButton_stop.hide()
         self.acquiring = False
-        self.ui.pushButton_acquire.clicked.connect(self.on_acquire_clicked)
-        self.ui.pushButton_stop.clicked.connect(self.on_stop_clicked)
-        self.ui.pushButton_snap.clicked.connect(self.on_snap_clicked)
-        self.ui.pushButton_attributes.clicked.connect(self.on_attributes_clicked)
-        self.attributes_dialog.pushButton_copy.clicked.connect(self.on_copy_clicked)
 
     def get_save_data(self):
-        # TODO: save the settings of the image widget?
-        return {}
+        return {
+            'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
+            'attribute_comments': self.attributes_dialog.checkBox.checkState(),
+        }
 
     def restore_save_data(self, save_data):
-        # TODO: restore the settings of the image widget?
-        pass
+        self.attributes_dialog.comboBox.setCurrentText(
+            save_data.get('attribute_visibility', 'simple')
+        )
+        self.attributes_dialog.checkBox.setCheckState(
+            save_data.get('attribute_comments', QtCore.Qt.Checked)
+        )
 
     def initialise_workers(self):
         table = self.settings['connection_table']
-        properties = table.find_by_name(self.device_name).properties
+        connection_table_properties = table.find_by_name(self.device_name).properties
+        # The device properties can vary on a shot-by-shot basis, but at startup we will
+        # initially set the values that are configured in the connection table, so they
+        # can be used for manual mode acquisition:
+        with h5py.File(table.filepath, 'r') as f:
+            device_properties = labscript_utils.properties.get(
+                f, self.device_name, "device_properties"
+            )
         worker_initialisation_kwargs = {
-            'serial_number': properties['serial_number'],
-            'orientation': properties['orientation'],
+            'serial_number': connection_table_properties['serial_number'],
+            'orientation': connection_table_properties['orientation'],
+            'imaqdx_attributes': device_properties['imaqdx_attributes']
         }
         self.create_worker(
             'main_worker',
@@ -72,24 +91,38 @@ class IMAQdxCameraTab(DeviceTab):
         )
         self.primary_worker = "main_worker"
 
-    def on_attributes_clicked(self, button):
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def update_attributes(self):
         attributes_text = yield (
-            self.queue_work(self.primary_worker, 'get_attributes_as_text')
+            self.queue_work(
+                self.primary_worker,
+                'get_attributes_as_text',
+                self.attributes_dialog.comboBox.currentText(),
+                self.attributes_dialog.checkBox.checkState() == QtCore.Qt.Checked,
+            )
         )
         self.attributes_dialog.plainTextEdit.setPlainText(attributes_text)
-        self.attributes_dialog.setModal(True)
-        self.attributes_dialog.show()
 
-    def on_acquire_clicked(self, button):
+    def on_attributes_clicked(self, button):
+        self.attributes_dialog.show()
+        self.on_attr_options_changed(None)
+
+    def on_attr_options_changed(self, value):
+        self.attributes_dialog.plainTextEdit.setPlainText("Reading attributes...")
+        self.update_attributes()
+
+    def on_continuous_clicked(self, button):
         self.ui.pushButton_snap.setEnabled(False)
-        self.ui.pushButton_acquire.hide()
+        self.ui.pushButton_attributes.setEnabled(False)
+        self.ui.pushButton_continuous.hide()
         self.ui.pushButton_stop.show()
         self.acquiring = True
-        self.acquire()
+        self.continuous()
 
     def on_stop_clicked(self, button):
         self.ui.pushButton_snap.setEnabled(True)
-        self.ui.pushButton_acquire.show()
+        self.ui.pushButton_attributes.setEnabled(True)
+        self.ui.pushButton_continuous.show()
         self.ui.pushButton_stop.hide()
         self.acquiring = False
 
@@ -101,14 +134,23 @@ class IMAQdxCameraTab(DeviceTab):
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def on_snap_clicked(self, *button):
         data = yield (self.queue_work(self.primary_worker, 'snap'))
-        self.image.setImage(data)
+        self.set_image(data)
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
-    def acquire(self):
-        success = yield (self.queue_work(self.primary_worker, 'start_acquisition'))
-        if not success:
-            self.on_stop_clicked()
+    def continuous(self):
         while self.acquiring:
-            data = yield (self.queue_work(self.primary_worker, 'acquisition_next'))
-            self.image.setImage(data)
-        data = yield (self.queue_work(self.primary_worker, 'stop_acquisition'))
+            data = yield (
+                self.queue_work(self.primary_worker, 'snap')
+            )
+            if data is None:
+                self.on_stop_clicked(None)
+                return
+            self.set_image(data)
+
+    def set_image(self, data):
+        if self.image.image is None:
+            # First time setting an image. Do autoscaling etc:
+            self.image.setImage(data.T)
+        else:
+            # Updating image. Keep zoom/pan/levels/etc settings.
+            self.image.setImage(data.T, autoRange=False, autoLevels=False)
