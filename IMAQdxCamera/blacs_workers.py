@@ -1,23 +1,11 @@
 import nivision as nv
 from blacs.tab_base_classes import Worker
+import threading
 import numpy as np
-from enum import Enum
 from labscript_utils.connections import ConnectionTable
 import labscript_utils.properties
-
 import labscript_utils.h5_lock
 import h5py
-
-import threading
-
-# class AttrType(Enum):
-#     IMAQdxValueTypeU32 = nv.IMAQdxValueType(0)
-#     IMAQdxValueTypeI64 = nv.IMAQdxValueType(1)
-#     IMAQdxValueTypeF64 = nv.IMAQdxValueType(2)
-#     IMAQdxValueTypeString = nv.IMAQdxValueType(3)
-#     IMAQdxValueTypeEnumItem = nv.IMAQdxValueType(4)
-#     IMAQdxValueTypeBool = nv.IMAQdxValueType(5)
-#     IMAQdxValueTypeDisposableString = nv.IMAQdxValueType(6)
 
 
 class IMAQdx_Camera(object):
@@ -28,8 +16,8 @@ class IMAQdx_Camera(object):
                 self.camera = cam
                 break
         else:
-            msg = "No connected camera with serial number {:X} found"
-            raise Exception(msg.format(serial_number))
+            msg = f"No connected camera with serial number {serial_number:X} found"
+            raise Exception(msg)
         # Connect to the camera:
         self.imaqdx = nv.IMAQdxOpenCamera(
             self.camera.InterfaceName, nv.IMAQdxCameraControlModeController
@@ -46,11 +34,16 @@ class IMAQdx_Camera(object):
         """Set the value of the attribute of the given name to the given value"""
         if isinstance(value, str):
             value = value.encode('utf8')
-        nv.IMAQdxSetAttribute(self.imaqdx, name.encode('utf8'), value)
+        try:
+            nv.IMAQdxSetAttribute(self.imaqdx, name.encode('utf8'), value)
+        except Exception as e:
+            # Add some info to the exception:
+            msg = f"failed to set attribute {name} to {value}"
+            raise Exception(msg) from e
 
     def get_attribute_names(self, visibility_level, writeable_only=True):
-        """Return a list of all attribute names for readable attributes, for
-        the given visibility level, or optionally, only writeable attributes"""
+        """Return a list of all attribute names of readable attributes, for the given
+        visibility level. Optionally return only writeable attributes"""
         visibilities = {
             'simple': nv.IMAQdxAttributeVisibilitySimple,
             'intermediate': nv.IMAQdxAttributeVisibilityIntermediate,
@@ -70,20 +63,9 @@ class IMAQdx_Camera(object):
         """Return current value of attribute of the given name"""
         try:
             return nv.IMAQdxGetAttribute(self.imaqdx, name.encode('utf8'))
-        except Exception:
-            raise Exception("Failed to get attribute {}".format(name))
-
-    def get_attribute_options(self, name):
-        """Get possible values for attributes of IMAQdxValueTypeEnumItem type"""
-        return nv.IMAQdxEnumerateAttributeValues(self.imaqdx, name.encode('utf8'))
-
-    def get_attribute_dtype(self, name):
-        """Return dtype associated with an attribute, as a AttrType enum"""
-        return AttrType(nv.IMAQdxGetAttributeType(self.imaqdx, name.encode('utf8')))
-
-    def get_attribute_description(self, name):
-        """Return a string description of the attribute of the given name"""
-        print(nv.IMAQdxGetAttributeDescription(self.imaqdx, name.encode('utf8')))
+        except Exception as e:
+            # Add some info to the exception:
+            raise Exception(f"Failed to get attribute {name}") from e
 
     def snap(self):
         """Acquire a single image and return it"""
@@ -100,19 +82,21 @@ class IMAQdx_Camera(object):
         return self._decode_image_data(self.img)
 
     def grab_multiple(self, n_images, images, waitForNextBuffer=True):
-        print('Attempting to grab {} images.'.format(n_images))
+        print(f"Attempting to grab {n_images} images.")
         for i in range(n_images):
             if self._abort_acquisition:
-                print('Abort during acquisition.')
+                print("Abort during acquisition.")
                 self._abort_acquisition = False
                 break
             try:
                 images.append(self.grab(waitForNextBuffer))
-                print('Got image {} of {}.'.format(i, n_images))
+                print(f"Got image {i} of {n_images}.")
             except nv.ImaqDxError as e:
                 if e.code == nv.IMAQdxErrorTimeout.value:
                     print('.', end='')
-        print('Got {} of {} images.'.format(len(images), n_images))
+                else:
+                    raise
+        print(f"Got {len(images)} of {n_images} images.")
 
     def stop_acquisition(self):
         nv.IMAQdxStopAcquisition(self.imaqdx)
@@ -146,7 +130,8 @@ class IMAQdxCameraWorker(Worker):
         self.h5_filepath = None
 
     def get_attributes_as_dict(self, visibility_level):
-        """Return a dict of the attributes of the camera for the given visibility level"""
+        """Return a dict of the attributes of the camera for the given visibility
+        level"""
         names = self.camera.get_attribute_names(visibility_level)
         attributes_dict = {}
         for name in names:
@@ -186,9 +171,13 @@ class IMAQdxCameraWorker(Worker):
                 f, self.device_name, 'device_properties'
             )
             imaqdx_attributes = device_properties['imaqdx_attributes']
-
+            # Get the stop_time from the device properties of the master pseudoclock.
+            # This will be used to set the acquisition timeout if the user has not
+            # specified it in the imaqdx_attributes dict.
             master_pseudoclock = ConnectionTable(h5_filepath).master_pseudoclock
-            stop_time = labscript_utils.properties.get(f, master_pseudoclock, 'device_properties')['stop_time']
+            stop_time = labscript_utils.properties.get(
+                f, master_pseudoclock, 'device_properties'
+            )['stop_time']
 
         # We are pretty sure this attribute name is universal across all cameras.
         # We confirmed it exists across four different brands of scientific cameras.
@@ -196,20 +185,23 @@ class IMAQdxCameraWorker(Worker):
 
         # Set the camera attributes.
         if TIMEOUT_ATTRIBUTE not in imaqdx_attributes:
-            # Set acquisition timeout to fixed value, 5 seconds after the end of the shot:
-            print('Setting {} to {:.3f}s'.format(TIMEOUT_ATTRIBUTE, stop_time + 5))
+            # Set acquisition timeout to fixed value, 5 seconds after the end of the
+            # shot:
+            print(f"Setting {TIMEOUT_ATTRIBUTE} to {stop_time + 5:.3f}s")
             self.camera.set_attribute(TIMEOUT_ATTRIBUTE, 1e3 * (stop_time + 5))
         self.camera.set_attributes(imaqdx_attributes)
 
         # Get the camera attributes, so that we can save them to the H5 file:
         self.all_attributes = self.get_attributes_as_dict(visibility_level='advanced')
 
-        print('Configuring camera for {} images.'.format(self.n_images))
+        print(f"Configuring camera for {self.n_images} images.")
         self.camera.configure_acquisition(continuous=False, bufferCount=self.n_images)
         self.images = []
-        self.acquisition_thread = threading.Thread(target=self.camera.grab_multiple,
-                                                   args=(self.n_images, self.images),
-                                                   daemon=True)
+        self.acquisition_thread = threading.Thread(
+            target=self.camera.grab_multiple,
+            args=(self.n_images, self.images),
+            daemon=True,
+        )
         self.acquisition_thread.start()
         return {}
         
@@ -217,14 +209,13 @@ class IMAQdxCameraWorker(Worker):
         if self.h5_filepath is None:
             print('No camera exposures in this shot.\n\n')
             return True
-        assert self.acquisition_thread is not None, 'transition_to_static called without acquisition thread'
+        assert self.acquisition_thread is not None
         self.acquisition_thread.join(timeout=5)
         if self.acquisition_thread.is_alive():
-            print('Acquisition not finished before transition_to_static. Aborting.')
-            self.abort()
-            return
+            print("Acquisition not finished before transition_to_static. Aborting.")
+            return self.abort()
         self.acquisition_thread = None
-        print('Saving {} images.'.format(len(self.images)))
+        print(f"Saving {len(self.images)} images.'")
 
         with h5py.File(self.h5_filepath) as f:
             # Use orientation for image path, device_name if orientation unspecified
@@ -239,21 +230,25 @@ class IMAQdxCameraWorker(Worker):
             image_group.attrs.update(self.all_attributes)
             for i, exposure in enumerate(self.exposures):
                 group = image_group.require_group(exposure['name'])
-                dset = group.create_dataset(exposure['frametype'], data=self.images[i],
-                                            dtype='uint16', compression='gzip')
+                dset = group.create_dataset(
+                    exposure['frametype'],
+                    data=self.images[i],
+                    dtype='uint16',
+                    compression='gzip',
+                )
                 # Specify this dataset should be viewed as an image
                 dset.attrs['CLASS'] = np.string_('IMAGE')
                 dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
-                print('Saved frame {}'.format(exposure['frametype']))
-        print('Stopping IMAQdx acquisition.\n\n')
+                print(f"Saved frame {exposure['frametype']}")
+
+        print("Stopping IMAQdx acquisition.\n\n")
         self.camera.stop_acquisition()
         self.images = None
         self.n_images = None
         self.all_attributes = None
         self.exposures = None
-        self.acquisition_thread = None
         self.h5_filepath = None
         return True
 
