@@ -15,18 +15,10 @@ import os
 
 from qtutils import UiLoader
 import qtutils.icons
-
 from qtutils.qt import QtWidgets, QtGui, QtCore
-import numpy as np
 import pyqtgraph as pg
 
-from blacs.tab_base_classes import Worker, define_state
-from blacs.tab_base_classes import (
-    MODE_MANUAL,
-    MODE_TRANSITION_TO_BUFFERED,
-    MODE_TRANSITION_TO_MANUAL,
-    MODE_BUFFERED,
-)
+from blacs.tab_base_classes import define_state, MODE_MANUAL
 
 from blacs.device_base_class import DeviceTab
 
@@ -68,9 +60,7 @@ class IMAQdxCameraTab(DeviceTab):
         self.acquiring = False
 
     def get_save_data(self):
-        return {
-            'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
-        }
+        return {'attribute_visibility': self.attributes_dialog.comboBox.currentText()}
 
     def restore_save_data(self, save_data):
         self.attributes_dialog.comboBox.setCurrentText(
@@ -90,7 +80,7 @@ class IMAQdxCameraTab(DeviceTab):
         worker_initialisation_kwargs = {
             'serial_number': connection_table_properties['serial_number'],
             'orientation': connection_table_properties['orientation'],
-            'imaqdx_attributes': device_properties['imaqdx_attributes']
+            'imaqdx_attributes': device_properties['imaqdx_attributes'],
         }
         self.create_worker(
             'main_worker',
@@ -139,16 +129,14 @@ class IMAQdxCameraTab(DeviceTab):
         clipboard.setText(text)
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
-    def on_snap_clicked(self, *button):
+    def on_snap_clicked(self, button):
         data = yield (self.queue_work(self.primary_worker, 'snap'))
         self.set_image(data)
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def continuous(self):
         while self.acquiring:
-            data = yield (
-                self.queue_work(self.primary_worker, 'snap')
-            )
+            data = yield (self.queue_work(self.primary_worker, 'snap'))
             if data is None:
                 self.on_stop_clicked(None)
                 return
