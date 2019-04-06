@@ -43,7 +43,8 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.pushButton_attributes.clicked.connect(self.on_attributes_clicked)
 
         self.attributes_dialog = UiLoader().load(attributes_ui_filepath)
-        self.attributes_dialog.setModal(True)
+        self.attributes_dialog.setParent(self.ui.parent())
+        self.attributes_dialog.setWindowFlags(QtCore.Qt.Tool)
         self.attributes_dialog.setWindowTitle("{} attributes".format(self.device_name))
         self.attributes_dialog.pushButton_copy.clicked.connect(self.on_copy_clicked)
         self.attributes_dialog.comboBox.currentIndexChanged.connect(
