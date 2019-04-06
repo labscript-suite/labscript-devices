@@ -31,8 +31,8 @@ if os.path.exists(CAPABILITIES_FILE):
 # The base class:
 register_classes(
     'NI_DAQmx',
-    BLACS_tab='labscript_devices.NI_DAQmx.blacs_tab.NI_DAQmxTab',
-    runviewer_parser='labscript_devices.NI_DAQmx.runviewer_parser.NI_DAQmxParser',
+    BLACS_tab='labscript_devices.NI_DAQmx.blacs_tabs.NI_DAQmxTab',
+    runviewer_parser='labscript_devices.NI_DAQmx.runviewer_parsers.NI_DAQmxParser',
 )
 
 # All the auto-generated subclasses:
@@ -40,6 +40,6 @@ for model_name in capabilities:
     class_name = 'NI_' + model_name.replace('-', '_')
     register_classes(
         class_name,
-        BLACS_tab='labscript_devices.NI_DAQmx.blacs_tab.NI_DAQmxTab',
-        runviewer_parser='labscript_devices.NI_DAQmx.runviewer_parser.NI_DAQmxParser',
+        BLACS_tab='labscript_devices.NI_DAQmx.blacs_tabs.NI_DAQmxTab',
+        runviewer_parser='labscript_devices.NI_DAQmx.runviewer_parsers.NI_DAQmxParser',
     )
