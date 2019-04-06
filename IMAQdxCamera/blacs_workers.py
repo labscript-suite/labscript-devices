@@ -1,3 +1,19 @@
+#####################################################################
+#                                                                   #
+# /labscript_devices/IMAQdxCamera/blacs_workers.py                  #
+#                                                                   #
+# Copyright 2019, Monash University and contributors                #
+#                                                                   #
+# This file is part of labscript_devices, in the labscript suite    #
+# (see http://labscriptsuite.org), and is licensed under the        #
+# Simplified BSD License. See the license.txt file in the root of   #
+# the project for the full license.                                 #
+#                                                                   #
+#####################################################################
+
+# Original imaqdx_camera server by dt, with modifications by rpanderson and cbillington.
+# Refactored as a BLACS worker by cbillington
+
 import nivision as nv
 from blacs.tab_base_classes import Worker
 import threading
