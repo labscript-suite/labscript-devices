@@ -19,7 +19,7 @@ import warnings
 import traceback
 import inspect
 
-__version__ = '2.3.0'
+__version__ = '2.4.0'
 
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript', '2.5', '3')
