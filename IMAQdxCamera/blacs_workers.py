@@ -19,6 +19,7 @@ from blacs.tab_base_classes import Worker
 import threading
 import numpy as np
 from labscript_utils.connections import ConnectionTable
+from labscript_utils import dedent
 import labscript_utils.properties
 import labscript_utils.h5_lock
 import h5py
@@ -211,7 +212,9 @@ class IMAQdxCameraWorker(Worker):
         self.acquisition_thread.join(timeout=5)
         if self.acquisition_thread.is_alive():
             self.abort()
-            raise RuntimeError("Could not stop acquisition thread")
+            msg = """Acquisition thread did not finish. Likely did not acquire
+                expected number of images"""
+            raise RuntimeError(dedent(msg))
         self.acquisition_thread = None
         print(f"Saving {len(self.images)} images.'")
 
