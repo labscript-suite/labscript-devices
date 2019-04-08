@@ -74,7 +74,7 @@ class IMAQdx_Camera(object):
                 continue
             attributes.append(a.Name.decode('utf8'))
         return sorted(attributes)
-    
+
     def get_attribute(self, name):
         """Return current value of attribute of the given name"""
         try:
@@ -89,8 +89,9 @@ class IMAQdx_Camera(object):
         return self._decode_image_data(self.img)
 
     def configure_acquisition(self, continuous=True, bufferCount=5):
-        nv.IMAQdxConfigureAcquisition(self.imaqdx, continuous=continuous,
-                                      bufferCount=bufferCount)
+        nv.IMAQdxConfigureAcquisition(
+            self.imaqdx, continuous=continuous, bufferCount=bufferCount
+        )
         nv.IMAQdxStartAcquisition(self.imaqdx)
 
     def grab(self, waitForNextBuffer=True):
@@ -187,26 +188,7 @@ class IMAQdxCameraWorker(Worker):
                 f, self.device_name, 'device_properties'
             )
             imaqdx_attributes = device_properties['imaqdx_attributes']
-            # Get the stop_time from the device properties of the master pseudoclock.
-            # This will be used to set the acquisition timeout if the user has not
-            # specified it in the imaqdx_attributes dict.
-            master_pseudoclock = ConnectionTable(h5_filepath).master_pseudoclock
-            stop_time = labscript_utils.properties.get(
-                f, master_pseudoclock, 'device_properties'
-            )['stop_time']
-
-        # We are pretty sure this attribute name is universal across all cameras.
-        # We confirmed it exists across four different brands of scientific cameras.
-        TIMEOUT_ATTRIBUTE = 'AcquisitionAttributes::Timeout'
-
-        # Set the camera attributes.
-        if TIMEOUT_ATTRIBUTE not in imaqdx_attributes:
-            # Set acquisition timeout to fixed value, 5 seconds after the end of the
-            # shot:
-            print(f"Setting {TIMEOUT_ATTRIBUTE} to {stop_time + 5:.3f}s")
-            self.camera.set_attribute(TIMEOUT_ATTRIBUTE, 1e3 * (stop_time + 5))
         self.camera.set_attributes(imaqdx_attributes)
-
         # Get the camera attributes, so that we can save them to the H5 file:
         self.all_attributes = self.get_attributes_as_dict(visibility_level='advanced')
 
@@ -220,7 +202,7 @@ class IMAQdxCameraWorker(Worker):
         )
         self.acquisition_thread.start()
         return {}
-        
+
     def transition_to_manual(self):
         if self.h5_filepath is None:
             print('No camera exposures in this shot.\n\n')
@@ -228,8 +210,8 @@ class IMAQdxCameraWorker(Worker):
         assert self.acquisition_thread is not None
         self.acquisition_thread.join(timeout=5)
         if self.acquisition_thread.is_alive():
-            print("Acquisition not finished before transition_to_static. Aborting.")
-            return self.abort()
+            self.abort()
+            raise RuntimeError("Could not stop acquisition thread")
         self.acquisition_thread = None
         print(f"Saving {len(self.images)} images.'")
 
@@ -285,13 +267,12 @@ class IMAQdxCameraWorker(Worker):
 
     def abort_buffered(self):
         return self.abort()
-        
+
     def abort_transition_to_buffered(self):
         return self.abort()
-        
+
     def program_manual(self, values):
         return {}
-    
+
     def shutdown(self):
         self.camera.close()
-

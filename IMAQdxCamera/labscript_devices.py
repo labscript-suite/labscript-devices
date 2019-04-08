@@ -10,12 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+import warnings
 from labscript_utils import dedent
-
 from labscript import TriggerableDevice, set_passed_properties
 import numpy as np
 import labscript_utils.h5_lock
 import h5py
+
 
 class IMAQdxCamera(TriggerableDevice):
     description = 'IMAQdx Camera'
@@ -82,6 +83,11 @@ class IMAQdxCamera(TriggerableDevice):
         # Backward compatibility with code that calls expose with name as the first
         # argument and t as the second argument:
         if isinstance(t, str) and isinstance(name, (int, float)):
+            msg = """IMAQdxCamera.expose() takes `t` as the first argument and `name` as
+                the second argument, but was called with a string as the first argument
+                and a number as the second. Swapping arguments for compatibility, but
+                you are advised to modify your code to the correct argument order."""
+            warnings.warn(dedent(msg), DeprecationWarning, stacklevel=1)
             t, name = name, t
         if trigger_duration is None:
             trigger_duration = self.trigger_duration
