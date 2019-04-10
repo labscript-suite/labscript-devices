@@ -25,15 +25,15 @@ import labscript_utils.h5_lock
 import h5py
 
 class IMAQdx_Camera(object):
-    def __init__(self, serial_number):
+    def __init__(self, MAX_name):
         # Find the camera:
         print("Finding camera...")
         for cam in nv.IMAQdxEnumerateCameras(True):
-            if serial_number == (cam.SerialNumberHi << 32) + cam.SerialNumberLo:
+            if cam.InterfaceName == MAX_name.encode('utf8'):
                 self.camera = cam
                 break
         else:
-            msg = f"No connected camera with serial number {serial_number:X} found"
+            msg = f"No connected camera with name {MAX_name} found"
             raise Exception(msg)
         # Connect to the camera:
         print("Connecting to camera...")
@@ -141,7 +141,7 @@ class IMAQdx_Camera(object):
 
 class IMAQdxCameraWorker(Worker):
     def init(self):
-        self.camera = IMAQdx_Camera(self.serial_number)
+        self.camera = IMAQdx_Camera(self.MAX_name)
         print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
         print("Initialisation complete")

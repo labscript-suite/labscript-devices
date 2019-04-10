@@ -23,7 +23,7 @@ class IMAQdxCamera(TriggerableDevice):
 
     @set_passed_properties(
         property_names={
-            "connection_table_properties": ["serial_number", "orientation"],
+            "connection_table_properties": ["MAX_name", "orientation"],
             "device_properties": [
                 "trigger_edge_type",
                 "trigger_duration",
@@ -37,7 +37,7 @@ class IMAQdxCamera(TriggerableDevice):
         name,
         parent_device,
         connection,
-        serial_number,
+        MAX_name=None,
         orientation='side',
         trigger_edge_type='rising',
         trigger_duration=None,
@@ -45,23 +45,24 @@ class IMAQdxCamera(TriggerableDevice):
         imaqdx_attributes=None,
         **kwargs
     ):
-        """A camera to be controlled using NI IMAQdx and triggered with a digital edge.
-        Serial number should be an int or hex string of the camera's serial number, this
-        will be used by IMAQdx to identify the camera. Configuring the camera is done by
+        """A camera to be controlled using NI IMAQdx and triggered with a
+        digital edge. MAX_name should be the name of the camera as configured in NI
+        MAX, this will be used by IMAQdx to identify the camera. If not set, the
+        labscript device name will be used instead. Configuring the camera is done by
         passing a dictionary as the keyword argument imaqdx_attributes. These are the
         same attributes settable in NI MAX. After adding an IMAQdxCamera to your
         connection table, a dictionary of these attributes can be obtained from the
         BLACS tab, appropriate for copying and pasting into your connection table and
         passing in as the imaqdx_attributes keyword argument in order to customise the
         attributes you are interested in configuring."""
+
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
         self.trigger_duration = trigger_duration
         self.orientation = orientation
-        if isinstance(serial_number, (str, bytes)):
-            serial_number = int(serial_number, 16)
-        self.serial_number = serial_number
-        self.BLACS_connection = hex(self.serial_number)[2:].upper()
+        if MAX_name is None:
+            MAX_name = name
+        self.BLACS_connection = self.MAX_name = MAX_name
         if imaqdx_attributes is None:
             imaqdx_attributes = {}
         self.imaqdx_attributes = imaqdx_attributes
