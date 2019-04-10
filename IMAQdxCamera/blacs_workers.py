@@ -164,12 +164,11 @@ class IMAQdxCameraWorker(Worker):
     def get_attributes_as_text(self, visibility_level):
         """Return a string representation of the attributes of the camera for
         the given visibility level"""
-        attrs = repr(self.get_attributes_as_dict(visibility_level))
+        attrs = self.get_attributes_as_dict(visibility_level)
         # Format it nicely:
-        attrs = attrs.replace('{', '{\n    ')
-        attrs = attrs.replace(', ', ',\n    ')
-        attrs = attrs.replace('}', ',\n}')
-        return attrs
+        lines = [f'    {repr(key)}: {repr(value)},' for key, value in attrs.items()]
+        dict_repr = '\n'.join(['{'] + lines + ['}'])
+        return self.device_name + '_imaqdx_attributes = ' + dict_repr
 
     def snap(self):
         """Acquire one frame in manual mode"""
