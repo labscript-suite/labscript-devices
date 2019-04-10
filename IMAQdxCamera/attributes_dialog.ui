@@ -21,7 +21,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>These are the current attributes of the camera. To modify them, copy this dictionary into your connection table, modify it as desired and set it as the 'imaqdx_attributes' keyword argument to the IMAQdxCamera class. You will need to recompile the connection table for it to take effect. Any attributes not set in the connection table will not be modified by labscript - they will remain as set in NI MAX.</string>
+      <string>These are the current attributes of the camera. To modify them, copy this dictionary into your connection table, modify it as desired and set it as the 'imaqdx_attributes' keyword argument to the IMAQdxCamera class. You will need to recompile the connection table for it to take effect. Any attributes not set in the connection table will not be modified by BLACS - they will remain as set in NI MAX. Note that attributes set by BLACS are not persistent: only configuration that is saved in NI MAX can persist across sessions.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
