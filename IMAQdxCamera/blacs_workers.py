@@ -24,10 +24,10 @@ import labscript_utils.properties
 import labscript_utils.h5_lock
 import h5py
 
-
 class IMAQdx_Camera(object):
     def __init__(self, serial_number):
         # Find the camera:
+        print("Finding camera...")
         for cam in nv.IMAQdxEnumerateCameras(True):
             if serial_number == (cam.SerialNumberHi << 32) + cam.SerialNumberLo:
                 self.camera = cam
@@ -36,6 +36,7 @@ class IMAQdx_Camera(object):
             msg = f"No connected camera with serial number {serial_number:X} found"
             raise Exception(msg)
         # Connect to the camera:
+        print("Connecting to camera...")
         self.imaqdx = nv.IMAQdxOpenCamera(
             self.camera.InterfaceName, nv.IMAQdxCameraControlModeController
         )
@@ -102,17 +103,19 @@ class IMAQdx_Camera(object):
     def grab_multiple(self, n_images, images, waitForNextBuffer=True):
         print(f"Attempting to grab {n_images} images.")
         for i in range(n_images):
-            if self._abort_acquisition:
-                print("Abort during acquisition.")
-                self._abort_acquisition = False
-                break
-            try:
-                images.append(self.grab(waitForNextBuffer))
-                print(f"Got image {i} of {n_images}.")
-            except nv.ImaqDxError as e:
-                if e.code == nv.IMAQdxErrorTimeout.value:
-                    print('.', end='')
-                else:
+            while True:
+                if self._abort_acquisition:
+                    print("Abort during acquisition.")
+                    self._abort_acquisition = False
+                    return
+                try:
+                    images.append(self.grab(waitForNextBuffer))
+                    print(f"Got image {i+1} of {n_images}.")
+                    break
+                except nv.ImaqDxError as e:
+                    if e.code == nv.IMAQdxErrorTimeout.value:
+                        print('.', end='')
+                        continue
                     raise
         print(f"Got {len(images)} of {n_images} images.")
 
@@ -139,7 +142,9 @@ class IMAQdx_Camera(object):
 class IMAQdxCameraWorker(Worker):
     def init(self):
         self.camera = IMAQdx_Camera(self.serial_number)
+        print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
+        print("Initialisation complete")
         self.images = None
         self.n_images = None
         self.all_attributes = None
@@ -212,7 +217,8 @@ class IMAQdxCameraWorker(Worker):
         if self.acquisition_thread.is_alive():
             self.abort()
             msg = """Acquisition thread did not finish. Likely did not acquire
-                expected number of images"""
+                expected number of images. Check triggering is
+                connected/configured correctly"""
             raise RuntimeError(dedent(msg))
         self.acquisition_thread = None
         print(f"Saving {len(self.images)} images.'")

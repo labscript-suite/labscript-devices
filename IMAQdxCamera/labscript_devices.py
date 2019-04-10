@@ -61,7 +61,7 @@ class IMAQdxCamera(TriggerableDevice):
         if isinstance(serial_number, (str, bytes)):
             serial_number = int(serial_number, 16)
         self.serial_number = serial_number
-        self.BLACS_connection = str(self.serial_number)[2:]
+        self.BLACS_connection = hex(self.serial_number)[2:].upper()
         if imaqdx_attributes is None:
             imaqdx_attributes = {}
         self.imaqdx_attributes = imaqdx_attributes
