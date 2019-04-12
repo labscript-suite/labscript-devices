@@ -144,6 +144,7 @@ class IMAQdxCameraWorker(Worker):
         self.camera = IMAQdx_Camera(self.MAX_name)
         print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
+        self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
         print("Initialisation complete")
         self.images = None
         self.n_images = None
@@ -210,7 +211,7 @@ class IMAQdxCameraWorker(Worker):
 
     def transition_to_manual(self):
         if self.h5_filepath is None:
-            print('No camera exposures in this shot.\n\n')
+            print('No camera exposures in this shot.\n')
             return True
         assert self.acquisition_thread is not None
         self.acquisition_thread.join(timeout=5)
@@ -249,13 +250,15 @@ class IMAQdxCameraWorker(Worker):
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
                 print(f"Saved frame {exposure['frametype']}")
 
-        print("Stopping IMAQdx acquisition.\n\n")
+        print("Stopping IMAQdx acquisition.")
         self.camera.stop_acquisition()
         self.images = None
         self.n_images = None
         self.all_attributes = None
         self.exposures = None
         self.h5_filepath = None
+        print("Setting manual mode attributes\n")
+        self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
         return True
 
     def abort(self):

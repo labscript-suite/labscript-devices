@@ -82,6 +82,9 @@ class IMAQdxCameraTab(DeviceTab):
             'MAX_name': connection_table_properties['MAX_name'],
             'orientation': connection_table_properties['orientation'],
             'imaqdx_attributes': device_properties['imaqdx_attributes'],
+            'manual_mode_imaqdx_attributes': connection_table_properties[
+                'manual_mode_imaqdx_attributes'
+            ],
         }
         self.create_worker(
             'main_worker',

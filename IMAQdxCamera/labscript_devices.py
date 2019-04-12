@@ -23,13 +23,12 @@ class IMAQdxCamera(TriggerableDevice):
 
     @set_passed_properties(
         property_names={
-            "connection_table_properties": ["MAX_name", "orientation"],
-            "device_properties": [
-                "trigger_edge_type",
-                "trigger_duration",
-                "minimum_recovery_time",
-                "imaqdx_attributes",
+            "connection_table_properties": [
+                "MAX_name",
+                "orientation",
+                "manual_mode_imaqdx_attributes",
             ],
+            "device_properties": ["imaqdx_attributes"],
         }
     )
     def __init__(
@@ -43,19 +42,25 @@ class IMAQdxCamera(TriggerableDevice):
         trigger_duration=None,
         minimum_recovery_time=0,
         imaqdx_attributes=None,
-        **kwargs
+        manual_mode_imaqdx_attributes=None,
+        **kwargs,
     ):
-        """A camera to be controlled using NI IMAQdx and triggered with a
-        digital edge. MAX_name should be the name of the camera as configured in NI
-        MAX, this will be used by IMAQdx to identify the camera. If not set, the
-        labscript device name will be used instead. Configuring the camera is done by
-        passing a dictionary as the keyword argument imaqdx_attributes. These are the
-        same attributes settable in NI MAX. After adding an IMAQdxCamera to your
-        connection table, a dictionary of these attributes can be obtained from the
-        BLACS tab, appropriate for copying and pasting into your connection table and
-        passing in as the imaqdx_attributes keyword argument in order to customise the
-        attributes you are interested in configuring."""
-
+        """A camera to be controlled using NI IMAQdx and triggered with a digital edge.
+        MAX_name should be the name of the camera as configured in NI MAX, this will be
+        used by IMAQdx to identify the camera. If not set, the labscript device name
+        will be used instead. Configuring the camera is done by passing a dictionary as
+        the keyword argument imaqdx_attributes. These are the same attributes settable
+        in NI MAX. After adding an IMAQdxCamera to your connection table, a dictionary
+        of these attributes can be obtained from the BLACS tab, appropriate for copying
+        and pasting into your connection table and passing in as the imaqdx_attributes
+        keyword argument in order to customise the attributes you are interested in. If
+        you wish to set some attributes differently in manual mode than in a buffered
+        run (for example, to have software triggering during manual mode so that you can
+        manually acquire images), you can pass in a dictionary of such attributes as
+        manual_mode_imaqdx_attributes. Any attributes in this dictionary must also be
+        present in imaqdx_attributes, and BLACS will set the value in imaqdx_attributes
+        before a buffered run, and the value in manual_mode_imaqdx_attributes when
+        returning to manual mode."""
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
         self.trigger_duration = trigger_duration
@@ -65,7 +70,17 @@ class IMAQdxCamera(TriggerableDevice):
         self.BLACS_connection = self.MAX_name = MAX_name
         if imaqdx_attributes is None:
             imaqdx_attributes = {}
+        if manual_mode_imaqdx_attributes is None:
+            manual_mode_imaqdx_attributes = {}
+        for name in manual_mode_imaqdx_attributes:
+            if name not in imaqdx_attributes:
+                msg = f"""attribute '{name}' is present in manual_mode_imaqdx_attributes
+                    but not in imaqdx_attributes. Attributes that are to differ between
+                    manual mode and buffered mode must be present in both
+                    dictionaries."""
+                raise ValueError(dedent(msg))
         self.imaqdx_attributes = imaqdx_attributes
+        self.manual_mode_imaqdx_attributes = manual_mode_imaqdx_attributes
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
