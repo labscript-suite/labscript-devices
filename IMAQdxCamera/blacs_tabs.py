@@ -13,18 +13,33 @@
 
 import os
 
+import labscript_utils.h5_lock
+import h5py
+
 from qtutils import UiLoader
 import qtutils.icons
 from qtutils.qt import QtWidgets, QtGui, QtCore
 import pyqtgraph as pg
+
 
 from blacs.tab_base_classes import define_state, MODE_MANUAL
 
 from blacs.device_base_class import DeviceTab
 
 import labscript_utils.properties
-import labscript_utils.h5_lock
-import h5py
+
+
+from time import monotonic
+
+
+def exp_av(av_old, data_new, dt, tau):
+    """Compute the new value of an exponential moving average based on the previous
+    average av_old, a new value data_new, a time interval dt and an averaging timescale
+    tau. Returns data_new if dt > tau"""
+    if dt > tau:
+        return data_new
+    k = dt / tau
+    return k * data_new + (1 - k) * av_old
 
 
 class IMAQdxCameraTab(DeviceTab):
@@ -41,6 +56,7 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.pushButton_stop.clicked.connect(self.on_stop_clicked)
         self.ui.pushButton_snap.clicked.connect(self.on_snap_clicked)
         self.ui.pushButton_attributes.clicked.connect(self.on_attributes_clicked)
+        self.ui.toolButton_nomax.clicked.connect(self.on_reset_rate_clicked)
 
         self.attributes_dialog = UiLoader().load(attributes_ui_filepath)
         self.attributes_dialog.setParent(self.ui.parent())
@@ -50,6 +66,7 @@ class IMAQdxCameraTab(DeviceTab):
         self.attributes_dialog.comboBox.currentIndexChanged.connect(
             self.on_attr_visibility_level_changed
         )
+        self.ui.doubleSpinBox_maxrate.valueChanged.connect(self.on_max_rate_changed)
 
         layout.addWidget(self.ui)
         self.image = pg.ImageView()
@@ -58,15 +75,42 @@ class IMAQdxCameraTab(DeviceTab):
         )
         self.ui.horizontalLayout.addWidget(self.image)
         self.ui.pushButton_stop.hide()
+        self.ui.doubleSpinBox_maxrate.hide()
+        self.ui.toolButton_nomax.hide()
+        self.ui.label_fps.hide()
+
+        # Ensure the GUI reserves space for these widgets even if they are hidden.
+        # This prevents the GUI jumping around when buttons are clicked:
+        for widget in [
+            self.ui.pushButton_stop,
+            self.ui.doubleSpinBox_maxrate,
+            self.ui.toolButton_nomax,
+        ]:
+            size_policy = widget.sizePolicy()
+            if hasattr(size_policy, 'setRetainSizeWhenHidden'): # Qt 5.2+ only
+                size_policy.setRetainSizeWhenHidden(True)
+                widget.setSizePolicy(size_policy)
+
         self.acquiring = False
+        self.last_frame_time = None
+        self.frame_rate = None
 
     def get_save_data(self):
-        return {'attribute_visibility': self.attributes_dialog.comboBox.currentText()}
+        return {
+            'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
+            'acquiring': self.acquiring,
+            'max_rate': self.ui.doubleSpinBox_maxrate.value()
+        }
 
     def restore_save_data(self, save_data):
         self.attributes_dialog.comboBox.setCurrentText(
             save_data.get('attribute_visibility', 'simple')
         )
+        if save_data.get('acquiring', False):
+            # Begin acquisition
+            self.on_continuous_clicked(None)
+        self.ui.doubleSpinBox_maxrate.setValue(save_data.get('max_rate', 0))
+
 
     def initialise_workers(self):
         table = self.settings['connection_table']
@@ -117,20 +161,44 @@ class IMAQdxCameraTab(DeviceTab):
         self.ui.pushButton_attributes.setEnabled(False)
         self.ui.pushButton_continuous.hide()
         self.ui.pushButton_stop.show()
+        self.ui.doubleSpinBox_maxrate.show()
+        self.ui.toolButton_nomax.show()
+        self.ui.label_fps.show()
+        self.ui.label_fps.setText('? fps')
         self.acquiring = True
+        max_fps = self.ui.doubleSpinBox_maxrate.value()
+        timeout_ms = int(1000 / max_fps) if max_fps else 0
+        self.statemachine_timeout_add(timeout_ms, self.continuous)
         self.continuous()
 
     def on_stop_clicked(self, button):
         self.ui.pushButton_snap.setEnabled(True)
         self.ui.pushButton_attributes.setEnabled(True)
         self.ui.pushButton_continuous.show()
+        self.ui.doubleSpinBox_maxrate.hide()
+        self.ui.toolButton_nomax.hide()
         self.ui.pushButton_stop.hide()
+        self.ui.label_fps.hide()
         self.acquiring = False
+        self.last_frame_time = None
+        self.frame_rate = None
+        self.statemachine_timeout_remove(self.continuous)
 
     def on_copy_clicked(self, button):
         text = self.attributes_dialog.plainTextEdit.toPlainText()
         clipboard = QtGui.QApplication.instance().clipboard()
         clipboard.setText(text)
+
+    def on_reset_rate_clicked(self):
+        self.ui.doubleSpinBox_maxrate.setValue(0)
+
+    def on_max_rate_changed(self, max_fps):
+        if self.acquiring:
+            self.statemachine_timeout_remove(self.continuous)
+            timeout_ms = int(1000 / max_fps) if max_fps else 0
+            self.statemachine_timeout_add(timeout_ms, self.continuous)
+            self.frame_rate = None
+            self.last_frame_time = None
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def on_snap_clicked(self, button):
@@ -140,12 +208,23 @@ class IMAQdxCameraTab(DeviceTab):
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def continuous(self):
-        while self.acquiring:
-            data = yield (self.queue_work(self.primary_worker, 'snap'))
-            if data is None:
-                self.on_stop_clicked(None)
-                return
-            self.set_image(data)
+        if not self.acquiring:
+            return
+        data = yield (self.queue_work(self.primary_worker, 'snap'))
+        if data is None:
+            self.on_stop_clicked(None)
+            return
+        this_frame_time = monotonic()
+        if self.last_frame_time is not None:
+            dt = this_frame_time - self.last_frame_time
+            if self.frame_rate is not None:
+                # Exponential moving average of the frame rate over five seconds:
+                self.frame_rate = exp_av(self.frame_rate, 1 / dt, dt, 5.0)
+            else:
+                self.frame_rate = 1 / dt
+            self.ui.label_fps.setText(f"{self.frame_rate:.02f} fps")
+        self.last_frame_time = this_frame_time
+        self.set_image(data)
 
     def set_image(self, data):
         if self.image.image is None:
