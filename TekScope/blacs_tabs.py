@@ -13,7 +13,7 @@ class TekScopeTab(DeviceTab):
         worker_initialisation_kwargs['addr'] = self.BLACS_connection
         self.create_worker(
             'main_worker',
-            'labscript_devices.TekScope.blacs_worker.TekScopeWorker',
+            'labscript_devices.TekScope.blacs_workers.TekScopeWorker',
             worker_initialisation_kwargs,
         )
         self.primary_worker = 'main_worker'

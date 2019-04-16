@@ -7,6 +7,7 @@ class TekScope:
                  timeout=1, termination='\n'):
         rm = pyvisa.ResourceManager()
         devs = rm.list_resources(addr)
+        assert len(devs), "pyvisa didn't find any connected devices matching " + addr
         self.dev = rm.open_resource(devs[0])
         self.dev.timeout = 1000 * timeout
         self.dev.read_termination = termination
