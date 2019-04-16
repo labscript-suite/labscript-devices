@@ -167,7 +167,7 @@ class IMAQdxCameraTab(DeviceTab):
                 f, self.device_name, "device_properties"
             )
         worker_initialisation_kwargs = {
-            'MAX_name': connection_table_properties['MAX_name'],
+            'serial_number': connection_table_properties['serial_number'],
             'orientation': connection_table_properties['orientation'],
             'imaqdx_attributes': device_properties['imaqdx_attributes'],
             'manual_mode_imaqdx_attributes': connection_table_properties[

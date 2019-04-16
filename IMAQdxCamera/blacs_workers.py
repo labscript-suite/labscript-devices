@@ -29,15 +29,15 @@ from labscript_utils.ls_zprocess import Context
 
 
 class IMAQdx_Camera(object):
-    def __init__(self, MAX_name):
+    def __init__(self, serial_number):
         # Find the camera:
         print("Finding camera...")
         for cam in nv.IMAQdxEnumerateCameras(True):
-            if cam.InterfaceName == MAX_name.encode('utf8'):
+            if serial_number == (cam.SerialNumberHi << 32) + cam.SerialNumberLo:
                 self.camera = cam
                 break
         else:
-            msg = f"No connected camera with name {MAX_name} found"
+            msg = f"No connected camera with serial number {serial_number:X} found"
             raise Exception(msg)
         # Connect to the camera:
         print("Connecting to camera...")
@@ -145,7 +145,7 @@ class IMAQdx_Camera(object):
 
 class IMAQdxCameraWorker(Worker):
     def init(self):
-        self.camera = IMAQdx_Camera(self.MAX_name)
+        self.camera = IMAQdx_Camera(self.serial_number)
         print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
         self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
