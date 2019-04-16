@@ -15,14 +15,18 @@
 # Refactored as a BLACS worker by cbillington
 
 import nivision as nv
+from time import monotonic
 from blacs.tab_base_classes import Worker
 import threading
 import numpy as np
-from labscript_utils.connections import ConnectionTable
 from labscript_utils import dedent
 import labscript_utils.properties
 import labscript_utils.h5_lock
 import h5py
+import zmq
+
+from labscript_utils.ls_zprocess import Context
+
 
 class IMAQdx_Camera(object):
     def __init__(self, MAX_name):
@@ -152,6 +156,11 @@ class IMAQdxCameraWorker(Worker):
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        self.continuous_stop = threading.Event()
+        self.continuous_thread = None
+        self.image_socket = Context().socket(zmq.REQ)
+        host = '127.0.0.1' # TODO: actual host once remote devices implemented
+        self.image_socket.connect(f'tcp://{host}:{self.image_receiver_port}')
 
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
@@ -177,10 +186,59 @@ class IMAQdxCameraWorker(Worker):
         return self.device_name + '_imaqdx_attributes = ' + dict_repr
 
     def snap(self):
-        """Acquire one frame in manual mode"""
-        return self.camera.snap()
+        """Acquire one frame in manual mode. Send it to the parent via
+        self.image_socket. Wait for a response from the parent."""
+        image = self.camera.snap()
+        # Send the image to the GUI to display:
+        metadata = dict(dtype=str(image.dtype), shape=image.shape)
+        self.image_socket.send_json(metadata, zmq.SNDMORE)
+        self.image_socket.send(image, copy=False)
+        response = self.image_socket.recv()
+        assert response == b'ok', response
+
+    def continuous_loop(self, dt):
+        """Acquire continuously in a loop, with minimum repetition interval dt"""
+        while True:
+            if dt is not None:
+                t = monotonic()
+            self.snap()
+            if dt is None:
+                timeout = 0
+            else:
+                timeout = t + dt - monotonic()
+            if self.continuous_stop.wait(timeout):
+                self.continuous_stop.clear()
+                break
+            
+    def start_continuous(self, dt):
+        """Begin continuous acquisition in a thread with minimum repetition interval
+        dt"""
+        assert self.continuous_thread is None
+        self.continuous_thread = threading.Thread(
+            target=self.continuous_loop, args=(dt,), daemon=True
+        )
+        self.continuous_thread.start()
+        self.continuous_dt = dt
+
+    def stop_continuous(self, pause=False):
+        """Stop the continuous acquisition thread"""
+        assert self.continuous_thread is not None
+        self.continuous_stop.set()
+        self.continuous_thread.join()
+        self.continuous_thread = None
+        # If we're just 'pausing', then do not clear self.continuous_dt. That way
+        # continuous acquisition can be resumed with the same interval by calling
+        # start(self.continuous_dt), without having to get the interval from the parent
+        # again, and the fact that self.continuous_dt is not None can be used to infer
+        # that continuous acquisiton is paused and should be resumed after a buffered
+        # run is complete:
+        if not pause:
+            self.continuous_dt = None
 
     def transition_to_buffered(self, device_name, h5_filepath, initial_values, fresh):
+        if self.continuous_thread is not None:
+            # Pause continuous acquistion during transition_to_buffered:
+            self.stop_continuous(pause=True)
         with h5py.File(h5_filepath, 'r') as f:
             group = f['devices'][self.device_name]
             if not 'EXPOSURES' in group:
@@ -259,6 +317,10 @@ class IMAQdxCameraWorker(Worker):
         self.h5_filepath = None
         print("Setting manual mode attributes\n")
         self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
+        if self.continuous_dt is not None:
+            # If continuous manual mode acquisition was in progress before the bufferd
+            # run, resume it:
+            self.start_continuous(self.continuous_dt)
         return True
 
     def abort(self):
@@ -274,6 +336,9 @@ class IMAQdxCameraWorker(Worker):
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        # Resume continuous acquisition, if any:
+        if self.continuous_dt is not None and self.continuous_thread is None:
+            self.start_continuous(self.continuous_dt)
         return True
 
     def abort_buffered(self):
