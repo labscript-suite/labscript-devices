@@ -26,6 +26,11 @@ import h5py
 import zmq
 
 from labscript_utils.ls_zprocess import Context
+from labscript_utils.shared_drive import path_to_local
+
+# Required for knowing the parent device's hostname when running remotely:
+from labscript_utils import check_version
+check_version('zprocess', '2.12.0', '3')
 
 
 class IMAQdx_Camera(object):
@@ -159,8 +164,9 @@ class IMAQdxCameraWorker(Worker):
         self.continuous_stop = threading.Event()
         self.continuous_thread = None
         self.image_socket = Context().socket(zmq.REQ)
-        host = '127.0.0.1' # TODO: actual host once remote devices implemented
-        self.image_socket.connect(f'tcp://{host}:{self.image_receiver_port}')
+        self.image_socket.connect(
+            f'tcp://{self.parent_host}:{self.image_receiver_port}'
+        )
 
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
@@ -236,6 +242,8 @@ class IMAQdxCameraWorker(Worker):
             self.continuous_dt = None
 
     def transition_to_buffered(self, device_name, h5_filepath, initial_values, fresh):
+        if self.is_remote:
+            h5_filepath = path_to_local(h5_filepath)
         if self.continuous_thread is not None:
             # Pause continuous acquistion during transition_to_buffered:
             self.stop_continuous(pause=True)
