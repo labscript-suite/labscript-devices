@@ -15,7 +15,7 @@
 # Refactored as a BLACS worker by cbillington
 
 import nivision as nv
-from time import monotonic
+from time import perf_counter
 from blacs.tab_base_classes import Worker
 import threading
 import numpy as np
@@ -206,12 +206,12 @@ class IMAQdxCameraWorker(Worker):
         """Acquire continuously in a loop, with minimum repetition interval dt"""
         while True:
             if dt is not None:
-                t = monotonic()
+                t = perf_counter()
             self.snap()
             if dt is None:
                 timeout = 0
             else:
-                timeout = t + dt - monotonic()
+                timeout = t + dt - perf_counter()
             if self.continuous_stop.wait(timeout):
                 self.continuous_stop.clear()
                 break

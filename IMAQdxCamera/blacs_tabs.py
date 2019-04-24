@@ -13,7 +13,7 @@
 
 import os
 import json
-from time import monotonic
+from time import perf_counter
 
 import labscript_utils.h5_lock
 import h5py
@@ -60,7 +60,7 @@ class ImageReceiver(ZMQServer):
         md = json.loads(data[0])
         image = np.frombuffer(memoryview(data[1]), dtype=md['dtype'])
         image = image.reshape(md['shape'])
-        this_frame_time = monotonic()
+        this_frame_time = perf_counter()
         if self.last_frame_time is not None:
             dt = this_frame_time - self.last_frame_time
             if self.frame_rate is not None:
