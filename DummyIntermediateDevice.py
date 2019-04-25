@@ -39,11 +39,12 @@ class DummyIntermediateDevice(IntermediateDevice):
     # If this is updated, then you need to update generate_code to support whatever types you add
     allowed_children = [DigitalOut, AnalogOut]
 
-    def __init__(self, name, parent, BLACS_connection='dummy_connection', **kwargs):
+    def __init__(self, name, parent_device, BLACS_connection='dummy_connection', **kwargs):
         self.BLACS_connection = BLACS_connection
-        IntermediateDevice.__init__(self, name, parent, **kwargs)
+        IntermediateDevice.__init__(self, name, parent_device, **kwargs)
 
     def generate_code(self, hdf5_file):
+        IntermediateDevice.generate_code(self, hdf5_file)
         group = self.init_device_group(hdf5_file)
 
         clockline = self.parent_device
