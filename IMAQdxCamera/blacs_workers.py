@@ -67,10 +67,21 @@ class MockCamera(object):
 
     def snap(self):
         N = 500
-        A = 1000
+        A = 500
         x = np.linspace(-5, 5, 500)
         y = x.reshape((N, 1))
-        return np.random.poisson(A * (1 - 0.5 * np.exp(-(x**2 + y**2))))
+        clean_image = A * (1 - 0.5 * np.exp(-(x**2 + y**2)))
+
+        # Write text on the image that says "NOT REAL DATA"
+        from PIL import Image, ImageDraw, ImageFont
+        font = ImageFont.load_default()
+        canvas = Image.new('L', [N // 5, N // 5], (0,))
+        draw = ImageDraw.Draw(canvas)
+        draw.text((10, 20), "NOT REAL DATA", font=font, fill=1)
+        clean_image += (
+            0.2 * A * np.asarray(canvas.resize((N, N)).rotate(20))
+        )
+        return np.random.poisson(clean_image)
 
     def stop_acquisition(self):
         pass
