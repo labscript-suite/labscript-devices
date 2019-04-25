@@ -173,6 +173,7 @@ class IMAQdxCameraTab(DeviceTab):
             'manual_mode_imaqdx_attributes': connection_table_properties[
                 'manual_mode_imaqdx_attributes'
             ],
+            'mock': connection_table_properties['mock'],
             'image_receiver_port': self.image_receiver.port,
         }
         self.create_worker(

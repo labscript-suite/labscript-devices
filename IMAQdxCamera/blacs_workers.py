@@ -14,15 +14,20 @@
 # Original imaqdx_camera server by dt, with modifications by rpanderson and cbillington.
 # Refactored as a BLACS worker by cbillington
 
-import nivision as nv
+try:
+    import nivision as nv
+except ModuleNotFoundError:
+    # Don't throw an error yet, allow worker to run as a dummy device
+    nv = None
+
 from time import perf_counter
 from blacs.tab_base_classes import Worker
 import threading
 import numpy as np
 from labscript_utils import dedent
-import labscript_utils.properties
 import labscript_utils.h5_lock
 import h5py
+import labscript_utils.properties
 import zmq
 
 from labscript_utils.ls_zprocess import Context
@@ -31,6 +36,47 @@ from labscript_utils.shared_drive import path_to_local
 # Required for knowing the parent device's hostname when running remotely:
 from labscript_utils import check_version
 check_version('zprocess', '2.12.0', '3')
+
+
+class MockCamera(object):
+    """Mock camera class that returns fake image data."""
+    def __init__(self):
+        self.attributes = {}
+
+    def set_attributes(self, attributes):
+        self.attributes.update(attributes)
+
+    def get_attribute(self, name):
+        return self.attributes[name]
+
+    def get_attribute_names(self, visibility_level=None):
+        return list(self.attributes.keys())
+
+    def configure_acquisition(self, continuous=False, bufferCount=5):
+        pass
+
+    def grab(self):
+        return self.snap()
+
+    def grab_multiple(self, n_images, images, waitForNextBuffer=True):
+        print(f"Attempting to grab {n_images} (mock) images.")
+        for i in range(n_images):
+            images.append(self.grab())
+            print(f"Got (mock) image {i+1} of {n_images}.")
+        print(f"Got {len(images)} of {n_images} (mock) images.")
+
+    def snap(self):
+        N = 500
+        A = 1000
+        x = np.linspace(-5, 5, 500)
+        y = x.reshape((N, 1))
+        return np.random.poisson(A * (1 - 0.5 * np.exp(-(x**2 + y**2))))
+
+    def stop_acquisition(self):
+        pass
+
+    def abort_acquisition(self):
+        pass
 
 
 class IMAQdx_Camera(object):
@@ -150,7 +196,16 @@ class IMAQdx_Camera(object):
 
 class IMAQdxCameraWorker(Worker):
     def init(self):
-        self.camera = IMAQdx_Camera(self.serial_number)
+        if self.mock:
+            print("Starting device worker as a mock device")
+            self.camera = MockCamera()
+        elif nv is None:
+            msg = """nivision module not found. Please install it with 'pip install
+                pynivision'. You will also require the NI Vision development module from
+                National Instruments."""
+            raise ModuleNotFoundError(dedent(msg))
+        else:
+            self.camera = IMAQdx_Camera(self.serial_number)
         print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
         self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
@@ -163,6 +218,7 @@ class IMAQdxCameraWorker(Worker):
         self.h5_filepath = None
         self.continuous_stop = threading.Event()
         self.continuous_thread = None
+        self.continuous_dt = None
         self.image_socket = Context().socket(zmq.REQ)
         self.image_socket.connect(
             f'tcp://{self.parent_host}:{self.image_receiver_port}'
@@ -301,20 +357,35 @@ class IMAQdxCameraWorker(Worker):
 
             # Save all imaqdx attributes to the HDF5 file:
             image_group.attrs.update(self.all_attributes)
-            for i, exposure in enumerate(self.exposures):
-                group = image_group.require_group(exposure['name'])
+
+            # key the images by name and frametype. Allow for the case of there being
+            # multiple images with the same name and frametype. In this case we will
+            # save an array of images in a single dataset.
+            images = {
+                (exposure['name'], exposure['frametype']): []
+                for exposure in self.exposures
+            }
+
+            # Iterate over expected exposures, sorted by acquisition time, to match them
+            # up with the acquired images:
+            self.exposures.sort(order='t')
+            for image, exposure in zip(self.images, self.exposures):
+                images[(exposure['name'], exposure['frametype'])].append(image)
+
+            # Save images to the HDF5 file:
+            for (name, frametype), imagelist in images.items():
+                data = imagelist[0] if len(imagelist) == 1 else np.array(imagelist)
+                print(f"Saving frame(s) {name}/{frametype}")
+                group = image_group.require_group(name)
                 dset = group.create_dataset(
-                    exposure['frametype'],
-                    data=self.images[i],
-                    dtype='uint16',
-                    compression='gzip',
+                    frametype, data=data, dtype='uint16', compression='gzip'
                 )
                 # Specify this dataset should be viewed as an image
                 dset.attrs['CLASS'] = np.string_('IMAGE')
                 dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
-                print(f"Saved frame {exposure['frametype']}")
+                
 
         print("Stopping IMAQdx acquisition.")
         self.camera.stop_acquisition()

@@ -27,6 +27,7 @@ class IMAQdxCamera(TriggerableDevice):
                 "serial_number",
                 "orientation",
                 "manual_mode_imaqdx_attributes",
+                "mock"
             ],
             "device_properties": ["imaqdx_attributes"],
         }
@@ -43,6 +44,7 @@ class IMAQdxCamera(TriggerableDevice):
         minimum_recovery_time=0,
         imaqdx_attributes=None,
         manual_mode_imaqdx_attributes=None,
+        mock=False,
         **kwargs,
     ):
         """A camera to be controlled using NI IMAQdx and triggered with a digital edge.
@@ -59,7 +61,10 @@ class IMAQdxCamera(TriggerableDevice):
         dictionary of such attributes as manual_mode_imaqdx_attributes. Any attributes
         in this dictionary must also be present in imaqdx_attributes, and BLACS will set
         the value in imaqdx_attributes before a buffered run, and the value in
-        manual_mode_imaqdx_attributes when returning to manual mode."""
+        manual_mode_imaqdx_attributes when returning to manual mode. If mock=True, then
+        the BLACS worker will return fake images to simulate the presence of a camera
+        instead of actually interacting with hardware. This can be useful for
+        testing."""
         self.trigger_edge_type = trigger_edge_type
         self.minimum_recovery_time = minimum_recovery_time
         self.trigger_duration = trigger_duration
@@ -84,7 +89,7 @@ class IMAQdxCamera(TriggerableDevice):
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
-    def expose(self, t, name, frametype='', trigger_duration=None):
+    def expose(self, t, name, frametype='frame', trigger_duration=None):
         """Request an exposure at the given time. A trigger will be produced by the
         parent trigger object, with duration trigger_duration, or if not specified, of
         self.trigger_duration. The frame should have a `name, and optionally a
@@ -122,7 +127,7 @@ class IMAQdxCamera(TriggerableDevice):
         self.do_checks()
         vlenstr = h5py.special_dtype(vlen=str)
         table_dtypes = [
-            ('time', float),
+            ('t', float),
             ('name', vlenstr),
             ('frametype', vlenstr),
             ('trigger_duration', float),
