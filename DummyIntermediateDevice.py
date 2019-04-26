@@ -30,7 +30,6 @@ from labscript_devices import labscript_device, BLACS_tab, BLACS_worker
 from labscript import IntermediateDevice, DigitalOut, AnalogOut, config
 import numpy as np
 
-@labscript_device
 class DummyIntermediateDevice(IntermediateDevice):
 
     description = 'Dummy IntermediateDevice'
@@ -78,7 +77,6 @@ class DummyIntermediateDeviceTab(DeviceTab):
         self.create_worker("main_worker",DummyIntermediateDeviceWorker,{})
         self.primary_worker = "main_worker"
 
-@BLACS_worker        
 class DummyIntermediateDeviceWorker(Worker):
     def init(self):
         pass
