@@ -35,11 +35,13 @@ from labscript_utils.shared_drive import path_to_local
 
 # Required for knowing the parent device's hostname when running remotely:
 from labscript_utils import check_version
+
 check_version('zprocess', '2.12.0', '3')
 
 
 class MockCamera(object):
     """Mock camera class that returns fake image data."""
+
     def __init__(self):
         self.attributes = {}
 
@@ -70,17 +72,16 @@ class MockCamera(object):
         A = 500
         x = np.linspace(-5, 5, 500)
         y = x.reshape((N, 1))
-        clean_image = A * (1 - 0.5 * np.exp(-(x**2 + y**2)))
+        clean_image = A * (1 - 0.5 * np.exp(-(x ** 2 + y ** 2)))
 
         # Write text on the image that says "NOT REAL DATA"
         from PIL import Image, ImageDraw, ImageFont
+
         font = ImageFont.load_default()
         canvas = Image.new('L', [N // 5, N // 5], (0,))
         draw = ImageDraw.Draw(canvas)
         draw.text((10, 20), "NOT REAL DATA", font=font, fill=1)
-        clean_image += (
-            0.2 * A * np.asarray(canvas.resize((N, N)).rotate(20))
-        )
+        clean_image += 0.2 * A * np.asarray(canvas.resize((N, N)).rotate(20))
         return np.random.poisson(clean_image)
 
     def stop_acquisition(self):
@@ -262,7 +263,11 @@ class IMAQdxCameraWorker(Worker):
         """Acquire one frame in manual mode. Send it to the parent via
         self.image_socket. Wait for a response from the parent."""
         image = self.camera.snap()
-        # Send the image to the GUI to display:
+        self._send_image_to_parent(image)
+
+    def _send_image_to_parent(self, image):
+        """Send the image to the GUI to display. This will block if the parent process
+        is lagging behind in displaying frames, in order to avoid a backlog."""
         metadata = dict(dtype=str(image.dtype), shape=image.shape)
         self.image_socket.send_json(metadata, zmq.SNDMORE)
         self.image_socket.send(image, copy=False)
@@ -274,7 +279,8 @@ class IMAQdxCameraWorker(Worker):
         while True:
             if dt is not None:
                 t = perf_counter()
-            self.snap()
+            image = self.camera.grab()
+            self._send_image_to_parent(image)
             if dt is None:
                 timeout = 0
             else:
@@ -282,11 +288,12 @@ class IMAQdxCameraWorker(Worker):
             if self.continuous_stop.wait(timeout):
                 self.continuous_stop.clear()
                 break
-            
+
     def start_continuous(self, dt):
         """Begin continuous acquisition in a thread with minimum repetition interval
         dt"""
         assert self.continuous_thread is None
+        self.camera.configure_acquisition()
         self.continuous_thread = threading.Thread(
             target=self.continuous_loop, args=(dt,), daemon=True
         )
@@ -299,6 +306,7 @@ class IMAQdxCameraWorker(Worker):
         self.continuous_stop.set()
         self.continuous_thread.join()
         self.continuous_thread = None
+        self.camera.stop_acquisition()
         # If we're just 'pausing', then do not clear self.continuous_dt. That way
         # continuous acquisition can be resumed with the same interval by calling
         # start(self.continuous_dt), without having to get the interval from the parent
@@ -396,7 +404,6 @@ class IMAQdxCameraWorker(Worker):
                 dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
-                
 
         print("Stopping IMAQdx acquisition.")
         self.camera.stop_acquisition()
@@ -441,4 +448,6 @@ class IMAQdxCameraWorker(Worker):
         return {}
 
     def shutdown(self):
+        if self.continuous_thread is not None:
+            self.stop_continuous()
         self.camera.close()
