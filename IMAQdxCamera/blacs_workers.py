@@ -90,6 +90,9 @@ class MockCamera(object):
     def abort_acquisition(self):
         pass
 
+    def close(self):
+        pass
+
 
 class IMAQdx_Camera(object):
     def __init__(self, serial_number):
@@ -363,7 +366,7 @@ class IMAQdxCameraWorker(Worker):
                 connected/configured correctly"""
             raise RuntimeError(dedent(msg))
         self.acquisition_thread = None
-        print(f"Saving {len(self.images)} images.'")
+        print(f"Saving {len(self.images)} images.")
 
         with h5py.File(self.h5_filepath) as f:
             # Use orientation for image path, device_name if orientation unspecified
@@ -394,7 +397,7 @@ class IMAQdxCameraWorker(Worker):
             # Save images to the HDF5 file:
             for (name, frametype), imagelist in images.items():
                 data = imagelist[0] if len(imagelist) == 1 else np.array(imagelist)
-                print(f"Saving frame(s) {name}/{frametype}")
+                print(f"Saving frame(s) {name}/{frametype}.")
                 group = image_group.require_group(name)
                 dset = group.create_dataset(
                     frametype, data=data, dtype='uint16', compression='gzip'
@@ -412,7 +415,7 @@ class IMAQdxCameraWorker(Worker):
         self.all_attributes = None
         self.exposures = None
         self.h5_filepath = None
-        print("Setting manual mode attributes\n")
+        print("Setting manual mode attributes.\n")
         self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
         if self.continuous_dt is not None:
             # If continuous manual mode acquisition was in progress before the bufferd
