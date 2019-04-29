@@ -461,7 +461,9 @@ class CiceroOpalKellyXEM3001Worker(Worker):
     
         # Initialise connection to OPAL KELLY Board
         self.dev = ok.okCFrontPanel()
-        assert self.dev.OpenBySerial(bytes(self.serial)) == self.dev.NoError
+        if PY2:
+            self.serial = bytes(self.serial)
+        assert self.dev.OpenBySerial(self.serial) == self.dev.NoError
         
         try:
             assert self.dev.IsFrontPanelEnabled()
@@ -486,7 +488,9 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             raise RuntimeError('Cannot flash the FPGA for the current reference clock configuration as the .bit file is missing. Please ensure the correct bit file is available at %s'%fpga_path)
             
         self.logger.debug('Flashing FPGA bit file located at: %s'%fpga_path)
-        self.dev.ConfigureFPGA(bytes(fpga_path))
+        if PY2:
+            fpga_path = bytes(fpga_path)
+        self.dev.ConfigureFPGA(fpga_path)
         assert self.dev.IsFrontPanelEnabled(), 'Flashing of the FPGA failed. The device is not configured with the .bit file correctly'
 
         
