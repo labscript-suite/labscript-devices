@@ -320,7 +320,7 @@ class IMAQdxCameraWorker(Worker):
             self.continuous_dt = None
 
     def transition_to_buffered(self, device_name, h5_filepath, initial_values, fresh):
-        if self.is_remote:
+        if getattr(self, 'is_remote', False):
             h5_filepath = path_to_local(h5_filepath)
         if self.continuous_thread is not None:
             # Pause continuous acquistion during transition_to_buffered:
