@@ -77,12 +77,12 @@ class IMAQdxCamera(TriggerableDevice):
             imaqdx_attributes = {}
         if manual_mode_imaqdx_attributes is None:
             manual_mode_imaqdx_attributes = {}
-        for name in manual_mode_imaqdx_attributes:
-            if name not in imaqdx_attributes:
-                msg = f"""attribute '{name}' is present in manual_mode_imaqdx_attributes
-                    but not in imaqdx_attributes. Attributes that are to differ between
-                    manual mode and buffered mode must be present in both
-                    dictionaries."""
+        for attr_name in manual_mode_imaqdx_attributes:
+            if attr_name not in imaqdx_attributes:
+                msg = f"""attribute '{attr_name}' is present in
+                    manual_mode_imaqdx_attributes but not in imaqdx_attributes.
+                    Attributes that are to differ between manual mode and buffered
+                    mode must be present in both dictionaries."""
                 raise ValueError(dedent(msg))
         self.imaqdx_attributes = imaqdx_attributes
         self.manual_mode_imaqdx_attributes = manual_mode_imaqdx_attributes
