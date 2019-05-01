@@ -17,18 +17,37 @@ if PY2:
 
 from labscript_devices import BLACS_tab, runviewer_parser
 
-from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, config, LabscriptError, set_passed_properties
+from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, DDSQuantity, config, LabscriptError, set_passed_properties
 
 import numpy as np
 
 import labscript_utils.h5_lock, h5py
 
-class x(object):
-    pass
-
 import time
 
-import types
+class PulseBlasterDDS(DDSQuantity):
+    description = 'PulseBlasterDDS'
+    def __init__(self, *args, **kwargs):
+        if 'call_parents_add_device' in kwargs:
+            call_parents_add_device = kwargs['call_parents_add_device']
+        else:
+            call_parents_add_device = True
+
+        kwargs['call_parents_add_device'] = False
+        DDSQuantity.__init__(self, *args, **kwargs)
+
+        self.gate = DigitalQuantity(self.name + '_gate', self, 'gate')
+        self.phase_reset = DigitalQuantity(self.name + '_phase_reset', self, 'phase_reset')
+
+        if call_parents_add_device:
+            self.parent_device.add_device(self)
+
+    def hold_phase(self, t):
+        self.phase_reset.go_high(t)
+
+    def release_phase(self, t):
+        self.phase_reset.go_low(t)
+
 
 profiles = {}
 def profile(funct):
@@ -197,7 +216,7 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('The %s %s automatically creates a Pseudoclock because it only supports one. '%(self.description, self.name) +
                                  'Instead of instantiating your own Pseudoclock object, please use the internal' +
                                  ' one stored in %s.pseudoclock'%self.name)
-        elif isinstance(device, DDS) or isinstance(device, DigitalOut):
+        elif isinstance(device, DDS) or isinstance(device, PulseBlasterDDS) or isinstance(device, DigitalOut):
             #TODO: Defensive programming: device.name may not exist!
             raise LabscriptError('You have connected %s directly to %s, which is not allowed. You should instead specify the parent_device of %s as %s.direct_outputs'%(device.name, self.name, device.name, self.name))
         else:
@@ -227,7 +246,7 @@ class PulseBlaster(PseudoclockDevice):
         dds_outputs = []
         for output in self.direct_outputs.get_all_outputs():
             # If we are a child of a DDS
-            if isinstance(output.parent_device, DDS):
+            if isinstance(output.parent_device, DDS) or isinstance(output.parent_device, PulseBlasterDDS):
                 # and that DDS has not been processed yet
                 if output.parent_device not in dds_outputs:
                     # process the DDS instead of the child
@@ -237,7 +256,7 @@ class PulseBlaster(PseudoclockDevice):
                     continue
             
             # only check DDS and DigitalOuts (so ignore the children of the DDS)
-            if isinstance(output,DDS) or isinstance(output, DigitalOut):
+            if isinstance(output,DDS) or isinstance(output,PulseBlasterDDS) or isinstance(output, DigitalOut):
                 # get connection number and prefix
                 try:
                     prefix, connection = output.connection.split()
@@ -265,9 +284,9 @@ class PulseBlaster(PseudoclockDevice):
                 
                 # store a reference to the output
                 if isinstance(output, DigitalOut):
-                	dig_outputs.append(output)
-                elif isinstance(output, DDS):
-                	dds_outputs.append(output)
+                    dig_outputs.append(output)
+                elif isinstance(output, DDS) or isinstance(output, PulseBlasterDDS):
+                    dds_outputs.append(output)
                 
         return dig_outputs, dds_outputs
 
@@ -418,7 +437,8 @@ class PulseBlaster(PseudoclockDevice):
                 ampregs[ddsnumber] = amps[ddsnumber][output.amplitude.raw_output[i]]
                 phaseregs[ddsnumber] = phases[ddsnumber][output.phase.raw_output[i]]
                 dds_enables[ddsnumber] = output.gate.raw_output[i]
-                phase_resets[ddsnumber] = output.phase_reset.raw_output[i]
+                if isinstance(output, PulseBlasterDDS):
+                    phase_resets[ddsnumber] = output.phase_reset.raw_output[i]
                 
             # if self.fast_clock_flag is not None:
                 # for fast_flag in self.fast_clock_flag:
@@ -588,14 +608,10 @@ class PulseBlaster(PseudoclockDevice):
         self.write_pb_inst_to_h5(pb_inst, hdf5_file)
         
 
-def hold_phase(self, t):
-	self.phase_reset.go_high(t)
 
-def release_phase(self, t):
-	self.phase_reset.go_low(t)
 
 class PulseBlasterDirectOutputs(IntermediateDevice):
-    allowed_children = [DDS, DigitalOut]
+    allowed_children = [DDS, PulseBlasterDDS, DigitalOut]
     clock_limit = PulseBlaster.clock_limit
     description = 'PB-DDSII-300 Direct Outputs'
   
@@ -610,13 +626,7 @@ class PulseBlasterDirectOutputs(IntermediateDevice):
                 raise LabscriptError('You cannot specify a digital gate ' +
                                      'for a DDS connected to %s. '% (self.name) + 
                                      'The digital gate is always internal to the Pulseblaster.')
-			
-            # Add in a digital quantity to control the internal phase reset line for the DDS:
-            device.phase_reset = DigitalQuantity(device.name + '_phase_reset', device, 'phase_reset')
-            
-            # Add a convenience function to control the phase [similar to enable()/disable() functions for the gate]:
-            device.hold_phase = types.MethodType( hold_phase, device )
-            device.release_phase = types.MethodType( release_phase, device )
+
 
 from blacs.tab_base_classes import Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
