@@ -37,6 +37,9 @@ __author__ = ['dt', 'rpanderson', 'cbillington']
 # for help on these functions
 # <NI_install_path>\NI-IMAQdx\Docs\NI-IMAQdx_Function_Reference.chm
 
+# Monkeypatch the nivision library to fix a memory leak:
+from labscript_devices.IMAQdxCamera.blacs_workers import _monkeypatch_imaqdispose
+_monkeypatch_imaqdispose()
 
 def _ensure_str(s):
     """Convert bytestrings and numpy strings to python strings.
