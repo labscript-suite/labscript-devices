@@ -199,11 +199,13 @@ class NI_DAQmxOutputWorker(Worker):
         # Check if DOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
         # case, run it as a non-buffered task.
-        self.all_zero = all(DO_table[port].sum() == 0 for port in DO_table.dtype.names)
-        if self.all_zero:
+        self.DO_all_zero = all(
+            DO_table[port].sum() == 0 for port in DO_table.dtype.names
+        )
+        if self.DO_all_zero:
             DO_table = DO_table[0:1]
 
-        if self.static_DO or self.all_zero:
+        if self.static_DO or self.DO_all_zero:
             # Static DO. Start the task and write data, no timing configuration.
             self.DO_task.StartTask()
             # Write data for each port:
@@ -276,7 +278,14 @@ class NI_DAQmxOutputWorker(Worker):
         # And convert to 64 bit floats:
         AO_table = AO_table.astype(np.float64)
 
-        if self.static_AO:
+        # Check if AOs are all zero for the whole shot. If they are this triggers a
+        # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
+        # case, run it as a non-buffered task.
+        self.AO_all_zero = all(AO_table == 0)
+        if self.AO_all_zero:
+            AO_table = AO_table[0:1]
+
+        if self.static_AO or self.AO_all_zero:
             # Static AO. Start the task and write data, no timing configuration.
             self.AO_task.StartTask()
             self.AO_task.WriteAnalogF64(
@@ -350,10 +359,10 @@ class NI_DAQmxOutputWorker(Worker):
         samples = uInt64()
         tasks = []
         if self.AO_task is not None:
-            tasks.append([self.AO_task, self.static_AO, 'AO'])
+            tasks.append([self.AO_task, self.static_AO or self.AO_all_zero, 'AO'])
             self.AO_task = None
         if self.DO_task is not None:
-            tasks.append([self.DO_task, self.static_DO or self.all_zero, 'DO'])
+            tasks.append([self.DO_task, self.static_DO or self.DO_all_zero, 'DO'])
             self.DO_task = None
 
         for task, static, name in tasks:
