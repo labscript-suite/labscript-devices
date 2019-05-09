@@ -259,7 +259,8 @@ class LightCrafterWorker(Worker):
         
     
     def send(self, type, command, data):
-        packet = b'{}{}{}{}{}'.format(type,command,self.flag['complete'],struct.pack('<H',len(data)),data)
+        packet = '{}{}{}{}{}'.format(type,command,self.flag['complete'],struct.pack('<H',len(data)),data)
+        packet = packet.encode()
         packet += struct.pack('<B',sum(bytearray(packet)) % 256) # add the checksum
         self.sock.send(packet)
         return self.receive()
