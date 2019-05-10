@@ -247,9 +247,8 @@ class LightCrafterWorker(Worker):
         self.host, self.port = self.server.split(':')
         self.port = int(self.port)
         self.smart_cache = {'IMAGE_TABLE': ''}
-        self.sock = socket.socket()
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host,self.port))
-        
         # Initialise it to a static image display
         self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['static'])
         
@@ -259,8 +258,7 @@ class LightCrafterWorker(Worker):
         
     
     def send(self, type, command, data):
-        packet = '{}{}{}{}{}'.format(type,command,self.flag['complete'],struct.pack('<H',len(data)),data)
-        packet = packet.encode()
+        packet = b''.join([type,command,self.flag['complete'],struct.pack('<H',len(data)),data])
         packet += struct.pack('<B',sum(bytearray(packet)) % 256) # add the checksum
         self.sock.send(packet)
         return self.receive()
@@ -269,18 +267,17 @@ class LightCrafterWorker(Worker):
         # This function assumes that we are getting a fresh packet, i.e. there is nothing waiting in the buffer
         # First we get the header bits, to see how big the payload will be:
         header = self.sock.recv(6)
-        pkt_type = self.receive_packet_type[header[0]]
+        pkt_type = self.receive_packet_type[header[0:1]]
         command = header[1:3]
-        flag = header[3]
+        flag = header[3:4]
         length = struct.unpack('<H',header[4:6])[0]
         body = self.sock.recv(length + 1)
-        checksum = body[-1]
+        checksum = body[-1:]
         body = body[:-1]
         return {'header' : header, 'type' : pkt_type, 'command' : command, 'flag' : flag, 'length' : length, 'body' : body, 'checksum' : checksum}
         
     def receive(self):
         recv = self._receive()
-        
         # Check the type
         while recv['type'] == "System Busy":
             # the system is busy, guess we should try again in 5 seconds?
@@ -321,7 +318,7 @@ class LightCrafterWorker(Worker):
         ## Check to see if it's a BMP
         
         
-        if data[0:2] != "BM":
+        if data[0:2] != b"BM":
                 raise Exception('Error loading image: Image does not appear to be in bmp format (Initial bits are %s)'%data[0:2])
         
         self.send(self.send_packet_type['write'], self.command['display_mode'], self.display_mode['static'])
