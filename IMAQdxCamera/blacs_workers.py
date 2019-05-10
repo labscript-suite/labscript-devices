@@ -14,12 +14,6 @@
 # Original imaqdx_camera server by dt, with modifications by rpanderson and cbillington.
 # Refactored as a BLACS worker by cbillington
 
-try:
-    import nivision as nv
-except ModuleNotFoundError:
-    # Don't throw an error yet, allow worker to run as a dummy device
-    nv = None
-
 from time import perf_counter
 from blacs.tab_base_classes import Worker
 import threading
@@ -38,6 +32,9 @@ from labscript_utils import check_version
 
 check_version('zprocess', '2.12.0', '3')
 
+# Don't import nv yet so as not to throw an error,
+# allow worker to run as a dummy device
+nv = None
 
 class MockCamera(object):
     """Mock camera class that returns fake image data."""
@@ -214,12 +211,9 @@ class IMAQdxCameraWorker(Worker):
         if self.mock:
             print("Starting device worker as a mock device")
             self.camera = MockCamera()
-        elif nv is None:
-            msg = """nivision module not found. Please install it with 'pip install
-                pynivision'. You will also require the NI Vision development module from
-                National Instruments."""
-            raise ModuleNotFoundError(dedent(msg))
         else:
+            global nv
+            import nivision as nv
             self.camera = IMAQdx_Camera(self.serial_number)
         print("Setting attributes...")
         self.camera.set_attributes(self.imaqdx_attributes)
