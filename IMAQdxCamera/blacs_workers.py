@@ -14,8 +14,35 @@
 # Original imaqdx_camera server by dt, with modifications by rpanderson and cbillington.
 # Refactored as a BLACS worker by cbillington
 
+
+def _monkeypatch_imaqdispose():
+    """Monkeypatch a fix to a memory leak bug in pynivision. The pynivision project is
+    no longer active, so we can't contribute this fix upstream. In the long run,
+    hopefully someone (perhaps us) forks it so that bugs can be addressed in the
+    normal way"""
+
+    import nivision.core
+    import ctypes
+    
+    _imaqDispose = nivision.core._imaqDispose
+
+    def imaqDispose(obj):
+        if getattr(obj, "_contents", None) is not None:
+            _imaqDispose(ctypes.byref(obj._contents))
+            obj._contents = None
+        if getattr(obj, "value", None) is not None:
+            _imaqDispose(obj)
+            obj.value = None
+        # This is the bugfix: pointers as raw ints were not being disposed:
+        if isinstance(obj, int):
+            _imaqDispose(obj)
+
+    nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
+
+
 try:
     import nivision as nv
+    _monkeypatch_imaqdispose()
 except ModuleNotFoundError:
     # Don't throw an error yet, allow worker to run as a dummy device
     nv = None
