@@ -89,7 +89,7 @@ class ImageSet(Output):
             with open(path, 'rb') as f:
                 raw_data = f.read()
         # Check that the image is a BMP, first two bytes should be "BM"
-        if raw_data[0:2] != "BM":
+        if raw_data[0:2] != b"BM":
             raise LabscriptError('Error loading image for DMD output %s: The image does not appear to be in bmp format(path: %s)'%(self.name, path))
         # Check the dimensions match the device, these are stored in bytes 18-21 and 22-25
         width = struct.unpack("<i",raw_data[18:22])[0]
