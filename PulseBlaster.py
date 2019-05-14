@@ -150,24 +150,23 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
         self.programming_scheme = programming_scheme
 
-        if pulse_width is not None:            
-            if pulse_width < 0.5/self.clock_limit:
-                message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
-                           '( = %s seconds)'%str(0.5/self.clock_limit))
-                raise LabscriptError(message)
-            # Round pulse width up to the nearest multiple of clock resolution:
-            quantised_pulse_width = 2*pulse_width/self.clock_resolution
-            quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
-            # This will be used as the high time of clock ticks:
-            self.pulse_width = quantised_pulse_width*self.clock_resolution/2
-            # This pulse width, if larger than the minimum, may limit how fast we can tick.
-            # Update self.clock_limit accordingly.
-            minimum_low_time = 0.5/self.clock_limit
-            if self.pulse_width > minimum_low_time:
-                self.clock_limit = 1/(self.pulse_width + minimum_low_time)
-        else:
-            pulse_width = 'symmetric'
-            self.pulse_width = None
+        if pulse_width is None:
+            pulse_width = 0.5/self.clock_limit # the shortest possible
+        if pulse_width < 0.5/self.clock_limit:
+            message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
+                       '( = %s seconds)'%str(0.5/self.clock_limit))
+            raise LabscriptError(message)
+        # Round pulse width up to the nearest multiple of clock resolution:
+        quantised_pulse_width = 2*pulse_width/self.clock_resolution
+        quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
+        # This will be used as the high time of clock ticks:
+        self.pulse_width = quantised_pulse_width*self.clock_resolution/2
+
+        # This pulse width, if larger than the minimum, may limit how fast we can tick.
+        # Update self.clock_limit accordingly.
+        minimum_low_time = 0.5/self.clock_limit
+        if self.pulse_width > minimum_low_time:
+            self.clock_limit = 1/(self.pulse_width + minimum_low_time)
 
         self.max_instructions = max_instructions
 
@@ -400,10 +399,6 @@ class PulseBlaster(PseudoclockDevice):
                     flags[flag_index] = 1
                     # We are not just using the internal clock line
                     only_internal = False
-                    
-            if only_internal and self.pulse_width is not None:
-                raise LabscriptError('You cannot set a pulse_width for %s (%s) if it is not used as a pseudoclock for another device'%(self.name, self.description))
-                    
             
             for output in dig_outputs:
                 flagindex = int(output.connection.split()[1])
@@ -441,10 +436,7 @@ class PulseBlaster(PseudoclockDevice):
             # to be inserted. How many times does the delay of the
             # loop/endloop instructions go into 55 secs?
             if not only_internal:
-                if self.pulse_width is not None:
-                    quotient, remainder = divmod(instruction['step'],55.0)
-                else:
-                    quotient, remainder = divmod(instruction['step']/2.0,55.0)
+                quotient, remainder = divmod(instruction['step']/2.0,55.0)
             else:
                 quotient, remainder = divmod(instruction['step'],55.0)
                 
@@ -455,15 +447,10 @@ class PulseBlaster(PseudoclockDevice):
                 quotient, remainder = quotient - 1, remainder + 55.0
                 
             if not only_internal:
-                if self.pulse_width is not None:
-                    delay = self.pulse_width
-                else:
-                    delay = remainder
-            
                 # The loop and endloop instructions will only use the remainder:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LOOP',
-                                'data': instruction['reps'], 'delay': delay*1e9})
+                                'data': instruction['reps'], 'delay': self.pulse_width*1e9})
                 
                 for clock_line in instruction['enabled_clocks']:
                     if clock_line != self._direct_output_clock_line:
@@ -476,22 +463,13 @@ class PulseBlaster(PseudoclockDevice):
                 # many multiples of 55 seconds (one multiple of 55 seconds
                 # for each of the other two loop and endloop instructions):
                 if quotient:
-                    if self.pulse_width is not None:
-                        delay = 55/2.0
-                    else:
-                        delay = 55
-                    
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(2*quotient), 'delay': delay*1e9}) 
+                                'data': int(2*quotient), 'delay': 55*1e9})
                                 
-                if self.pulse_width is not None:
-                    delay = 2*remainder-self.pulse_width
-                else:
-                    delay = remainder
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'END_LOOP',
-                                'data': j, 'delay': delay*1e9})
+                                'data': j, 'delay': (2*remainder - self.pulse_width)*1e9})
                                 
                 # Two instructions were used in the case of there being no LONG_DELAY, 
                 # otherwise three. This increment is done here so that the j referred
@@ -508,7 +486,7 @@ class PulseBlaster(PseudoclockDevice):
                 if quotient:
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(2*quotient), 'delay': 55/2.0*1e9}) 
+                                'data': int(quotient), 'delay': 55*1e9})
                 j += 2 if quotient else 1
                 
 
