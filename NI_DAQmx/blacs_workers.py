@@ -281,7 +281,7 @@ class NI_DAQmxOutputWorker(Worker):
         # Check if AOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
         # case, run it as a non-buffered task.
-        self.AO_all_zero = all(AO_table == 0)
+        self.AO_all_zero = all(AO_table.flatten() == 0)
         if self.AO_all_zero:
             AO_table = AO_table[0:1]
 
