@@ -100,37 +100,15 @@ class PulseBlaster(PseudoclockDevice):
     allowed_children = [Pseudoclock]
     
     @set_passed_properties(
-        property_names={
-            "connection_table_properties": [
-                "firmware",
-                "programming_scheme",
-                "core_clock_freq",
-            ],
-            "device_properties": [
-                "pulse_width",
-                "max_instructions",
-                "time_based_stop_workaround",
-                "time_based_stop_workaround_extra_time",
-            ],
-        }
-    )
-    def __init__(
-        self,
-        name,
-        trigger_device=None,
-        trigger_connection=None,
-        board_number=0,
-        firmware='',
-        programming_scheme='pb_start/BRANCH',
-        pulse_width='symmetric',
-        max_instructions=4000,
-        time_based_stop_workaround=False,
-        time_based_stop_workaround_extra_time=0.5,
-        **kwargs
-    ):
-        PseudoclockDevice.__init__(
-            self, name, trigger_device, trigger_connection, **kwargs
+        property_names = {"connection_table_properties": ["firmware",  "programming_scheme"],
+                          "device_properties": ["pulse_width", "max_instructions",
+                                                "time_based_stop_workaround",
+                                                "time_based_stop_workaround_extra_time"]}
         )
+    def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '',
+                 programming_scheme='pb_start/BRANCH', pulse_width='symmetric', max_instructions=4000,
+                 time_based_stop_workaround=False, time_based_stop_workaround_extra_time=0.5, **kwargs):
+        PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
         # TODO: Implement capability checks based on firmware revision of PulseBlaster
         self.firmware_version = firmware
