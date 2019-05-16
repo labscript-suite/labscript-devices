@@ -477,9 +477,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.task is not None:
             raise RuntimeError('Task already running')
 
-        num_chans = len(chans)
-
-        if num_chans < 1:
+        if chans is None:
             return
 
         # Get data MAX_READ_PTS points at a time or once every MAX_READ_INTERVAL
@@ -517,16 +515,15 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
     def stop_task(self):
         with self.tasklock:
-            if len(self.buffered_chans) and self.task is None:
+            if self.task is None:
                 raise RuntimeError('Task not running')
-            if self.task is not None:
-                # Read remaining data:
-                self.read(self.task, None, -1)
-                # Stop the task:
-                self.task.StopTask()
-                self.task.ClearTask()
-                self.task = None
-                self.read_array = None
+            # Read remaining data:
+            self.read(self.task, None, -1)
+            # Stop the task:
+            self.task.StopTask()
+            self.task.ClearTask()
+            self.task = None
+            self.read_array = None
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
@@ -542,7 +539,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         chans = [_ensure_str(c) for c in AI_table['connection']]
         # Remove duplicates and sort:
-        self.buffered_chans = sorted(set(chans), key=split_conn_AI)
+        if chans:
+            self.buffered_chans = sorted(set(chans), key=split_conn_AI)
         self.h5_file = h5file
         self.buffered_rate = device_properties['acquisition_rate']
         self.acquired_data = []
@@ -560,8 +558,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # there were no acuisitions this shot.
         if not self.buffered_mode:
             return True
-
-        self.stop_task()
+        if self.buffered_chans is not None:
+            self.stop_task()
         self.buffered_mode = False
         self.logger.info('transitioning to manual mode, task stopped')
         self.start_task(self.manual_mode_chans, self.manual_mode_rate)
@@ -578,7 +576,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
             data_group.create_group(self.device_name)
             waits_in_use = len(hdf5_file['waits']) > 0
 
-        if len(self.buffered_chans) and not self.acquired_data:
+        if self.buffered_chans is not None and not self.acquired_data:
             msg = """No data was acquired. Perhaps the acquisition task was not
                 triggered to start, is the device connected to a pseudoclock?"""
             raise RuntimeError(dedent(msg))
