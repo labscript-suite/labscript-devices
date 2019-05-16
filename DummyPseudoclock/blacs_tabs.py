@@ -21,7 +21,7 @@ class DummyPseudoclockTab(DeviceTab):
         worker_initialisation_kwargs = {}
         self.create_worker(
             "main_worker",
-            "labscript_devices.DummyPseudoclock.blacs_worker.DummyPseudoclockWorker",
+            "labscript_devices.DummyPseudoclock.blacs_workers.DummyPseudoclockWorker",
             worker_initialisation_kwargs,
         )
         self.primary_worker = "main_worker"

@@ -39,8 +39,8 @@ class NI_DAQmxTab(DeviceTab):
             msg = """Connection table was compiled with the old version of the NI_DAQmx
                 device class. The new BLACS tab is not backward compatible with old shot
                 files (including connection tables). Either downgrade labscript_devices
-                to 2.2.0 or less, or recompile the connection table with
-                labscript_devices 2.3.0 or greater.
+                to 2.4.0 or less, or recompile the connection table with
+                labscript_devices 2.5.0 or greater.
                 """
             raise VersionException(dedent(msg))
 

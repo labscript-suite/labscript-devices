@@ -10,6 +10,11 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 from labscript_devices import runviewer_parser, BLACS_tab
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
@@ -19,25 +24,41 @@ import numpy as np
 import labscript_utils.h5_lock, h5py
 import labscript_utils.properties
 
+bauds = {9600: b'Kb 78', 
+         19200: b'Kb 3c',
+         38400: b'Kb 1e',
+         57600: b'Kb 14',
+         115200: b'Kb 0a'}
 
 class NovaTechDDS9M(IntermediateDevice):
+    """
+    This class is initilzed with the key word argument  
+    'update_mode' -- synchronous or asynchronous\
+    'baud_rate',  -- operating baud rate
+    'default_baud_rate' -- assumed baud rate at startup
+    """
     description = 'NT-DDS9M'
     allowed_children = [DDS, StaticDDS]
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     @set_passed_properties(
-        property_names = {'connection_table_properties': ['update_mode', 'synchronous_first_line_repeat', 'phase_mode']}
+        property_names = {'connection_table_properties': ['com_port', 'baud_rate', 'default_baud_rate', 'update_mode', 'synchronous_first_line_repeat', 'phase_mode']}
         )
     def __init__(self, name, parent_device, 
-                 com_port = "", baud_rate=115200,
-                 update_mode='synchronous', synchronous_first_line_repeat=False,
-                 phase_mode='default', **kwargs):
+                 com_port = "", baud_rate=115200, default_baud_rate=None, update_mode='synchronous', synchronous_first_line_repeat=False, phase_mode='default', **kwargs):
 
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
+
         if not update_mode in ['synchronous', 'asynchronous']:
             raise LabscriptError('update_mode must be \'synchronous\' or \'asynchronous\'')            
         
+        if not baud_rate in bauds:     
+            raise LabscriptError('baud_rate must be one of {0}'.format(list(bauds)))            
+
+        if not default_baud_rate in bauds and default_baud_rate is not None:     
+            raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(list(bauds)))            
+
         if not phase_mode in ['default', 'aligned', 'continuous']:
             raise LabscriptError('phase_mode must be \'default\', \'aligned\' or \'continuous\'')
 
@@ -232,20 +253,29 @@ class NovatechDDS9MTab(DeviceTab):
         
         self.phase_mode = connection_table_properties.get('phase_mode', 'default')
 
-        # Store the COM port to be used
+        self.com_port = connection_table_properties.get('com_port', None)
+        self.baud_rate = connection_table_properties.get('baud_rate', None)
+        self.default_baud_rate = connection_table_properties.get('default_baud_rate', None)
+        self.update_mode = connection_table_properties.get('update_mode', 'synchronous')
+        
+        # Backward compat:
         blacs_connection =  str(connection_object.BLACS_connection)
         if ',' in blacs_connection:
-            self.com_port, baud_rate = blacs_connection.split(',')
-            self.baud_rate = int(baud_rate)
+            com_port, baud_rate = blacs_connection.split(',')
+            if self.com_port is None:
+                self.com_port = com_port
+            if self.baud_rate is None:
+                self.baud_rate = int(baud_rate)
         else:
             self.com_port = blacs_connection
             self.baud_rate = 115200
         
-        self.update_mode = connection_object.properties.get('update_mode', 'synchronous')
-        
+
+
         # Create and set the primary worker
         self.create_worker("main_worker",NovatechDDS9mWorker,{'com_port':self.com_port,
                                                               'baud_rate': self.baud_rate,
+                                                              'default_baud_rate': self.default_baud_rate,
                                                               'update_mode': self.update_mode,
                                                               'phase_mode': self.phase_mode})
         self.primary_worker = "main_worker"
@@ -258,11 +288,42 @@ class NovatechDDS9MTab(DeviceTab):
 class NovatechDDS9mWorker(Worker):
     def init(self):
         global serial; import serial
+        global socket; import socket
         global h5py; import labscript_utils.h5_lock, h5py
         self.smart_cache = {'STATIC_DATA': None, 'TABLE_DATA': ''}
         
-        self.connection = serial.Serial(self.com_port, baudrate = self.baud_rate, timeout=0.1)
-        self.connection.readlines()
+        if self.default_baud_rate is not None:
+            initial_baud_rate = self.default_baud_rate
+        else:
+            initial_baud_rate = self.baud_rate
+
+        self.connection = serial.Serial(
+            self.com_port, baudrate=initial_baud_rate, timeout=0.1
+        )
+        
+        # Check if the novatech will talk to us on this baud rate:
+        if not self.check_connection():
+            # Nope. Try all baud rates, from slowest to fastest:
+            for rate in sorted(bauds):
+                self.connection.baudrate = rate
+                if self.check_connection():
+                    # found it!
+                    break
+            else:
+                # None of them worked.
+                msg = "Error: tried all baud rates but got no response from NovaTech."
+                raise RuntimeError(msg)
+
+        # If the baud rate we are using to initially talk to the device is not the one
+        # we want to use to program it, switch now to the desired baud rate:
+        if self.connection.baudrate != self.baud_rate:
+            self.connection.write(b'%s\r\n' % bauds[self.baud_rate])
+            # ensure command finishes before switching rates in pyserial:
+            time.sleep(0.1)
+            self.connection.baudrate = self.baud_rate
+            if not self.check_connection():
+                msg = 'Error: Failed to execute command %s' % bauds[self.baud_rate]
+                raise RuntimeError(msg)           
         
         # Set phase mode method
         phase_mode_commands = {
@@ -272,27 +333,42 @@ class NovatechDDS9mWorker(Worker):
         }
         self.phase_mode_command = phase_mode_commands[self.phase_mode]
 
-        self.connection.write('e d\r\n')
+        self.connection.write(b'e d\r\n')
         response = self.connection.readline()
-        if response == 'e d\r\n':
+        if response == b'e d\r\n':
             # if echo was enabled, then the command to disable it echos back at us!
             response = self.connection.readline()
-        if response != "OK\r\n":
-            raise Exception('Error: Failed to execute command: "e d". Cannot connect to the device.')
-        
-        self.connection.write('I a\r\n')
-        if self.connection.readline() != "OK\r\n":
+        if response != b"OK\r\n":
+            msg = 'Error: Failed to execute command: "e d", received "%s".' % response
+            raise Exception(msg)
+
+        self.connection.write(b'I a\r\n')
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         
         self.connection.write(b'%s\r\n'%self.phase_mode_command)
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode.decode('utf8'))
         
         #return self.get_current_values()
         
+    def check_connection(self):
+        """Sends non-command and tests for correct response, returns True if connection
+        appears to be working correctly, else returns False"""
+        # check twice since false positive possible on first check. use readlines in
+        # case echo is on
+        self.connection.write(b'\r\n')
+        self.connection.readlines()       
+        self.connection.write(b'\r\n')
+        try:
+            return self.connection.readlines()[-1] == b'OK\r\n'
+        except IndexError:
+            # empty response, probably not connected
+            return False
+
     def check_remote_values(self):
         # Get the currently output values:
-        self.connection.write('QUE\r\n')
+        self.connection.write(b'QUE\r\n')
         try:
             response = [self.connection.readline() for i in range(5)]
         except socket.timeout:
@@ -321,22 +397,16 @@ class NovatechDDS9mWorker(Worker):
 
     def program_static(self,channel,type,value):
         if type == 'freq':
-            command = 'F%d %.7f\r\n'%(channel,value/10.0**6)
-            self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
+            command = b'F%d %.7f\r\n'%(channel,value/10.0**6)
         elif type == 'amp':
-            command = 'V%d %u\r\n'%(channel,int(value*1023+0.5))
-            self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
+            command = b'V%d %u\r\n'%(channel,int(value*1023+0.5))
         elif type == 'phase':
-            command = 'P%d %u\r\n'%(channel,value*16384/360)
-            self.connection.write(command)
-            if self.connection.readline() != "OK\r\n":
-                raise Exception('Error: Failed to execute command: %s'%command)
+            command = b'P%d %u\r\n'%(channel,value*16384/360)
         else:
             raise TypeError(type)
+        self.connection.write(command)
+        if self.connection.readline() != b"OK\r\n":
+            raise Exception('Error: Failed to execute command: %s' % command.decode('utf8'))
         # Now that a static update has been done, we'd better invalidate the saved STATIC_DATA:
         self.smart_cache['STATIC_DATA'] = None
      
@@ -350,7 +420,7 @@ class NovatechDDS9mWorker(Worker):
         # And back to manual mode
         self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
+            raise Exception('Error: Failed to execute command: "%s"' % self.phase_mode_command.decode('utf8'))
 
 
         # Store the initial values in case we have to abort and restore them:
@@ -373,17 +443,17 @@ class NovatechDDS9mWorker(Worker):
             if fresh or data != self.smart_cache['STATIC_DATA']:
                 self.logger.debug('Static data has changed, reprogramming.')
                 self.smart_cache['STATIC_DATA'] = data
-                self.connection.write('F2 %.7f\r\n'%(data['freq2']/10.0**7))
+                self.connection.write(b'F2 %.7f\r\n'%(data['freq2']/10.0**7))
                 self.connection.readline()
-                self.connection.write('V2 %u\r\n'%(data['amp2']))
+                self.connection.write(b'V2 %u\r\n'%(data['amp2']))
                 self.connection.readline()
-                self.connection.write('P2 %u\r\n'%(data['phase2']))
+                self.connection.write(b'P2 %u\r\n'%(data['phase2']))
                 self.connection.readline()
-                self.connection.write('F3 %.7f\r\n'%(data['freq3']/10.0**7))
+                self.connection.write(b'F3 %.7f\r\n'%(data['freq3']/10.0**7))
                 self.connection.readline()
-                self.connection.write('V3 %u\r\n'%data['amp3'])
+                self.connection.write(b'V3 %u\r\n'%data['amp3'])
                 self.connection.readline()
-                self.connection.write('P3 %u\r\n'%data['phase3'])
+                self.connection.write(b'P3 %u\r\n'%data['phase3'])
                 self.connection.readline()
                 
                 # Save these values into final_values so the GUI can
@@ -405,7 +475,7 @@ class NovatechDDS9mWorker(Worker):
                 oldtable = self.smart_cache['TABLE_DATA']
                 for ddsno in range(2):
                     if fresh or i >= len(oldtable) or (line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]) != (oldtable[i]['freq%d'%ddsno],oldtable[i]['phase%d'%ddsno],oldtable[i]['amp%d'%ddsno]):
-                        self.connection.write('t%d %04x %08x,%04x,%04x,ff\r\n'%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
+                        self.connection.write(b't%d %04x %08x,%04x,%04x,ff\r\n'%(ddsno, i,line['freq%d'%ddsno],line['phase%d'%ddsno],line['amp%d'%ddsno]))
                         self.connection.readline()
                 et = time.time()
                 tt=et-st
@@ -430,11 +500,11 @@ class NovatechDDS9mWorker(Worker):
             self.final_values['channel 1']['phase'] = data[-1]['phase1']*360/16384.0
             
             # Transition to table mode:
-            self.connection.write('m t\r\n')
+            self.connection.write(b'm t\r\n')
             self.connection.readline()
             if self.update_mode == 'synchronous':
                 # Transition to hardware synchronous updates:
-                self.connection.write('I e\r\n')
+                self.connection.write(b'I e\r\n')
                 self.connection.readline()
                 # We are now waiting for a rising edge to trigger the output
                 # of the second table pair (first of the experiment)
@@ -456,10 +526,10 @@ class NovatechDDS9mWorker(Worker):
     
     def transition_to_manual(self,abort = False):
         self.connection.write(b'%s\r\n'%self.phase_mode_command)
-        if self.connection.readline() != "OK\r\n":
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
-        self.connection.write('I a\r\n')
-        if self.connection.readline() != "OK\r\n":
+        self.connection.write(b'I a\r\n')
+        if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         if abort:
             # If we're aborting the run, then we need to reset DDSs 2 and 3 to their initial values.
@@ -484,6 +554,13 @@ class NovatechDDS9mWorker(Worker):
         return True
                      
     def shutdown(self):
+        
+        # return to the default baud rate
+        if self.default_baud_rate is not None:
+            self.connection.write(b'%s\r\n' % bauds[self.default_baud_rate])
+            time.sleep(0.1)
+            self.connection.readlines()        
+        
         self.connection.close()
         
         

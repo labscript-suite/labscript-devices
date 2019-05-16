@@ -1,8 +1,8 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/DummyPseudoclock/register_classes.py           #
+# /labscript_devices/IMAQdxCamera/register_classes.py               #
 #                                                                   #
-# Copyright 2017, Christopher Billington                            #
+# Copyright 2019, Monash University and contributors                #
 #                                                                   #
 # This file is part of labscript_devices, in the labscript suite    #
 # (see http://labscriptsuite.org), and is licensed under the        #
@@ -10,10 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-import labscript_devices
+from labscript_devices import register_classes
 
-labscript_devices.register_classes(
-    'DummyPseudoclock',
-    BLACS_tab='labscript_devices.DummyPseudoclock.blacs_tabs.DummyPseudoclockTab',
-    runviewer_parser=None, #TODO make a runviwer parser for Dummy pseudoclock!
+register_classes(
+    'IMAQdxCamera',
+    BLACS_tab='labscript_devices.IMAQdxCamera.blacs_tabs.IMAQdxCameraTab',
+    runviewer_parser=None,
 )

@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /pulseblasterUSB.py                                               #
+# /PulseblasterESRpro500.py                                         #
 #                                                                   #
 # Copyright 2013, Monash University                                 #
 #                                                                   #
@@ -16,35 +16,30 @@ if PY2:
     str = unicode
 
 from labscript_devices import BLACS_tab, runviewer_parser
-from labscript_devices.PulseBlaster_No_DDS import (
-    PulseBlaster_No_DDS,
-    Pulseblaster_No_DDS_Tab,
-    PulseblasterNoDDSWorker,
-    PulseBlaster_No_DDS_Parser,
-)
+from labscript_devices.PulseBlaster_No_DDS import PulseBlaster_No_DDS, Pulseblaster_No_DDS_Tab, PulseblasterNoDDSWorker, PulseBlaster_No_DDS_Parser
 
 
-class PulseBlasterUSB(PulseBlaster_No_DDS):
-    description = 'SpinCore PulseBlasterUSB'        
-    clock_limit = 8.3e6 # can probably go faster
-    clock_resolution = 20e-9
-    n_flags = 24
+class PulseBlasterESRPro200(PulseBlaster_No_DDS):
+    description = 'SpinCore PulseBlaster ESR-PRO-200'
+    clock_limit = 200.0e6
+    clock_resolution = 5e-9
+    n_flags = 21
 
 
 @BLACS_tab
-class PulseblasterUSBTab(Pulseblaster_No_DDS_Tab):
+class pulseblasteresrpro200(Pulseblaster_No_DDS_Tab):
     # Capabilities
-    num_DO = 24
+    num_DO = 21
     def __init__(self,*args,**kwargs):
-        self.device_worker_class = PulseblasterUSBWorker 
+        self.device_worker_class = PulseblasterESRPro200Worker 
         Pulseblaster_No_DDS_Tab.__init__(self,*args,**kwargs)
 
 
-class PulseblasterUSBWorker(PulseblasterNoDDSWorker):
-    core_clock_freq = 100.0
+class PulseblasterESRPro200Worker(PulseblasterNoDDSWorker):
+    core_clock_freq = 200.0
+
 
 @runviewer_parser
-class PulseBlasterUSBParser(PulseBlaster_No_DDS_Parser):
-    pass
-
-
+class PulseblasterESRPro200Parser(PulseBlaster_No_DDS_Parser):
+    num_dds = 0
+    num_flags = 21

@@ -37,5 +37,6 @@ class DummyPseudoclock(PseudoclockDevice):
         self.clockline = ClockLine(name='clockline', pseudoclock=self.pseudoclock, connection='dummy')
 
     def generate_code(self, hdf5_file):
+        PseudoclockDevice.generate_code(self, hdf5_file)
         group = self.init_device_group(hdf5_file)
         self.set_property('stop_time', self.stop_time, location='device_properties')
