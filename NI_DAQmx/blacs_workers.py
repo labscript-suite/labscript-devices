@@ -484,7 +484,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # seconds, whichever is faster:
         num_samples = min(self.MAX_READ_PTS, int(rate * self.MAX_READ_INTERVAL))
 
-        self.read_array = np.zeros((num_samples, num_chans), dtype=np.float64)
+        self.read_array = np.zeros((num_samples, len(chans)), dtype=np.float64)
         self.task = Task()
 
         for chan in chans:
