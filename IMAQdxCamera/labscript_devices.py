@@ -10,7 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-import warnings
+import sys
 from labscript_utils import dedent
 from labscript import TriggerableDevice, set_passed_properties
 import numpy as np
@@ -26,10 +26,10 @@ class IMAQdxCamera(TriggerableDevice):
             "connection_table_properties": [
                 "serial_number",
                 "orientation",
-                "manual_mode_imaqdx_attributes",
+                "manual_mode_camera_attributes",
                 "mock"
             ],
-            "device_properties": ["imaqdx_attributes"],
+            "device_properties": ["camera_attributes"],
         }
     )
     def __init__(
@@ -42,26 +42,26 @@ class IMAQdxCamera(TriggerableDevice):
         trigger_edge_type='rising',
         trigger_duration=None,
         minimum_recovery_time=0,
-        imaqdx_attributes=None,
-        manual_mode_imaqdx_attributes=None,
+        camera_attributes=None,
+        manual_mode_camera_attributes=None,
         mock=False,
         **kwargs,
     ):
         """A camera to be controlled using NI IMAQdx and triggered with a digital edge.
         Serial number should be an int or hex string of the camera's serial number, this
         will be used by IMAQdx to identify the camera. Configuring the camera is done by
-        passing a dictionary as the keyword argument imaqdx_attributes. These are the
+        passing a dictionary as the keyword argument camera_attributes. These are the
         same attributes settable in NI MAX. After adding an IMAQdxCamera to your
         connection table, a dictionary of these attributes can be obtained from the
         BLACS tab, appropriate for copying and pasting into your connection table and
-        passing in as the imaqdx_attributes keyword argument in order to customise the
+        passing in as the camera_attributes keyword argument in order to customise the
         attributes you are interested in. If you wish to set some attributes differently
         in manual mode than in a buffered run (for example, to have software triggering
         during manual mode so that you can manually acquire images), you can pass in a
-        dictionary of such attributes as manual_mode_imaqdx_attributes. Any attributes
-        in this dictionary must also be present in imaqdx_attributes, and BLACS will set
-        the value in imaqdx_attributes before a buffered run, and the value in
-        manual_mode_imaqdx_attributes when returning to manual mode. If mock=True, then
+        dictionary of such attributes as manual_mode_camera_attributes. Any attributes
+        in this dictionary must also be present in camera_attributes, and BLACS will set
+        the value in camera_attributes before a buffered run, and the value in
+        manual_mode_camera_attributes when returning to manual mode. If mock=True, then
         the BLACS worker will return fake images to simulate the presence of a camera
         instead of actually interacting with hardware. This can be useful for
         testing."""
@@ -73,19 +73,19 @@ class IMAQdxCamera(TriggerableDevice):
             serial_number = int(serial_number, 16)
         self.serial_number = serial_number
         self.BLACS_connection = hex(self.serial_number)[2:].upper()
-        if imaqdx_attributes is None:
-            imaqdx_attributes = {}
-        if manual_mode_imaqdx_attributes is None:
-            manual_mode_imaqdx_attributes = {}
-        for attr_name in manual_mode_imaqdx_attributes:
-            if attr_name not in imaqdx_attributes:
+        if camera_attributes is None:
+            camera_attributes = {}
+        if manual_mode_camera_attributes is None:
+            manual_mode_camera_attributes = {}
+        for attr_name in manual_mode_camera_attributes:
+            if attr_name not in camera_attributes:
                 msg = f"""attribute '{attr_name}' is present in
-                    manual_mode_imaqdx_attributes but not in imaqdx_attributes.
+                    manual_mode_camera_attributes but not in camera_attributes.
                     Attributes that are to differ between manual mode and buffered
                     mode must be present in both dictionaries."""
                 raise ValueError(dedent(msg))
-        self.imaqdx_attributes = imaqdx_attributes
-        self.manual_mode_imaqdx_attributes = manual_mode_imaqdx_attributes
+        self.camera_attributes = camera_attributes
+        self.manual_mode_camera_attributes = manual_mode_camera_attributes
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
 
@@ -104,11 +104,11 @@ class IMAQdxCamera(TriggerableDevice):
         # Backward compatibility with code that calls expose with name as the first
         # argument and t as the second argument:
         if isinstance(t, str) and isinstance(name, (int, float)):
-            msg = """IMAQdxCamera.expose() takes `t` as the first argument and `name` as
-                the second argument, but was called with a string as the first argument
-                and a number as the second. Swapping arguments for compatibility, but
-                you are advised to modify your code to the correct argument order."""
-            warnings.warn(dedent(msg), DeprecationWarning, stacklevel=1)
+            msg = """expose() takes `t` as the first argument and `name` as the second
+                argument, but was called with a string as the first argument and a
+                number as the second. Swapping arguments for compatibility, but you are
+                advised to modify your code to the correct argument order."""
+            print(dedent(msg), file=sys.stderr)
             t, name = name, t
         if trigger_duration is None:
             trigger_duration = self.trigger_duration

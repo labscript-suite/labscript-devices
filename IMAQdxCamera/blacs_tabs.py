@@ -89,6 +89,9 @@ class ImageReceiver(ZMQServer):
 
 
 class IMAQdxCameraTab(DeviceTab):
+    # Subclasses may override this if all they do is replace the worker class with a
+    # different one:
+    worker_class = 'labscript_devices.IMAQdxCamera.blacs_workers.IMAQdxCameraWorker' 
     def initialise_GUI(self):
         layout = self.get_tab_layout()
         ui_filepath = os.path.join(
@@ -176,17 +179,15 @@ class IMAQdxCameraTab(DeviceTab):
         worker_initialisation_kwargs = {
             'serial_number': connection_table_properties['serial_number'],
             'orientation': connection_table_properties['orientation'],
-            'imaqdx_attributes': device_properties['imaqdx_attributes'],
-            'manual_mode_imaqdx_attributes': connection_table_properties[
-                'manual_mode_imaqdx_attributes'
+            'camera_attributes': device_properties['camera_attributes'],
+            'manual_mode_camera_attributes': connection_table_properties[
+                'manual_mode_camera_attributes'
             ],
             'mock': connection_table_properties['mock'],
             'image_receiver_port': self.image_receiver.port,
         }
         self.create_worker(
-            'main_worker',
-            'labscript_devices.IMAQdxCamera.blacs_workers.IMAQdxCameraWorker',
-            worker_initialisation_kwargs,
+            'main_worker', self.worker_class, worker_initialisation_kwargs
         )
         self.primary_worker = "main_worker"
 
