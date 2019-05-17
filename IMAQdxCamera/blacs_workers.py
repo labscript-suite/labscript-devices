@@ -15,6 +15,31 @@
 # Refactored as a BLACS worker by cbillington
 
 
+import sys
+from time import perf_counter
+from blacs.tab_base_classes import Worker
+import threading
+import numpy as np
+from labscript_utils import dedent
+import labscript_utils.h5_lock
+import h5py
+import labscript_utils.properties
+import zmq
+
+from labscript_utils.ls_zprocess import Context
+from labscript_utils.shared_drive import path_to_local
+
+# Required for knowing the parent device's hostname when running remotely:
+from labscript_utils import check_version
+
+check_version('zprocess', '2.12.0', '3')
+
+# Don't import nv yet so as not to throw an error, allow worker to run as a dummy
+# device, or for subclasses to import this module to inherit classes without requiring
+# nivision
+nv = None
+
+
 def _monkeypatch_imaqdispose():
     """Monkeypatch a fix to a memory leak bug in pynivision. The pynivision project is
     no longer active, so we can't contribute this fix upstream. In the long run,
@@ -40,30 +65,6 @@ def _monkeypatch_imaqdispose():
     nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
 
     _monkeypatch_imaqdispose()
-
-
-from time import perf_counter
-from blacs.tab_base_classes import Worker
-import threading
-import numpy as np
-from labscript_utils import dedent
-import labscript_utils.h5_lock
-import h5py
-import labscript_utils.properties
-import zmq
-
-from labscript_utils.ls_zprocess import Context
-from labscript_utils.shared_drive import path_to_local
-
-# Required for knowing the parent device's hostname when running remotely:
-from labscript_utils import check_version
-
-check_version('zprocess', '2.12.0', '3')
-
-# Don't import nv yet so as not to throw an error, allow worker to run as a dummy
-# device, or for subclasses to import this module to inherit classes without requiring
-# nivision
-nv = None
 
 
 class MockCamera(object):
@@ -126,6 +127,7 @@ class IMAQdx_Camera(object):
     def __init__(self, serial_number):
         global nv
         import nivision as nv
+
         # Find the camera:
         print("Finding camera...")
         for cam in nv.IMAQdxEnumerateCameras(True):
@@ -150,7 +152,7 @@ class IMAQdx_Camera(object):
 
     def set_attribute(self, name, value):
         """Set the value of the attribute of the given name to the given value"""
-        _value = value # Keep the original for the sake of the error message
+        _value = value  # Keep the original for the sake of the error message
         if isinstance(_value, str):
             _value = _value.encode('utf8')
         try:
@@ -249,6 +251,7 @@ class IMAQdxCameraWorker(Worker):
     # Subclasses may override this if their interface class takes only the serial number
     # as an instantiation argument, otherwise they may reimplement get_camera():
     interface_class = IMAQdx_Camera
+
     def init(self):
         self.camera = self.get_camera()
         print("Setting attributes...")
@@ -261,6 +264,8 @@ class IMAQdxCameraWorker(Worker):
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
         self.continuous_stop = threading.Event()
         self.continuous_thread = None
         self.continuous_dt = None
@@ -282,7 +287,7 @@ class IMAQdxCameraWorker(Worker):
         """Return a dict of the attributes of the camera for the given visibility
         level"""
         names = self.camera.get_attribute_names(visibility_level)
-        attributes_dict = {name: self.camera.get_attribute(name) for name in names}           
+        attributes_dict = {name: self.camera.get_attribute(name) for name in names}
         return attributes_dict
 
     def get_attributes_as_text(self, visibility_level):
@@ -366,10 +371,12 @@ class IMAQdxCameraWorker(Worker):
             self.n_images = len(self.exposures)
 
             # Get the camera_attributes from the device_properties
-            device_properties = labscript_utils.properties.get(
+            properties = labscript_utils.properties.get(
                 f, self.device_name, 'device_properties'
             )
-            camera_attributes = device_properties['camera_attributes']
+            camera_attributes = properties['camera_attributes']
+            self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
+            self.exception_on_failed_shot = properties['exception_on_failed_shot']
         self.camera.set_attributes(camera_attributes)
         # Get the camera attributes, so that we can save them to the H5 file:
         self.all_attributes = self.get_attributes_as_dict(visibility_level='advanced')
@@ -390,14 +397,23 @@ class IMAQdxCameraWorker(Worker):
             print('No camera exposures in this shot.\n')
             return True
         assert self.acquisition_thread is not None
-        self.acquisition_thread.join(timeout=5)
+        self.acquisition_thread.join(timeout=self.stop_acquisition_timeout)
         if self.acquisition_thread.is_alive():
-            self.abort()
             msg = """Acquisition thread did not finish. Likely did not acquire expected
                 number of images. Check triggering is connected/configured correctly"""
-            raise RuntimeError(dedent(msg))
+            if self.exception_on_failed_shot:
+                self.abort()
+                raise RuntimeError(dedent(msg))
+            else:
+                self.camera.abort_acquisition()
+                self.acquisition_thread.join()
+                print(dedent(msg), file=sys.stderr)
         self.acquisition_thread = None
-        print(f"Saving {len(self.images)} images.")
+
+        print("Stopping acquisition.")
+        self.camera.stop_acquisition()
+
+        print(f"Saving {len(self.images)}/{len(self.exposures)} images.")
 
         with h5py.File(self.h5_filepath) as f:
             # Use orientation for image path, device_name if orientation unspecified
@@ -410,6 +426,9 @@ class IMAQdxCameraWorker(Worker):
 
             # Save all camera attributes to the HDF5 file:
             image_group.attrs.update(self.all_attributes)
+
+            # Whether we failed to get all the expected exposures:
+            image_group.attrs['failed_shot'] = len(self.images) != len(self.exposures)
 
             # key the images by name and frametype. Allow for the case of there being
             # multiple images with the same name and frametype. In this case we will
@@ -439,13 +458,13 @@ class IMAQdxCameraWorker(Worker):
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
 
-        print("Stopping acquisition.")
-        self.camera.stop_acquisition()
         self.images = None
         self.n_images = None
         self.all_attributes = None
         self.exposures = None
         self.h5_filepath = None
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
         print("Setting manual mode camera attributes.\n")
         self.camera.set_attributes(self.manual_mode_camera_attributes)
         if self.continuous_dt is not None:
@@ -467,6 +486,8 @@ class IMAQdxCameraWorker(Worker):
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
         # Resume continuous acquisition, if any:
         if self.continuous_dt is not None and self.continuous_thread is None:
             self.start_continuous(self.continuous_dt)
