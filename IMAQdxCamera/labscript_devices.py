@@ -31,7 +31,7 @@ class IMAQdxCamera(TriggerableDevice):
             ],
             "device_properties": [
                 "camera_attributes",
-                "stop_acqusition_timeout",
+                "stop_acquisition_timeout",
                 "exception_on_failed_shot",
             ],
         }
