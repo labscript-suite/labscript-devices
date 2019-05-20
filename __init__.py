@@ -22,7 +22,7 @@ import inspect
 __version__ = '2.4.0'
 
 check_version('qtutils', '2.0.0', '3.0.0')
-check_version('labscript', '2.5', '3')
+check_version('labscript', '2.6', '3')
 check_version('blacs', '2.4.0', '3.0.0')
 check_version('zprocess', '2.2.7', '3')
 check_version('numpy', '1.15.1', '2')
