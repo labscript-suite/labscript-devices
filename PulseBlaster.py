@@ -532,7 +532,7 @@ class PulseBlaster(PseudoclockDevice):
                     remaining_delay += self.long_delay
                 
                 if n_long_delays:
-                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables,
+                    pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
                                 'data': int(n_long_delays), 'delay': self.long_delay*1e9})
 
