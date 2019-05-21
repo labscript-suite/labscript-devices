@@ -52,9 +52,9 @@ def arr_to_bmp(arr):
     bytestring of the BMP data"""
     binary_arr = 255 * (arr != 0).astype(np.uint8)
     im = PIL.Image.fromarray(binary_arr, mode='L').convert('1')
-    with BytesIO() as f:
-        im.save(f, "BMP")
-        return f.getvalue()
+    f = BytesIO()
+    im.save(f, "BMP")
+    return f.getvalue()
 
 
 WIDTH = 608
@@ -117,7 +117,6 @@ class ImageSet(Output):
         
 
             
-@labscript_device
 class LightCrafterDMD(IntermediateDevice):
     description = 'LightCrafter DMD controller'
     allowed_children = [ImageSet]
@@ -200,7 +199,6 @@ class LightCrafterTab(DeviceTab):
         self.primary_worker = "main_worker"
         
         
-@BLACS_worker
 class LightCrafterWorker(Worker):
     command = {'version' :             b'\x01\x00',
                 'display_mode':         b'\x01\x01',
