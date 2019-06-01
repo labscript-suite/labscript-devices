@@ -107,6 +107,7 @@ class PulseBlaster(PseudoclockDevice):
     # TODO: Add n_dds and generalise code
     n_flags = 12
     
+    core_clock_freq = 75 # MHz
     # This value is coupled to a value in the PulseBlaster worker process of BLACS
     # This number was found experimentally but is determined theoretically by the
     # instruction lengths in BLACS, and a finite delay in the PulseBlaster
@@ -126,7 +127,7 @@ class PulseBlaster(PseudoclockDevice):
                                                 "time_based_stop_workaround_extra_time"]}
         )
     def __init__(self, name, trigger_device=None, trigger_connection=None, board_number=0, firmware = '',
-                 programming_scheme='pb_start/BRANCH', pulse_width=None, max_instructions=4000,
+                 programming_scheme='pb_start/BRANCH', pulse_width='symmetric', max_instructions=4000,
                  time_based_stop_workaround=False, time_based_stop_workaround_extra_time=0.5, **kwargs):
         PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
         self.BLACS_connection = board_number
@@ -171,7 +172,29 @@ class PulseBlaster(PseudoclockDevice):
             raise LabscriptError('only the master pseudoclock can use a programming scheme other than \'pb_start/BRANCH\'')
         self.programming_scheme = programming_scheme
 
-        if pulse_width is not None:            
+        # This is the minimum duration of a pulseblaster instruction. We save this now
+        # because clock_limit will be modified to reflect child device limitations and
+        # other things, but this remains the minimum instruction delay regardless of all
+        # that.
+        self.min_delay = 0.5 / self.clock_limit
+
+        # For pulseblaster instructions lasting longer than the below duration, we will
+        # instead use some multiple of the below, and then a regular instruction for the
+        # remainder. The max instruction length of a pulseblaster is actually 2**32
+        # clock cycles, but we subtract the minimum delay so that if the remainder is
+        # less than the minimum instruction length, we can add self.long_delay to it (and
+        # reduce the number of repetitions of the long delay by one), to keep it above
+        # the minimum delay without exceeding the true maximum delay.
+        self.long_delay = 2**32 / (self.core_clock_freq * 1e6) - self.min_delay
+
+        if pulse_width == 'minimum':
+            pulse_width = 0.5/self.clock_limit # the shortest possible
+        elif pulse_width != 'symmetric':
+            if not isinstance(pulse_width, (float, int, np.integer)):
+                msg = ("pulse_width must be 'symmetric', 'minimum', or a number " +
+                       "specifying a fixed pulse width to be used for clocking signals")
+                raise ValueError(msg)
+
             if pulse_width < 0.5/self.clock_limit:
                 message = ('pulse_width cannot be less than 0.5/%s.clock_limit '%self.__class__.__name__ +
                            '( = %s seconds)'%str(0.5/self.clock_limit))
@@ -180,16 +203,13 @@ class PulseBlaster(PseudoclockDevice):
             quantised_pulse_width = 2*pulse_width/self.clock_resolution
             quantised_pulse_width = int(quantised_pulse_width) + 1 # ceil(quantised_pulse_width)
             # This will be used as the high time of clock ticks:
-            self.pulse_width = quantised_pulse_width*self.clock_resolution/2
+            pulse_width = quantised_pulse_width*self.clock_resolution/2
             # This pulse width, if larger than the minimum, may limit how fast we can tick.
             # Update self.clock_limit accordingly.
             minimum_low_time = 0.5/self.clock_limit
-            if self.pulse_width > minimum_low_time:
-                self.clock_limit = 1/(self.pulse_width + minimum_low_time)
-        else:
-            pulse_width = 'symmetric'
-            self.pulse_width = None
-
+            if pulse_width > minimum_low_time:
+                self.clock_limit = 1/(pulse_width + minimum_low_time)
+        self.pulse_width = pulse_width
         self.max_instructions = max_instructions
 
         # Create the internal pseudoclock
@@ -423,10 +443,6 @@ class PulseBlaster(PseudoclockDevice):
                     flags[flag_index] = 1
                     # We are not just using the internal clock line
                     only_internal = False
-                    
-            if only_internal and self.pulse_width is not None:
-                raise LabscriptError('You cannot set a pulse_width for %s (%s) if it is not used as a pseudoclock for another device'%(self.name, self.description))
-                    
             
             for output in dig_outputs:
                 flagindex = int(output.connection.split()[1])
@@ -440,19 +456,6 @@ class PulseBlaster(PseudoclockDevice):
                 if isinstance(output, PulseBlasterDDS):
                     phase_resets[ddsnumber] = output.phase_reset.raw_output[i]
                 
-            # if self.fast_clock_flag is not None:
-                # for fast_flag in self.fast_clock_flag:
-                    # if (type(instruction['fast_clock']) == list and 'flag %d'%fast_flag in instruction['fast_clock']) or instruction['fast_clock'] == 'all':
-                        # flags[fast_flag] = 1
-                    # else:
-                        # flags[fast_flag] = 1 if instruction['slow_clock_tick'] else 0
-            # if self.slow_clock_flag is not None:
-                # for slow_flag in self.slow_clock_flag:
-                    # flags[slow_flag] = 1 if instruction['slow_clock_tick'] else 0
-                    
-            # if instruction['slow_clock_tick']:
-                # slow_clock_indices.append(j)
-                
             flagstring = ''.join([str(flag) for flag in flags])
             
             if instruction['reps'] > 1048576:
@@ -462,33 +465,36 @@ class PulseBlaster(PseudoclockDevice):
                                      'please file a feature request at' +
                                      'http://redmine.physics.monash.edu.au/projects/labscript.')
                 
-            # Instruction delays > 55 secs will require a LONG_DELAY
-            # to be inserted. How many times does the delay of the
-            # loop/endloop instructions go into 55 secs?
             if not only_internal:
-                if self.pulse_width is not None:
-                    quotient, remainder = divmod(instruction['step'],55.0)
+                if self.pulse_width == 'symmetric':
+                    high_time = instruction['step']/2
                 else:
-                    quotient, remainder = divmod(instruction['step']/2.0,55.0)
-            else:
-                quotient, remainder = divmod(instruction['step'],55.0)
-                
-            if quotient and remainder < 100e-9:
-                # The remainder will be used for the total duration of the LOOP and END_LOOP instructions. 
-                # It must not be too short for this, if it is, take one LONG_DELAY iteration and give 
-                # its duration to the loop instructions:
-                quotient, remainder = quotient - 1, remainder + 55.0
-                
-            if not only_internal:
-                if self.pulse_width is not None:
-                    delay = self.pulse_width
-                else:
-                    delay = remainder
-            
-                # The loop and endloop instructions will only use the remainder:
+                    high_time = self.pulse_width
+                # High time cannot be longer than self.long_delay (~57 seconds for a
+                # 75MHz core clock freq). If it is, clip it to self.long_delay. In this
+                # case we are not honouring the requested symmetric or fixed pulse
+                # width. To do so would be possible, but would consume more pulseblaster
+                # instructions, so we err on the side of fewer instructions:
+                high_time = min(high_time, self.long_delay)
+
+                # Low time is whatever is left:
+                low_time = instruction['step'] - high_time
+
+                # Do we need to insert a LONG_DELAY instruction to create a delay this
+                # long?
+                n_long_delays, remaining_low_time =  divmod(low_time, self.long_delay)
+
+                # If the remainder is too short to be output, add self.long_delay to it.
+                # self.long_delay was constructed such that adding self.min_delay to it
+                # is still not too long for a single instruction:
+                if n_long_delays and remaining_low_time < self.min_delay:
+                    n_long_delays -= 1
+                    remaining_low_time += self.long_delay
+
+                # The start loop instruction, Clock edges are high:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LOOP',
-                                'data': instruction['reps'], 'delay': delay*1e9})
+                                'data': instruction['reps'], 'delay': high_time*1e9})
                 
                 for clock_line in instruction['enabled_clocks']:
                     if clock_line != self._direct_output_clock_line:
@@ -497,44 +503,44 @@ class PulseBlaster(PseudoclockDevice):
                         
                 flagstring = ''.join([str(flag) for flag in flags])
             
-                # If there was a nonzero quotient, let's wait twice that
-                # many multiples of 55 seconds (one multiple of 55 seconds
-                # for each of the other two loop and endloop instructions):
-                if quotient:
-                    if self.pulse_width is not None:
-                        delay = 55/2.0
-                    else:
-                        delay = 55
-                    
+                # The long delay instruction, if any. Clock edges are low: 
+                if n_long_delays:
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(2*quotient), 'delay': delay*1e9}) 
+                                'data': int(n_long_delays), 'delay': self.long_delay*1e9})
                                 
-                if self.pulse_width is not None:
-                    delay = 2*remainder-self.pulse_width
-                else:
-                    delay = remainder
+                # Remaining low time. Clock edges are low:
                 pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'END_LOOP',
-                                'data': j, 'delay': delay*1e9})
+                                'data': j, 'delay': remaining_low_time*1e9})
                                 
                 # Two instructions were used in the case of there being no LONG_DELAY, 
                 # otherwise three. This increment is done here so that the j referred
                 # to in the previous line still refers to the LOOP instruction.
-                j += 3 if quotient else 2
+                j += 3 if n_long_delays else 2
             else:
-                # We only need to update a direct output, so no need to tick the clocks
+                # We only need to update a direct output, so no need to tick the clocks.
+
+                # Do we need to insert a LONG_DELAY instruction to create a delay this
+                # long?
+                n_long_delays, remaining_delay =  divmod(instruction['step'], self.long_delay)
+                # If the remainder is too short to be output, add self.long_delay to it.
+                # self.long_delay was constructed such that adding self.min_delay to it
+                # is still not too long for a single instruction:
+                if n_long_delays and remaining_delay < self.min_delay:
+                    n_long_delays -= 1
+                    remaining_delay += self.long_delay
                 
-                # The loop and endloop instructions will only use the remainder:
-                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
-                                'flags': flagstring, 'instruction': 'CONTINUE',
-                                'data': 0, 'delay': remainder*1e9})
-                # If there was a nonzero quotient, let's wait that many multiples of 55 seconds:
-                if quotient:
+                if n_long_delays:
                     pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
                                 'flags': flagstring, 'instruction': 'LONG_DELAY',
-                                'data': int(2*quotient), 'delay': 55/2.0*1e9}) 
-                j += 2 if quotient else 1
+                                'data': int(n_long_delays), 'delay': self.long_delay*1e9})
+
+                pb_inst.append({'freqs': freqregs, 'amps': ampregs, 'phases': phaseregs, 'enables':dds_enables, 'phase_resets':phase_resets,
+                                'flags': flagstring, 'instruction': 'CONTINUE',
+                                'data': 0, 'delay': remaining_delay*1e9})
+                
+                j += 2 if n_long_delays else 1
                 
 
         if self.programming_scheme == 'pb_start/BRANCH':
