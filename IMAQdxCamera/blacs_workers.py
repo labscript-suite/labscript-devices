@@ -260,7 +260,7 @@ class IMAQdxCameraWorker(Worker):
         print("Initialisation complete")
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
@@ -377,10 +377,13 @@ class IMAQdxCameraWorker(Worker):
             camera_attributes = properties['camera_attributes']
             self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
             self.exception_on_failed_shot = properties['exception_on_failed_shot']
+            saved_attr_level = properties['saved_attribute_visibility_level']
         self.camera.set_attributes(camera_attributes)
         # Get the camera attributes, so that we can save them to the H5 file:
-        self.all_attributes = self.get_attributes_as_dict(visibility_level='advanced')
-
+        if saved_attr_level is not None:
+            self.attributes_to_save = self.get_attributes_as_dict(saved_attr_level)
+        else:
+            self.attributes_to_save = None
         print(f"Configuring camera for {self.n_images} images.")
         self.camera.configure_acquisition(continuous=False, bufferCount=self.n_images)
         self.images = []
@@ -424,8 +427,9 @@ class IMAQdxCameraWorker(Worker):
             image_group = f.require_group(image_path)
             image_group.attrs['camera'] = self.device_name
 
-            # Save all camera attributes to the HDF5 file:
-            image_group.attrs.update(self.all_attributes)
+            # Save camera attributes to the HDF5 file:
+            if self.attributes_to_save is not None:
+                image_group.attrs.update(self.attributes_to_save)
 
             # Whether we failed to get all the expected exposures:
             image_group.attrs['failed_shot'] = len(self.images) != len(self.exposures)
@@ -460,7 +464,7 @@ class IMAQdxCameraWorker(Worker):
 
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.h5_filepath = None
         self.stop_acquisition_timeout = None
@@ -482,7 +486,7 @@ class IMAQdxCameraWorker(Worker):
         self.camera._abort_acquisition = False
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
