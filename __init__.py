@@ -5,7 +5,7 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
-check_version('labscript_utils', '2.8.0', '3')
+check_version('labscript_utils', '2.13.2', '3')
 from labscript_utils import PY2
 
 if PY2:
