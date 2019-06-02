@@ -30,7 +30,7 @@ class TekScopeWorker(Worker):
 
         self.scope.unlock()
         self.scope.set_acquire_state(True)
-        # Other stuff here like setting acquisition parameters, turning channels on/off
+        # TODO: Make per-shot acquisition parameters and channels configurable here
         self.scope.write('ACQUIRE:MODE SAMPLE')
         self.scope.write('ACQUIRE:STOPAFTER SEQUENCE')
         self.scope.write('ACQUIRE:STATE RUN')
