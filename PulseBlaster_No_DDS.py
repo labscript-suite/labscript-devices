@@ -30,6 +30,7 @@ class PulseBlaster_No_DDS(PulseBlaster):
     clock_limit = 8.3e6 # can probably go faster
     clock_resolution = 20e-9
     n_flags = 24
+    core_clock_freq = 100 # MHz
     
     def write_pb_inst_to_h5(self, pb_inst, hdf5_file):
         # OK now we squeeze the instructions into a numpy array ready for writing to hdf5:

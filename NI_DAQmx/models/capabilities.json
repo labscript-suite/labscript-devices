@@ -1,0 +1,427 @@
+{
+    "PCI-6251": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 2.5e-07,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 1250000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 16,
+        "num_AO": 2,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PCI-6534": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": null,
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": null,
+        "max_DO_sample_rate": 20000000.0,
+        "min_semiperiod_measurement": null,
+        "num_AI": 0,
+        "num_AO": 0,
+        "num_CI": 0,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port3": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port4": {
+                "num_lines": 0,
+                "supports_buffered": false
+            },
+            "port5": {
+                "num_lines": 4,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": false,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": false
+    },
+    "PCI-6713": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": null,
+        "min_semiperiod_measurement": 2e-05,
+        "num_AI": 0,
+        "num_AO": 8,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": false,
+        "supports_semiperiod_measurement": true
+    },
+    "PCI-6733": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 2e-05,
+        "num_AI": 0,
+        "num_AO": 8,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PCIe-6363": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PCIe-6738": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 0,
+        "num_AO": 32,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 2,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PXI-6733": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 2e-05,
+        "num_AI": 0,
+        "num_AO": 8,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PXIe-6361": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 16,
+        "num_AO": 2,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PXIe-6535": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": null,
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": null,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": null,
+        "num_AI": 0,
+        "num_AO": 0,
+        "num_CI": 0,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port3": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port4": {
+                "num_lines": 6,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": false,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": false
+    },
+    "PXIe-6738": {
+        "AI_range": null,
+        "AI_start_delay": null,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": null,
+        "max_AI_single_chan_rate": null,
+        "max_AO_sample_rate": 1000000.0,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 0,
+        "num_AO": 32,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 2,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "USB-6008": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 8.333333333333334e-08,
+        "AO_range": [
+            0.0,
+            5.0
+        ],
+        "max_AI_multi_chan_rate": 10000.0,
+        "max_AI_single_chan_rate": 10000.0,
+        "max_AO_sample_rate": null,
+        "max_DO_sample_rate": null,
+        "min_semiperiod_measurement": null,
+        "num_AI": 8,
+        "num_AO": 2,
+        "num_CI": 1,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port1": {
+                "num_lines": 4,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": false,
+        "supports_buffered_DO": false,
+        "supports_semiperiod_measurement": false
+    },
+    "USB-6229": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 2.5e-07,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 250000.0,
+        "max_AI_single_chan_rate": 250000.0,
+        "max_AO_sample_rate": 833333.3333333334,
+        "max_DO_sample_rate": 1000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 2,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "USB-6343": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 500000.0,
+        "max_AI_single_chan_rate": 500000.0,
+        "max_AO_sample_rate": 917431.1926605505,
+        "max_DO_sample_rate": 1000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    }
+}

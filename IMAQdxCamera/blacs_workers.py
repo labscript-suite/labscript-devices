@@ -15,38 +15,7 @@
 # Refactored as a BLACS worker by cbillington
 
 
-def _monkeypatch_imaqdispose():
-    """Monkeypatch a fix to a memory leak bug in pynivision. The pynivision project is
-    no longer active, so we can't contribute this fix upstream. In the long run,
-    hopefully someone (perhaps us) forks it so that bugs can be addressed in the
-    normal way"""
-
-    import nivision.core
-    import ctypes
-    
-    _imaqDispose = nivision.core._imaqDispose
-
-    def imaqDispose(obj):
-        if getattr(obj, "_contents", None) is not None:
-            _imaqDispose(ctypes.byref(obj._contents))
-            obj._contents = None
-        if getattr(obj, "value", None) is not None:
-            _imaqDispose(obj)
-            obj.value = None
-        # This is the bugfix: pointers as raw ints were not being disposed:
-        if isinstance(obj, int):
-            _imaqDispose(obj)
-
-    nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
-
-
-try:
-    import nivision as nv
-    _monkeypatch_imaqdispose()
-except ModuleNotFoundError:
-    # Don't throw an error yet, allow worker to run as a dummy device
-    nv = None
-
+import sys
 from time import perf_counter
 from blacs.tab_base_classes import Worker
 import threading
@@ -65,11 +34,44 @@ from labscript_utils import check_version
 
 check_version('zprocess', '2.12.0', '3')
 
+# Don't import nv yet so as not to throw an error, allow worker to run as a dummy
+# device, or for subclasses to import this module to inherit classes without requiring
+# nivision
+nv = None
+
+
+def _monkeypatch_imaqdispose():
+    """Monkeypatch a fix to a memory leak bug in pynivision. The pynivision project is
+    no longer active, so we can't contribute this fix upstream. In the long run,
+    hopefully someone (perhaps us) forks it so that bugs can be addressed in the
+    normal way"""
+
+    import nivision.core
+    import ctypes
+
+    _imaqDispose = nivision.core._imaqDispose
+
+    def imaqDispose(obj):
+        if getattr(obj, "_contents", None) is not None:
+            _imaqDispose(ctypes.byref(obj._contents))
+            obj._contents = None
+        if getattr(obj, "value", None) is not None:
+            _imaqDispose(obj)
+            obj.value = None
+        # This is the bugfix: pointers as raw ints were not being disposed:
+        if isinstance(obj, int):
+            _imaqDispose(obj)
+
+    nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
+
+    _monkeypatch_imaqdispose()
+
 
 class MockCamera(object):
     """Mock camera class that returns fake image data."""
 
     def __init__(self):
+        print("Starting device worker as a mock device")
         self.attributes = {}
 
     def set_attributes(self, attributes):
@@ -123,6 +125,9 @@ class MockCamera(object):
 
 class IMAQdx_Camera(object):
     def __init__(self, serial_number):
+        global nv
+        import nivision as nv
+
         # Find the camera:
         print("Finding camera...")
         for cam in nv.IMAQdxEnumerateCameras(True):
@@ -147,10 +152,11 @@ class IMAQdx_Camera(object):
 
     def set_attribute(self, name, value):
         """Set the value of the attribute of the given name to the given value"""
-        if isinstance(value, str):
-            value = value.encode('utf8')
+        _value = value  # Keep the original for the sake of the error message
+        if isinstance(_value, str):
+            _value = _value.encode('utf8')
         try:
-            nv.IMAQdxSetAttribute(self.imaqdx, name.encode('utf8'), value)
+            nv.IMAQdxSetAttribute(self.imaqdx, name.encode('utf8'), _value)
         except Exception as e:
             # Add some info to the exception:
             msg = f"failed to set attribute {name} to {value}"
@@ -177,7 +183,12 @@ class IMAQdx_Camera(object):
     def get_attribute(self, name):
         """Return current value of attribute of the given name"""
         try:
-            return nv.IMAQdxGetAttribute(self.imaqdx, name.encode('utf8'))
+            value = nv.IMAQdxGetAttribute(self.imaqdx, name.encode('utf8'))
+            if isinstance(value, nv.core.IMAQdxEnumItem):
+                value = value.Name
+            if isinstance(value, bytes):
+                value = value.decode('utf8')
+            return value
         except Exception as e:
             # Add some info to the exception:
             raise Exception(f"Failed to get attribute {name}") from e
@@ -237,27 +248,24 @@ class IMAQdx_Camera(object):
 
 
 class IMAQdxCameraWorker(Worker):
+    # Subclasses may override this if their interface class takes only the serial number
+    # as an instantiation argument, otherwise they may reimplement get_camera():
+    interface_class = IMAQdx_Camera
+
     def init(self):
-        if self.mock:
-            print("Starting device worker as a mock device")
-            self.camera = MockCamera()
-        elif nv is None:
-            msg = """nivision module not found. Please install it with 'pip install
-                pynivision'. You will also require the NI Vision development module from
-                National Instruments."""
-            raise ModuleNotFoundError(dedent(msg))
-        else:
-            self.camera = IMAQdx_Camera(self.serial_number)
+        self.camera = self.get_camera()
         print("Setting attributes...")
-        self.camera.set_attributes(self.imaqdx_attributes)
-        self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
+        self.camera.set_attributes(self.camera_attributes)
+        self.camera.set_attributes(self.manual_mode_camera_attributes)
         print("Initialisation complete")
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
         self.continuous_stop = threading.Event()
         self.continuous_thread = None
         self.continuous_dt = None
@@ -266,18 +274,20 @@ class IMAQdxCameraWorker(Worker):
             f'tcp://{self.parent_host}:{self.image_receiver_port}'
         )
 
+    def get_camera(self):
+        """Return an instance of the camera interface class. Subclasses may override
+        this method to pass required arguments to their class if they require more
+        than just the serial number."""
+        if self.mock:
+            return MockCamera()
+        else:
+            return self.interface_class(self.serial_number)
+
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
         level"""
         names = self.camera.get_attribute_names(visibility_level)
-        attributes_dict = {}
-        for name in names:
-            value = self.camera.get_attribute(name)
-            if isinstance(value, nv.core.IMAQdxEnumItem):
-                value = value.Name
-            if isinstance(value, bytes):
-                value = value.decode('utf8')
-            attributes_dict[name] = value
+        attributes_dict = {name: self.camera.get_attribute(name) for name in names}
         return attributes_dict
 
     def get_attributes_as_text(self, visibility_level):
@@ -287,7 +297,7 @@ class IMAQdxCameraWorker(Worker):
         # Format it nicely:
         lines = [f'    {repr(key)}: {repr(value)},' for key, value in attrs.items()]
         dict_repr = '\n'.join(['{'] + lines + ['}'])
-        return self.device_name + '_imaqdx_attributes = ' + dict_repr
+        return self.device_name + '_camera_attributes = ' + dict_repr
 
     def snap(self):
         """Acquire one frame in manual mode. Send it to the parent via
@@ -360,15 +370,20 @@ class IMAQdxCameraWorker(Worker):
             self.exposures = group['EXPOSURES'][:]
             self.n_images = len(self.exposures)
 
-            # Get the imaqdx_attributes from the device_properties
-            device_properties = labscript_utils.properties.get(
+            # Get the camera_attributes from the device_properties
+            properties = labscript_utils.properties.get(
                 f, self.device_name, 'device_properties'
             )
-            imaqdx_attributes = device_properties['imaqdx_attributes']
-        self.camera.set_attributes(imaqdx_attributes)
+            camera_attributes = properties['camera_attributes']
+            self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
+            self.exception_on_failed_shot = properties['exception_on_failed_shot']
+            saved_attr_level = properties['saved_attribute_visibility_level']
+        self.camera.set_attributes(camera_attributes)
         # Get the camera attributes, so that we can save them to the H5 file:
-        self.all_attributes = self.get_attributes_as_dict(visibility_level='advanced')
-
+        if saved_attr_level is not None:
+            self.attributes_to_save = self.get_attributes_as_dict(saved_attr_level)
+        else:
+            self.attributes_to_save = None
         print(f"Configuring camera for {self.n_images} images.")
         self.camera.configure_acquisition(continuous=False, bufferCount=self.n_images)
         self.images = []
@@ -385,15 +400,23 @@ class IMAQdxCameraWorker(Worker):
             print('No camera exposures in this shot.\n')
             return True
         assert self.acquisition_thread is not None
-        self.acquisition_thread.join(timeout=5)
+        self.acquisition_thread.join(timeout=self.stop_acquisition_timeout)
         if self.acquisition_thread.is_alive():
-            self.abort()
-            msg = """Acquisition thread did not finish. Likely did not acquire
-                expected number of images. Check triggering is
-                connected/configured correctly"""
-            raise RuntimeError(dedent(msg))
+            msg = """Acquisition thread did not finish. Likely did not acquire expected
+                number of images. Check triggering is connected/configured correctly"""
+            if self.exception_on_failed_shot:
+                self.abort()
+                raise RuntimeError(dedent(msg))
+            else:
+                self.camera.abort_acquisition()
+                self.acquisition_thread.join()
+                print(dedent(msg), file=sys.stderr)
         self.acquisition_thread = None
-        print(f"Saving {len(self.images)} images.")
+
+        print("Stopping acquisition.")
+        self.camera.stop_acquisition()
+
+        print(f"Saving {len(self.images)}/{len(self.exposures)} images.")
 
         with h5py.File(self.h5_filepath) as f:
             # Use orientation for image path, device_name if orientation unspecified
@@ -404,8 +427,12 @@ class IMAQdxCameraWorker(Worker):
             image_group = f.require_group(image_path)
             image_group.attrs['camera'] = self.device_name
 
-            # Save all imaqdx attributes to the HDF5 file:
-            image_group.attrs.update(self.all_attributes)
+            # Save camera attributes to the HDF5 file:
+            if self.attributes_to_save is not None:
+                image_group.attrs.update(self.attributes_to_save)
+
+            # Whether we failed to get all the expected exposures:
+            image_group.attrs['failed_shot'] = len(self.images) != len(self.exposures)
 
             # key the images by name and frametype. Allow for the case of there being
             # multiple images with the same name and frametype. In this case we will
@@ -435,15 +462,15 @@ class IMAQdxCameraWorker(Worker):
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
 
-        print("Stopping IMAQdx acquisition.")
-        self.camera.stop_acquisition()
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.h5_filepath = None
-        print("Setting manual mode attributes.\n")
-        self.camera.set_attributes(self.manual_mode_imaqdx_attributes)
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
+        print("Setting manual mode camera attributes.\n")
+        self.camera.set_attributes(self.manual_mode_camera_attributes)
         if self.continuous_dt is not None:
             # If continuous manual mode acquisition was in progress before the bufferd
             # run, resume it:
@@ -459,10 +486,12 @@ class IMAQdxCameraWorker(Worker):
         self.camera._abort_acquisition = False
         self.images = None
         self.n_images = None
-        self.all_attributes = None
+        self.attributes_to_save = None
         self.exposures = None
         self.acquisition_thread = None
         self.h5_filepath = None
+        self.stop_acquisition_timeout = None
+        self.exception_on_failed_shot = None
         # Resume continuous acquisition, if any:
         if self.continuous_dt is not None and self.continuous_thread is None:
             self.start_continuous(self.continuous_dt)
