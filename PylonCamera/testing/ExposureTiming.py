@@ -6,7 +6,11 @@
 def set_attribute(camera, name, value):
     """Set the value of the attribute of the given name to the given value"""
     try:
-        camera.GetNodeMap().GetNode(name).SetValue(value)
+        try:
+            camera.GetNodeMap().GetNode(name).SetValue(value)
+        except genicam.LogicalErrorException:
+            # might be a GigE camera with dumb naming convention
+            camera.GetNodeMap().GetNode(name+'Abs').SetValue(value)
     except Exception as e:
         # Add some info to the exception:
         msg = f"failed to set attribute {name} to {value}"
@@ -57,17 +61,35 @@ if __name__ == '__main__':
                         pylon.RegistrationMode_ReplaceAll, pylon.Cleanup_Delete)
     
     # put frame readout affecting settings here, otherwise just use the default
-    settings_dict = {'ExposureTime':9000,
-                     'ExposureMode':'Timed',
-			         'ExposureAuto':'Off',
-			         'PixelFormat':'Mono12',
-			         'ShutterMode':'Global',
-                     'Width':1280,
-                     'Height':960,
-                     'OffsetX':8,
-                     'OffsetY':3
-                     }
-    exp_time = settings_dict['ExposureTime']
+    # default is full sensor size readout
+    offX = 0
+    offY = 0
+    width = camera.WidthMax()
+    height = camera.HeightMax()
+    if camera.IsGigE():
+        
+        settings_dict = {'ExposureTimeAbs':1000,
+                         'ExposureMode':'Timed',
+                         'ExposureAuto':'Off',
+                         'PixelFormat':'Mono12Packed',
+                         'Width':width,
+                         'Height':height,
+                         'OffsetX':offX,
+                         'OffsetY':offY
+                         }
+        exp_time = settings_dict['ExposureTimeAbs']
+    else:
+        settings_dict = {'ExposureTime':1000,
+                         'ExposureMode':'Timed',
+                         'ExposureAuto':'Off',
+                         'PixelFormat':'Mono12p',
+                         'Width':width,
+                         'Height':height,
+                         'OffsetX':offX,
+                         'OffsetY':offY
+                         }
+        exp_time = settings_dict['ExposureTime']
+        
     ROIx = ['Width','OffsetX']
     ROIy = ['Height','OffsetY']
     if set(ROIx).issubset(settings_dict):
@@ -99,27 +121,25 @@ if __name__ == '__main__':
     if camera.IsGigE():
         readout_time = camera.ReadoutTimeAbs()
         max_frame_rate = camera.ResultingFrameRateAbs()
-        frame_rate_period = camera.ResultingFramePeriodAbs()
     else:
         readout_time = camera.SensorReadoutTime()
         max_frame_rate = camera.ResultingFrameRate()
-        frame_rate_period = 1/max_frame_rate
         
     print(f"\n\tSensor Readout Time is {readout_time} us")
     print(f"\tMax Possible Framerate is {max_frame_rate} Hz")
     
     # overlapped mode is also possible if second exposure starts before 
-    # the first exposure finishes reading out and ends after the readout is
-    # complete
+    # the first exposure finishes reading out and ends after the readout
+    # is complete
     
     if exp_time >= readout_time:
         # second exposure will always finish after readout
         # min time between triggers is just the exposure time
         min_time_between_triggers = exp_time
     else:
-        min_time_between_triggers = readout_time - 2*exp_time
+        min_time_between_triggers = readout_time - exp_time
     
-    print(f"\tTime between trigger starts must be > {min_time_between_triggers} us")
+    print(f"  Time between end of first exposure and beginning of second must be > {min_time_between_triggers} us")
     
     camera.Close()
         
