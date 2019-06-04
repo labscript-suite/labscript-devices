@@ -15,18 +15,8 @@
 # Refactored as a BLACS worker by cbillington
 # Ported to Pylon API by dihm
 
-from __future__ import unicode_literals, print_function, absolute_import, division
-from labscript_utils import PY2
-if PY2:
-    str = unicode #this might break CDeviceInfo().SetSerialNumber in Py2
-
 import numpy as np
 from labscript_utils import dedent
-
-# Required for knowing the parent device's hostname when running remotely:
-from labscript_utils import check_version
-
-check_version('zprocess', '2.12.0', '3')
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
 
