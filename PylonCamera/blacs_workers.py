@@ -132,30 +132,22 @@ class Pylon_Camera(object):
         """
         self.camera.MaxNumBuffer = bufferCount
         if continuous:
+            self.camera.TriggerMode = 'Off'
             self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
         else:
             self.camera.StartGrabbing(pylon.GrabStrategy_OneByOne)
 
-    def grab(self, softwareTrigger=True):
-        """Waits for Frame Trigger Ready signal form camera before
-        attempting to retrieve a result. For continuous, send software
-        triggers before retrieving result.
-        """
-        if self.camera.WaitForFrameTriggerReady(self.timeout,
-                                        pylon.TimeoutHandling_ThrowException):
-        # this only works if TriggerMode = 'On'
-            if softwareTrigger:
-                self.camera.ExecuteSoftwareTrigger()
-            result = self.camera.RetrieveResult(self.timeout,
+    def grab(self, continuous=True):
+        """Grab single image during pre-configured acquisition."""
+            
+        result = self.camera.RetrieveResult(self.timeout,
                                         pylon.TimeoutHandling_ThrowException)
-            if result.GrabSucceeded():
-                img = result.Array
-                result.Release()
-                return img
-            else:
-                raise('Grab Error:',result.ErrorCode,result.ErrorDescription)
+        if result.GrabSucceeded():
+            img = result.Array
+            result.Release()
+            return img
         else:
-            raise('Timed out waiting for frame trigger ready signal') 
+            raise('Grab Error:',result.ErrorCode,result.ErrorDescription)
 
     def grab_multiple(self, n_images, images):
         """Grab n_images into images array during buffered acquistion."""
@@ -167,7 +159,7 @@ class Pylon_Camera(object):
                     self._abort_acquisition = False
                     return
                 try:
-                    images.append(self.grab(softwareTrigger=False))
+                    images.append(self.grab(continuous=False))
                     print(f"Got image {i+1} of {n_images}.")
                     break
                 except pylon.TimeoutException as e:
@@ -177,6 +169,7 @@ class Pylon_Camera(object):
 
     def stop_acquisition(self):
         self.camera.StopGrabbing()
+        self.camera.TriggerMode = 'On'
 
     def abort_acquisition(self):
         self._abort_acquisition = True
