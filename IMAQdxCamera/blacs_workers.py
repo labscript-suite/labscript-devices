@@ -64,8 +64,6 @@ def _monkeypatch_imaqdispose():
 
     nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
 
-    _monkeypatch_imaqdispose()
-
 
 class MockCamera(object):
     """Mock camera class that returns fake image data."""
@@ -127,6 +125,7 @@ class IMAQdx_Camera(object):
     def __init__(self, serial_number):
         global nv
         import nivision as nv
+        _monkeypatch_imaqdispose()
 
         # Find the camera:
         print("Finding camera...")
