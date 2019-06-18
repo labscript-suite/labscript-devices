@@ -115,10 +115,8 @@ class Pylon_Camera(object):
 
     def snap(self):
         """Acquire a single image and return it"""
-        self.camera.TriggerMode = 'Off'
         result = self.camera.GrabOne(self.timeout,
                                      pylon.TimeoutHandling_ThrowException)
-        self.camera.TriggerMode = 'On'
         if result.GrabSucceeded():
             img = result.Array
             result.Release()
@@ -132,7 +130,6 @@ class Pylon_Camera(object):
         """
         self.camera.MaxNumBuffer = bufferCount
         if continuous:
-            self.camera.TriggerMode = 'Off'
             self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
         else:
             self.camera.StartGrabbing(pylon.GrabStrategy_OneByOne)
@@ -169,7 +166,6 @@ class Pylon_Camera(object):
 
     def stop_acquisition(self):
         self.camera.StopGrabbing()
-        self.camera.TriggerMode = 'On'
 
     def abort_acquisition(self):
         self._abort_acquisition = True
