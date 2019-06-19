@@ -260,8 +260,8 @@ class FlyCapture2_Camera(object):
         else:
             msg = """Only MONO image types currently supported.
             To add other image types, add conversion logic from returned 
-            uint8 data to desired format in format_image() method."""
-            raise(dedent(msg))
+            uint8 data to desired format in _decode_image_data() method."""
+            raise ValueError(dedent(msg))
         return image.copy()
 
     def stop_acquisition(self):
