@@ -32,6 +32,11 @@ class FlyCapture2_Camera(object):
         global PyCapture2
         import PyCapture2
         
+        ver = PyCapture2.getLibraryVersion()
+        min_ver = (2,12,3,31) # first release with python 3.6 support
+        if ver < min_ver:
+            raise RuntimeError(f"PyCapture2 version {ver} must be >= {min_ver}")
+        
         bus = PyCapture2.BusManager()
         self.camera = PyCapture2.Camera()
         self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
