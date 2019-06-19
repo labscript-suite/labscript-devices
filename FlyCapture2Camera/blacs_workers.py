@@ -28,6 +28,9 @@ PyCapture2 = None
 
 class FlyCapture2_Camera(object):
     def __init__(self, serial_number):
+        """Initialize FlyCapture2 API camera.
+        
+        Serial number should be of int type."""
         
         global PyCapture2
         import PyCapture2
@@ -144,7 +147,12 @@ class FlyCapture2_Camera(object):
             raise Exception(msg) from e
         
     def get_attributes(self, visibility_level, writeable_only=True):
-        """Return a dict of all attributes of readable attributes.
+        """Return a nested dict of all readable attributes.
+        
+        Structure is of form: {
+            <Standard PROPERTY_TYPE>:{},
+            'TriggerMode':{},
+            'ImageMode':{}}
         """
         props = {}
         prop_names = {prop for prop in dir(PyCapture2.PROPERTY_TYPE) 
@@ -250,7 +258,8 @@ class FlyCapture2_Camera(object):
         
     def _decode_image_data(self,img):
         """FlyCapture2 image buffers require significant formatting.
-        This returns what one would expect from a camera."""
+        This returns what one would expect from a camera.
+        configure_acquisition must be called first to set image format parameters."""
         if self.pixelFormat.startswith('MONO'):
             if self.pixelFormat.endswith('8'):
                 dtype = 'uint8'
@@ -278,7 +287,7 @@ class FlyCapture2CameraWorker(IMAQdxCameraWorker):
     """FlyCapture2 API Camera Worker. 
     
     Inherits from IMAQdxCameraWorker. Overloads get_attributes_as_dict 
-    to use PylonCamera.get_attributes() method."""
+    to use FlyCapture2Camera.get_attributes() method."""
     interface_class = FlyCapture2_Camera
 
     def get_attributes_as_dict(self, visibility_level):
