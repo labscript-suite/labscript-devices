@@ -70,23 +70,27 @@ class FlyCapture2_Camera(object):
             'ImageMode'}
         """
         
-        if 'TriggerMode' in attr_dict:
-            trig_dict = attr_dict.pop('TriggerMode')
-            trig_mode = self.camera.getTriggerMode()
-            for k, v in trig_dict.items():
-                setattr(trig_mode,k,v)
-            try:
-                self.camera.setTriggerMode(trig_mode)
-            except Exception as e:
-                msg = "Failed to set Trigger Mode!"
-                raise Exception(msg) from e
+        for prop, vals in attr_dict.items():
+            if prop == 'TriggerMode':
+                self.set_trigger_mode(vals)
                 
-        if 'ImageMode' in attr_dict:
-            image_dict = attr_dict.pop('ImageMode')
-            self.set_image_mode(attr_dict)
+            elif prop == 'ImageMode':
+                self.set_image_mode(vals)
+                
+            else:
+                self.set_attribute(prop, vals)
+                
+    def set_trigger_mode(self,trig_dict):
+        """Configures triggering options via Trigger Mode interface."""
+        trig_mode = self.camera.getTriggerMode()
+        for k,v in trig_dict.items():
+            setattr(trig_mode,k,v)
         
-        for k, v in attr_dict.items():
-            self.set_attribute(k, v)
+        try:
+            self.camera.setTriggerMode(trig_mode)
+        except Exception as e:
+            msg = "Failed to set Trigger Mode!"
+            raise Exception(msg) from e
             
     def set_image_mode(self,image_dict):
         """Configures ROI and image control via Format 7, Mode 0 interface."""
@@ -230,7 +234,7 @@ class FlyCapture2_Camera(object):
 
     def grab(self, continuous=True):
         """Grab single image during pre-configured acquisition."""
-            
+        
         result = self.camera.retrieveBuffer()
         
         img = result.getData()
