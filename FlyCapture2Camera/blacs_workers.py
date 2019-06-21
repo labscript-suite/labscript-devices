@@ -46,6 +46,7 @@ class FlyCapture2_Camera(object):
         
         config = self.camera.getConfiguration()
         config.grabTimeout = 1000 # in ms
+        config.highPerformanceRetrieveBuffer = True
         self.camera.setConfiguration(config)
         # set which values of properties to return
         self.get_props = ['present','absControl','absValue',
@@ -215,7 +216,6 @@ class FlyCapture2_Camera(object):
         """
         config = self.camera.getConfiguration()
         config.numBuffers = bufferCount
-        config.highPerformanceRetrieveBuffer = False
         if continuous:
             config.grabMode = PyCapture2.GRAB_MODE.DROP_FRAMES
             self.camera.setConfiguration(config)
