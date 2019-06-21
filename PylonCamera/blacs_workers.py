@@ -46,10 +46,12 @@ class Pylon_Camera(object):
         self.nodeMap = self.camera.GetNodeMap()
         self._abort_acquisition = False
 
-    def set_attributes(self, attr_dict):
+    def set_attributes(self, attributes_dict):
         """Sets all attribues in attr_dict.
         Pylon cameras require that ROI settings be done in correct order,
         so we do them separately."""
+        # make a copy of dict so we can pop off already handled values
+        attr_dict = attributes_dict.copy()
         ROIx = ['Width','OffsetX']
         ROIy = ['Height','OffsetY']
         if set(ROIx).issubset(attr_dict):
