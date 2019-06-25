@@ -18,10 +18,10 @@ if PY2:
 import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
 import numpy as np
-
 from labscript_devices import BLACS_tab, runviewer_parser
-
 from labscript_utils.setup_logging import setup_logging
+
+import requests
 
 # Define a RFBlasterPseudoclock that only accepts one child clockline
 class RFBlasterPseudoclock(Pseudoclock):    
