@@ -486,8 +486,9 @@ class RFBlasterWorker(Worker):
                 self.netlogger.info('Connection attempt %i.' % self._connection_attempt)
                 #response = b''.join(urlopen(req, timeout=self.timeout).readlines())
                 if form is not None:
-                    # Stub only!
-                    r = requests.put(self.address) # Needs to actually send the form
+                    # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
+                    # ... rather than a dict. No matter. it seems requests sucks this up anway.
+                    r = requests.post(self.address, data=form.form_fields) # Needs to actually send the form
                 else:
                     r = requests.get(self.address)
                 r.raise_for_status() 
