@@ -21,8 +21,6 @@ import numpy as np
 from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_utils.setup_logging import setup_logging
 
-import requests
-
 # Define a RFBlasterPseudoclock that only accepts one child clockline
 class RFBlasterPseudoclock(Pseudoclock):    
     def add_device(self, device):
@@ -469,15 +467,16 @@ class RFBlasterWorker(Worker):
             from urllib2 import urlopen, Request, URLError, httplib
             HTTPError = httplib.HTTPException
         else:
+            import requests
             from urllib.request import urlopen, Request
             from urllib.error import URLError, HTTPError
         
-        req = Request(self.address)
-        if form is not None:
-            body = form.tobytes()
-            req.add_header(b'Content-type', form.get_content_type())
-            req.add_header(b'Content-length', len(body))
-            req.data = body
+        #req = Request(self.address)
+        #if form is not None:
+        #    body = form.tobytes()
+        #    req.add_header(b'Content-type', form.get_content_type())
+        #    req.add_header(b'Content-length', len(body))
+        #    req.data = body
 
         self._connection_attempt = 1
         self._kloned_attempted = False
@@ -485,10 +484,16 @@ class RFBlasterWorker(Worker):
         while not response:
             try:
                 self.netlogger.info('Connection attempt %i.' % self._connection_attempt)
-                response = b''.join(urlopen(req, timeout=self.timeout).readlines())
+                #response = b''.join(urlopen(req, timeout=self.timeout).readlines())
+                if form is not None:
+                    # Stub only!
+                    r = requests.put(self.address) # Needs to actually send the form
+                else:
+                    r = requests.get(self.address)
+                r.raise_for_status() 
                 self.netlogger.info('Connected!')
                 break
-            except (URLError, HTTPError) as e:
+            except (URLError, HTTPError, Timeout, ConnectionError) as e:
                 self.netlogger.warning(str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
@@ -501,10 +506,11 @@ class RFBlasterWorker(Worker):
                     self.netlogger.error(str(e))   
                     raise e
 
-        return response
+        return r.text
 
     def get_web_values(self, page): 
-        page = page.decode('utf8')
+        if PY2:
+            page = page.decode('utf8')
         import re
         # Prepare regular expressions for finding the values:
         search = re.compile(r'name="([fap])_ch(\d+?)_in"\s*?value="([0-9.]+?)"')
