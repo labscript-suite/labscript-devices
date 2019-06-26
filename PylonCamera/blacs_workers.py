@@ -46,10 +46,12 @@ class Pylon_Camera(object):
         self.nodeMap = self.camera.GetNodeMap()
         self._abort_acquisition = False
 
-    def set_attributes(self, attr_dict):
+    def set_attributes(self, attributes_dict):
         """Sets all attribues in attr_dict.
         Pylon cameras require that ROI settings be done in correct order,
         so we do them separately."""
+        # make a copy of dict so we can pop off already handled values
+        attr_dict = attributes_dict.copy()
         ROIx = ['Width','OffsetX']
         ROIy = ['Height','OffsetY']
         if set(ROIx).issubset(attr_dict):
@@ -115,10 +117,8 @@ class Pylon_Camera(object):
 
     def snap(self):
         """Acquire a single image and return it"""
-        self.camera.TriggerMode = 'Off'
         result = self.camera.GrabOne(self.timeout,
                                      pylon.TimeoutHandling_ThrowException)
-        self.camera.TriggerMode = 'On'
         if result.GrabSucceeded():
             img = result.Array
             result.Release()
@@ -132,7 +132,6 @@ class Pylon_Camera(object):
         """
         self.camera.MaxNumBuffer = bufferCount
         if continuous:
-            self.camera.TriggerMode = 'Off'
             self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
         else:
             self.camera.StartGrabbing(pylon.GrabStrategy_OneByOne)
@@ -169,7 +168,6 @@ class Pylon_Camera(object):
 
     def stop_acquisition(self):
         self.camera.StopGrabbing()
-        self.camera.TriggerMode = 'On'
 
     def abort_acquisition(self):
         self._abort_acquisition = True
