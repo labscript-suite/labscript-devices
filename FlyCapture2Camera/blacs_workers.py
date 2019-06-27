@@ -93,11 +93,12 @@ class FlyCapture2_Camera(object):
             msg = "Failed to set Trigger Mode!"
             raise Exception(msg) from e
             
-    def set_image_mode(self,image_dict):
+    def set_image_mode(self,image_settings):
         """Configures ROI and image control via Format 7, Mode 0 interface."""
         image_info, supported = self.camera.getFormat7Info(0)
         Hstep = image_info.offsetHStepSize
         Vstep = image_info.offsetVStepSize
+        image_dict = image_settings.copy()
         if supported:
             image_mode, packetSize, percentage = self.camera.getFormat7Configuration()
             image_mode.mode = 0
@@ -115,7 +116,7 @@ class FlyCapture2_Camera(object):
             # need to set pixel format separately to get correct enum value
             if 'pixelFormat' in image_dict:
                 fmt = image_dict.pop('pixelFormat')
-                image_mode.pixel_format = self.pixel_formats[fmt].value
+                image_mode.pixelFormat = self.pixel_formats[fmt].value
                 
             for k,v in image_dict.items():
                 setattr(image_mode,k,v)
@@ -123,8 +124,7 @@ class FlyCapture2_Camera(object):
             try:            
                 fmt7PktInfo, valid = self.camera.validateFormat7Settings(image_mode)
                 if valid:
-                    self.camera.setFormat7Configuration(100.0,image_mode)
-                    self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.maxBytesPerPacket, image_mode)
+                    self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_mode)
             except PyCapture2.Fc2error as e:
                 raise('Error configuring image settings') from e
         else:
@@ -264,14 +264,15 @@ class FlyCapture2_Camera(object):
         """FlyCapture2 image buffers require significant formatting.
         This returns what one would expect from a camera.
         configure_acquisition must be called first to set image format parameters."""
-        if self.pixelFormat.startswith('MONO'):
-            if self.pixelFormat.endswith('8'):
+        pix_fmt = self.pixelFormat
+        if pix_fmt.startswith('MONO') or pix_fmt.startswith('RAW'):
+            if pix_fmt.endswith('8'):
                 dtype = 'uint8'
             else:
                 dtype = 'uint16'
             image = np.frombuffer(img,dtype=dtype).reshape(self.height,self.width)
         else:
-            msg = """Only MONO image types currently supported.
+            msg = """Only MONO/RAW image types currently supported.
             To add other image types, add conversion logic from returned 
             uint8 data to desired format in _decode_image_data() method."""
             raise ValueError(dedent(msg))
