@@ -335,8 +335,12 @@ class MultiPartForm(object):
             raise TypeError('body must be bytes')
         if mimetype is None:
             mimetype = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-        self.files.append((fieldname.encode('utf8'), filename.encode('utf8'),
-                           mimetype.encode('utf8'), body))
+        if PY2:
+            self.files.append((fieldname.encode('utf8'), filename.encode('utf8'),
+                               mimetype.encode('utf8'), body))
+        else:
+            self.files.append((fieldname, filename, mimetype, body))
+    
     
     def tobytes(self):
         """Return a bytestring for the form data, including attached files."""
@@ -484,17 +488,21 @@ class RFBlasterWorker(Worker):
         while not response:
             try:
                 self.netlogger.info('Connection attempt %i.' % self._connection_attempt)
-                #response = b''.join(urlopen(req, timeout=self.timeout).readlines())
-                if form is not None:
-                    # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
-                    # ... rather than a dict. No matter. it seems requests sucks this up anway.
-                    r = requests.post(self.address, data=form.form_fields) # Needs to actually send the form
+                if PY2:
+                    response = b''.join(urlopen(req, timeout=self.timeout).readlines())
                 else:
-                    r = requests.get(self.address)
-                r.raise_for_status() 
+                    if form is not None:
+                        # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
+                        # ... rather than a dict. No matter. it seems requests sucks this up anyway.
+                        # However we need to rearrange the file data into a nested tuple for requests. No big deal:
+                        filelist = [(field_name, (filename, bytes(body), content_type)) for field_name, filename, content_type, body in form.files]
+                        r = requests.post(self.address, data=form.form_fields, files=filelist) # Needs to actually send the form
+                    else:
+                        r = requests.get(self.address)
+                    r.raise_for_status() 
                 self.netlogger.info('Connected!')
                 break
-            except (URLError, HTTPError, Timeout, ConnectionError) as e:
+            except (URLError, HTTPError, TimeoutError, ConnectionError) as e:
                 self.netlogger.warning(str(e))
                 if self._connection_attempt < self.retries:
                     self.netlogger.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
