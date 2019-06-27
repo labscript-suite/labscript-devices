@@ -11,9 +11,6 @@
 #                                                                   #
 #####################################################################
 from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 import os
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DDS, config, startupinfo, LabscriptError, set_passed_properties
@@ -163,7 +160,7 @@ class RFBlaster(PseudoclockDevice):
                                  jump_to_start=(i == 0),
                                  jump_from_end=False,
                                  close_end=(i == len(diff_tables) - 1),
-                                 local_loop_pre = bytes(i) if PY2 else str(i),
+                                 local_loop_pre = str(i),
                                  set_defaults = (i==0))
                 # Save the assembly to the h5 file:
                 with open(temp_assembly_filepath,) as assembly_file:
@@ -311,26 +308,19 @@ class RFBlasterTab(DeviceTab):
         else:
             notify_queue.put([self.device_name,'fail'])
             raise Exception('Could not transition to manual. You must restart this device to continue')
-            
-    
+                
 class MultiPartForm(object):
     """Accumulate the data to be used when posting a form."""
-
     def __init__(self):
-        import uuid
         self.form_fields = []
         self.files = []
-        self.boundary = uuid.uuid4().hex.encode('utf8')
     
     def get_content_type(self):
         return b'multipart/form-data; boundary=%s' % self.boundary
 
     def add_field(self, name, value):
         """Add a simple field to the form data."""
-        if PY2:
-            self.form_fields.append( (name.encode('utf8'), value.encode('utf8')) )
-        else:
-            self.form_fields.append( (name, value) )
+        self.form_fields.append( (name, value) )
 
     def add_file_content(self, fieldname, filename, body, mimetype=None):
         import mimetypes
@@ -338,40 +328,8 @@ class MultiPartForm(object):
             raise TypeError('body must be bytes')
         if mimetype is None:
             mimetype = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-        if PY2:
-            self.files.append((fieldname.encode('utf8'), filename.encode('utf8'),
-                               mimetype.encode('utf8'), body))
-        else:
-            self.files.append((fieldname, filename, mimetype, body))
+        self.files.append((fieldname, filename, mimetype, body))
     
-    
-    def tobytes(self):
-        """Return a bytestring for the form data, including attached files."""
-        all_lines = []
-        part_boundary = b'--' + self.boundary
-        
-        for name, value in self.form_fields:
-            lines = [part_boundary,
-                     b'Content-Disposition: form-data; name="%s"' % name,
-                     b'',
-                     value]
-            all_lines.extend(lines)
-        
-        for field_name, filename, content_type, body in self.files:
-            lines = [part_boundary,
-                     b'Content-Disposition: form-data; name="%s"; filename="%s"' % (field_name, filename),
-                     b'Content-Type: %s' % content_type,
-                     b'',
-                     body]
-            all_lines.extend(lines)
-        
-        # Closing boundary marker:
-        lines = [b'--' + self.boundary + b'--',
-                 b'']
-        all_lines.extend(lines)
-        return b'\r\n'.join(all_lines)
-
-
 class RFBlasterWorker(Worker):
     def init(self):
         exec('from numpy import *', globals())
@@ -382,13 +340,9 @@ class RFBlasterWorker(Worker):
         p = re.compile('http://([0-9.]+):[0-9]+')
         m = p.match(self.address)
         self.ip = m.group(1)
-        # self.ip = self.BLACS_connection
         self.netlogger = setup_logging('rfBlaster_%s' % self.ip)
         self.netlogger.info('init: Started logging')
-    
-        # See if the RFBlaster answers
-        self.http_request()
-        
+        self.http_request() # See if the RFBlaster answers
         self._last_program_manual_values = {}
 
     def restart_kloned(self, respawn_netcat=True):
@@ -411,18 +365,14 @@ class RFBlasterWorker(Worker):
 
     def program_manual(self,values):
         self._last_program_manual_values = values
-        
         form = MultiPartForm()
         for i in range(self.num_DDS):
             # Program the frequency, amplitude and phase
             form.add_field("a_ch%d_in"%i,str(values['dds %d'%i]['amp']*values['dds %d'%i]['gate']))
             form.add_field("f_ch%d_in"%i,str(values['dds %d'%i]['freq']*1e-6)) # method expects MHz
             form.add_field("p_ch%d_in"%i,str(values['dds %d'%i]['phase']))
-        
         form.add_field("set_dds", "Set device")
-
         return_vals = self.get_web_values(self.http_request(form))
-            
         return return_vals
         
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
@@ -470,38 +420,25 @@ class RFBlasterWorker(Worker):
      
     def http_request(self, form=None): 
         """Make a HTTP request to the RFBlaster, optionally submitting a form"""
-        if PY2:
-            from urllib2 import urlopen, Request, URLError, httplib
-            HTTPError = httplib.HTTPException
-        else:
-            import requests
-            from urllib.request import urlopen, Request
-            from urllib.error import URLError, HTTPError 
-        if PY2:
-            req = Request(self.address)
-            if form is not None:
-                body = form.tobytes()
-                req.add_header(b'Content-type', form.get_content_type())
-                req.add_header(b'Content-length', len(body))
-                req.data = body
+        import requests
+        from urllib.request import urlopen, Request
+        from urllib.error import URLError, HTTPError 
+    
         self._connection_attempt = 1
         self._kloned_attempted = False
         response = None
         while not response:
             try:
                 self.netlogger.info('Connection attempt %i.' % self._connection_attempt)
-                if PY2:
-                    response = b''.join(urlopen(req, timeout=self.timeout).readlines())
+                if form is not None:
+                    # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
+                    # ... rather than a dict. No matter. it seems requests sucks this up anyway.
+                    # However we need to rearrange the file data into a nested tuple for requests. No big deal:
+                    filelist = [(field_name, (filename, bytes(body), content_type)) for field_name, filename, content_type, body in form.files]
+                    r = requests.post(self.address, data=form.form_fields, files=filelist) # Needs to actually send the form
                 else:
-                    if form is not None:
-                        # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
-                        # ... rather than a dict. No matter. it seems requests sucks this up anyway.
-                        # However we need to rearrange the file data into a nested tuple for requests. No big deal:
-                        filelist = [(field_name, (filename, bytes(body), content_type)) for field_name, filename, content_type, body in form.files]
-                        r = requests.post(self.address, data=form.form_fields, files=filelist) # Needs to actually send the form
-                    else:
-                        r = requests.get(self.address)
-                    r.raise_for_status() 
+                    r = requests.get(self.address)
+                r.raise_for_status() 
                 self.netlogger.info('Connected!')
                 break
             except (URLError, HTTPError, TimeoutError, ConnectionError) as e:
@@ -519,8 +456,6 @@ class RFBlasterWorker(Worker):
         return r.text
 
     def get_web_values(self, page): 
-        if PY2:
-            page = page.decode('utf8')
         import re
         # Prepare regular expressions for finding the values:
         search = re.compile(r'name="([fap])_ch(\d+?)_in"\s*?value="([0-9.]+?)"')
