@@ -31,6 +31,7 @@ from labscript import (
     AnalogIn,
     bitfield,
     config,
+    compiler,
     LabscriptError,
     set_passed_properties,
 )
@@ -319,6 +320,12 @@ class NI_DAQmx(IntermediateDevice):
         """Collect analog output data and create the output array"""
         if not analogs:
             return None
+        if compiler.wait_table and compiler.wait_monitor is None:
+            msg = """Cannot do analog input on an NI DAQmx device in an experiment that
+                uses waits without a wait monitor. This is because input data cannot be
+                'chunked' into requested segments without knowledge of the durations of
+                the waits. See labscript.WaitMonitor for details."""
+            raise LabscriptError(dedent(msg))
         n_timepoints = 1 if self.static_AO else len(times)
         connections = sorted(analogs, key=split_conn_AO)
         dtypes = [(c, np.float32) for c in connections]

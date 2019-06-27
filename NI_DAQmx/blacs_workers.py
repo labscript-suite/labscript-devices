@@ -763,14 +763,21 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                     semiperiods = self.read_edges(2, timeout)
                     # Did the wait finish of its own accord, or time out?
                     if semiperiods is None:
-                        # It timed out. Better trigger the clock to resume!
-                        msg = """Wait timed out; retriggering clock with {:.3e} s pulse
-                            ({} edge)"""
-                        msg = dedent(msg).format(pulse_width, self.timeout_trigger_type)
-                        self.logger.debug(msg)
-                        self.send_resume_trigger(pulse_width)
-                        # Wait for it to respond to that:
-                        self.logger.debug('Waiting for pulse indicating end of wait')
+                        # It timed out. If there is a timeout device, send a trigger to
+                        # resume the clock!
+                        if self.DO_task is not None:
+                            msg = """Wait timed out; retriggering clock with {:.3e} s
+                                pulse ({} edge)"""
+                            msg = msg.format(pulse_width, self.timeout_trigger_type)
+                            self.logger.debug(dedent(msg))
+                            self.send_resume_trigger(pulse_width)
+                        else:
+                            msg = """Specified wait timeout exceeded, but there is no
+                                timeout device with which to resume the experiment.
+                                Continuing to wait."""
+                            self.logger.warning(dedent(msg))
+                        # Keep waiting for the clock to resume:
+                        self.logger.info('Waiting for pulse indicating end of wait')
                         semiperiods = self.read_edges(2, timeout=None)
                     # Alright, now we're at the end of the wait.
                     self.semiperiods.extend(semiperiods)
@@ -853,15 +860,16 @@ class NI_DAQmxWaitMonitorWorker(Worker):
         self.CI_task.StartTask()
 
         # The timeout task:
-        self.DO_task = Task()
-        DO_chan = self.MAX_name + '/' + self.wait_timeout_connection
-        self.DO_task.CreateDOChan(DO_chan, "", DAQmx_Val_ChanForAllLines)
-        # Ensure timeout trigger is armed:
-        written = int32()
-        # Writing autostarts the task:
-        self.DO_task.WriteDigitalLines(
-            1, True, 1, DAQmx_Val_GroupByChannel, self.timeout_rearm, written, None
-        )
+        if self.wait_timeout_MAX_name is not None:
+            self.DO_task = Task()
+            DO_chan = self.wait_timeout_MAX_name + '/' + self.wait_timeout_connection
+            self.DO_task.CreateDOChan(DO_chan, "", DAQmx_Val_ChanForAllLines)
+            # Ensure timeout trigger is armed:
+            written = int32()
+            # Writing autostarts the task:
+            self.DO_task.WriteDigitalLines(
+                1, True, 1, DAQmx_Val_GroupByChannel, self.timeout_rearm, written, None
+            )
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
