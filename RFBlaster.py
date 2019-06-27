@@ -392,7 +392,7 @@ class RFBlasterWorker(Worker):
                                                  'phase':group['TABLE_DATA']["phase%d"%i][-1],
                                                  'gate':True
                                                 }
-                data = group['BINARY_CODE/DDS%d'%i].value
+                data = group['BINARY_CODE/DDS%d'%i][()]
                 form.add_file_content("pulse_ch%d"%i, "output_ch%d.bin"%i, data)
                 
         form.add_field("upload_and_run", "Upload and start")
