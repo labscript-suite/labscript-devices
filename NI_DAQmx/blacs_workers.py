@@ -777,7 +777,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                                 Continuing to wait."""
                             self.logger.warning(dedent(msg))
                         # Keep waiting for the clock to resume:
-                        self.logger.info('Waiting for pulse indicating end of wait')
+                        self.logger.debug('Waiting for pulse indicating end of wait')
                         semiperiods = self.read_edges(2, timeout=None)
                     # Alright, now we're at the end of the wait.
                     self.semiperiods.extend(semiperiods)
