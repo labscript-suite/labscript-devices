@@ -327,7 +327,10 @@ class MultiPartForm(object):
 
     def add_field(self, name, value):
         """Add a simple field to the form data."""
-        self.form_fields.append((name.encode('utf8'), value.encode('utf8')))
+        if PY2:
+            self.form_fields.append( (name.encode('utf8'), value.encode('utf8')) )
+        else:
+            self.form_fields.append( (name, value) )
 
     def add_file_content(self, fieldname, filename, body, mimetype=None):
         import mimetypes
@@ -473,15 +476,14 @@ class RFBlasterWorker(Worker):
         else:
             import requests
             from urllib.request import urlopen, Request
-            from urllib.error import URLError, HTTPError
-        
-        #req = Request(self.address)
-        #if form is not None:
-        #    body = form.tobytes()
-        #    req.add_header(b'Content-type', form.get_content_type())
-        #    req.add_header(b'Content-length', len(body))
-        #    req.data = body
-
+            from urllib.error import URLError, HTTPError 
+        if PY2:
+            req = Request(self.address)
+            if form is not None:
+                body = form.tobytes()
+                req.add_header(b'Content-type', form.get_content_type())
+                req.add_header(b'Content-length', len(body))
+                req.data = body
         self._connection_attempt = 1
         self._kloned_attempted = False
         response = None
@@ -514,7 +516,6 @@ class RFBlasterWorker(Worker):
                 else:
                     self.netlogger.error(str(e))   
                     raise e
-
         return r.text
 
     def get_web_values(self, page): 
