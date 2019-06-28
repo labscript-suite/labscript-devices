@@ -826,7 +826,8 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             if not abort:
                 # Don't want errors about incomplete task to be raised if we are aborting:
                 self.CI_task.StopTask()
-            self.DO_task.StopTask()
+            if self.DO_task is not None:
+                self.DO_task.StopTask()
         if self.CI_task is not None:
             self.CI_task.ClearTask()
             self.CI_task = None
