@@ -254,8 +254,9 @@ class IMAQdxCameraWorker(Worker):
     def init(self):
         self.camera = self.get_camera()
         print("Setting attributes...")
-        self.camera.set_attributes(self.camera_attributes)
-        self.camera.set_attributes(self.manual_mode_camera_attributes)
+        self.smart_cache = {}
+        self.set_attributes_smart(self.camera_attributes)
+        self.set_attributes_smart(self.manual_mode_camera_attributes)
         print("Initialisation complete")
         self.images = None
         self.n_images = None
@@ -281,6 +282,17 @@ class IMAQdxCameraWorker(Worker):
             return MockCamera()
         else:
             return self.interface_class(self.serial_number)
+
+    def set_attributes_smart(self, attributes):
+        """Call self.camera.set_attributes() to set the given attributes, only setting
+        those that differ from their value in, or are absent from self.smart_cache.
+        Update self.smart_cache with the newly-set values"""
+        uncached_attributes = {}
+        for name, value in attributes.items():
+            if name not in self.smart_cache or self.smart_cache[name] != value:
+                uncached_attributes[name] = value
+                self.smart_cache[name] = value
+        self.camera.set_attributes(uncached_attributes)
 
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
@@ -377,7 +389,11 @@ class IMAQdxCameraWorker(Worker):
             self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
             self.exception_on_failed_shot = properties['exception_on_failed_shot']
             saved_attr_level = properties['saved_attribute_visibility_level']
-        self.camera.set_attributes(camera_attributes)
+        # Only reprogram attributes that differ from those last programmed in, or all of
+        # them if a fresh reprogramming was requested:
+        if fresh:
+            self.smart_cache = {}
+        self.set_attributes_smart(camera_attributes)
         # Get the camera attributes, so that we can save them to the H5 file:
         if saved_attr_level is not None:
             self.attributes_to_save = self.get_attributes_as_dict(saved_attr_level)
@@ -469,7 +485,7 @@ class IMAQdxCameraWorker(Worker):
         self.stop_acquisition_timeout = None
         self.exception_on_failed_shot = None
         print("Setting manual mode camera attributes.\n")
-        self.camera.set_attributes(self.manual_mode_camera_attributes)
+        self.set_attributes_smart(self.manual_mode_camera_attributes)
         if self.continuous_dt is not None:
             # If continuous manual mode acquisition was in progress before the bufferd
             # run, resume it:

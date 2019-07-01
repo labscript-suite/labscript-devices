@@ -92,6 +92,10 @@ class IMAQdxCameraTab(DeviceTab):
     # Subclasses may override this if all they do is replace the worker class with a
     # different one:
     worker_class = 'labscript_devices.IMAQdxCamera.blacs_workers.IMAQdxCameraWorker' 
+    # Subclasses may override this to False if camera attributes should be set every
+    # shot even if the same values have previously been set:
+    use_smart_programming = True
+
     def initialise_GUI(self):
         layout = self.get_tab_layout()
         ui_filepath = os.path.join(
@@ -143,6 +147,8 @@ class IMAQdxCameraTab(DeviceTab):
         # Start the image receiver ZMQ server:
         self.image_receiver = ImageReceiver(self.image, self.ui.label_fps)
         self.acquiring = False
+
+        self.supports_smart_programming(self.use_smart_programming) 
 
     def get_save_data(self):
         return {
