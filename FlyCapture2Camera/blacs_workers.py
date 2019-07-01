@@ -103,7 +103,8 @@ class FlyCapture2_Camera(object):
             image_mode, packetSize, percentage = self.camera.getFormat7Configuration()
             image_mode.mode = 0
             
-            # validate and set the ROI settings            
+            # validate and set the ROI settings
+            # this rounds the ROI settings to nearest allowed pixel            
             if 'offsetX' in image_dict:
                 image_dict['offsetX'] -= image_dict['offsetX'] % Hstep
             if 'offsetY' in image_dict:
@@ -126,11 +127,12 @@ class FlyCapture2_Camera(object):
                 if valid:
                     self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_mode)
             except PyCapture2.Fc2error as e:
-                raise('Error configuring image settings') from e
+                raise RuntimeError('Error configuring image settings') from e
         else:
-            raise('Camera does not support Format7, Mode 0.')
+            msg = """Camera does not support Format7, Mode 0 custom image
+            configuration. This driver is therefore not compatible, as written."""
+            raise RuntimeError(dedent(msg))
             
-
     def set_attribute(self, name, values):
         """Set the values of the attribute of the given name using the provided
         dictionary values. Typical structure is:
@@ -231,7 +233,6 @@ class FlyCapture2_Camera(object):
             
         self.camera.startCapture()
             
-
     def grab(self):
         """Grab and return single image during pre-configured acquisition."""
         
