@@ -265,14 +265,14 @@ class FlyCapture2_Camera(object):
         This returns what one would expect from a camera.
         configure_acquisition must be called first to set image format parameters."""
         pix_fmt = self.pixelFormat
-        if pix_fmt.startswith('MONO') or pix_fmt.startswith('RAW'):
+        if pix_fmt.startswith('MONO'):
             if pix_fmt.endswith('8'):
                 dtype = 'uint8'
             else:
                 dtype = 'uint16'
             image = np.frombuffer(img,dtype=dtype).reshape(self.height,self.width)
         else:
-            msg = """Only MONO/RAW image types currently supported.
+            msg = """Only MONO image types currently supported.
             To add other image types, add conversion logic from returned 
             uint8 data to desired format in _decode_image_data() method."""
             raise ValueError(dedent(msg))
