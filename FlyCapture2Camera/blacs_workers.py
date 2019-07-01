@@ -204,7 +204,7 @@ class FlyCapture2_Camera(object):
         """Acquire a single image and return it"""
         
         self.configure_acquisition(continuous=False,bufferCount=1)
-        image = self.grab(continuous=False)
+        image = self.grab()
         self.stop_acquisition()
         return image
 
@@ -232,8 +232,8 @@ class FlyCapture2_Camera(object):
         self.camera.startCapture()
             
 
-    def grab(self, continuous=True):
-        """Grab single image during pre-configured acquisition."""
+    def grab(self):
+        """Grab and return single image during pre-configured acquisition."""
         
         result = self.camera.retrieveBuffer()
         
@@ -252,7 +252,7 @@ class FlyCapture2_Camera(object):
                     self._abort_acquisition = False
                     return
                 try:
-                    images.append(self.grab(continuous=False))
+                    images.append(self.grab())
                     print(f"Got image {i+1} of {n_images}.")
                     break
                 except PyCapture2.Fc2error as e:
