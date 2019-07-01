@@ -28,6 +28,7 @@ import zmq
 
 from labscript_utils.ls_zprocess import Context
 from labscript_utils.shared_drive import path_to_local
+from labscript_utils.properties import set_attributes
 
 # Required for knowing the parent device's hostname when running remotely:
 from labscript_utils import check_version
@@ -444,7 +445,7 @@ class IMAQdxCameraWorker(Worker):
 
             # Save camera attributes to the HDF5 file:
             if self.attributes_to_save is not None:
-                image_group.attrs.update(self.attributes_to_save)
+                set_attributes(image_group, self.attributes_to_save)
 
             # Whether we failed to get all the expected exposures:
             image_group.attrs['failed_shot'] = len(self.images) != len(self.exposures)
