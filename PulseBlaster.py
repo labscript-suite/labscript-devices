@@ -16,8 +16,23 @@ if PY2:
     str = unicode
 
 from labscript_devices import BLACS_tab, runviewer_parser
+from labscript_utils import dedent
 
-from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, IntermediateDevice, DigitalQuantity, DigitalOut, DDS, DDSQuantity, config, LabscriptError, set_passed_properties
+from labscript import (
+    Device,
+    PseudoclockDevice,
+    Pseudoclock,
+    ClockLine,
+    IntermediateDevice,
+    DigitalQuantity,
+    DigitalOut,
+    DDS,
+    DDSQuantity,
+    config,
+    LabscriptError,
+    set_passed_properties,
+    compiler,
+)
 
 import numpy as np
 
@@ -603,14 +618,30 @@ class PulseBlaster(PseudoclockDevice):
         group.create_dataset('PULSE_PROGRAM', compression=config.compression,data = pb_inst_table)   
         self.set_property('stop_time', self.stop_time, location='device_properties')
 
-        
+
+    def _check_wait_monitor_ok(self):
+        if (
+            compiler.master_pseudoclock is self
+            and compiler.wait_table
+            and compiler.wait_monitor is None
+            and self.programming_scheme != 'pb_stop_programming/STOP'
+        ):
+            msg = """If using waits without a wait monitor, the PulseBlaster used as a
+                master pseudoclock must have
+                programming_scheme='pb_stop_programming/STOP'. Otherwise there is no way
+                for BLACS to distinguish between a wait, and the end of a shot. Either
+                use a wait monitor (see labscript.WaitMonitor for details) or set
+                programming_scheme='pb_stop_programming/STOP for %s."""
+            raise LabscriptError(dedent(msg) % self.name)
+
     def generate_code(self, hdf5_file):
         # Generate the hardware instructions
-        hdf5_file.create_group('/devices/'+self.name)
+        hdf5_file.create_group('/devices/' + self.name)
         PseudoclockDevice.generate_code(self, hdf5_file)
         dig_outputs, dds_outputs = self.get_direct_outputs()
         freqs, amps, phases = self.generate_registers(hdf5_file, dds_outputs)
         pb_inst = self.convert_to_pb_inst(dig_outputs, dds_outputs, freqs, amps, phases)
+        self._check_wait_monitor_ok()
         self.write_pb_inst_to_h5(pb_inst, hdf5_file)
         
 
@@ -1042,10 +1073,17 @@ class PulseblasterWorker(Worker):
             else:
                 raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
             
-            # Are there waits in use in this experiment? The monitor waiting for the end of
-            # the experiment will need to know:
-            self.waits_pending =  bool(len(hdf5_file['waits']))
-            
+            # Are there waits in use in this experiment? The monitor waiting for the end
+            # of the experiment will need to know:
+            wait_monitor_exists = bool(hdf5_file['waits'].attrs['wait_monitor_acquisition_device'])
+            waits_in_use = bool(len(hdf5_file['waits']))
+            self.waits_pending = wait_monitor_exists and waits_in_use
+            if waits_in_use and not wait_monitor_exists:
+                # This should be caught during labscript compilation, but just in case.
+                # Having waits but not a wait monitor means we can't tell when the shot
+                # is over unless the shot ends in a STOP instruction:
+                assert self.programming_scheme == 'pb_stop_programming/STOP'
+
             # Now we build a dictionary of the final state to send back to the GUI:
             return_values = {'dds 0':{'freq':finalfreq0, 'amp':finalamp0, 'phase':finalphase0, 'gate':en0},
                              'dds 1':{'freq':finalfreq1, 'amp':finalamp1, 'phase':finalphase1, 'gate':en1},
@@ -1077,7 +1115,7 @@ class PulseblasterWorker(Worker):
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
-            done_condition = True # status['stopped']
+            done_condition = status['stopped']
             
         if time_based_shot_over is not None:
             done_condition = time_based_shot_over
