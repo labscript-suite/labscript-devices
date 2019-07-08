@@ -15,6 +15,7 @@ import os
 import json
 from time import perf_counter
 import ast
+from queue import Empty
 
 import labscript_utils.h5_lock
 import h5py
@@ -72,11 +73,23 @@ class ImageReceiver(ZMQServer):
         self.last_frame_time = this_frame_time
         # Wait for the previous update to compete so we don't accumulate a backlog:
         if self.update_event is not None:
-            self.update_event.get()
+            while True:
+                # Don't block, and check for self.stopping regularly in case we are
+                # shutting down. Otherwise if shutdown is called from the main thread we
+                # would deadlock.
+                try:
+                    self.update_event.get(timeout=0.1)
+                    break
+                except Empty:
+                    if self.stopping:
+                        return
         self.update_event = inmain_later(self.update, image, self.frame_rate)
         return [b'ok']
 
     def update(self, image, frame_rate):
+        if not self.mainloop_thread.is_alive():
+            # We have been shut down. Nothing to do here.
+            return
         if self.image_view.image is None:
             # First time setting an image. Do autoscaling etc:
             self.image_view.setImage(image.T)
