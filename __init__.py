@@ -18,6 +18,8 @@ import imp
 import warnings
 import traceback
 import inspect
+from labscript_utils import labscript_suite_install_dir, dedent
+from labscript_utils.labconfig import LabConfig
 
 __version__ = '2.5.0'
 
@@ -27,9 +29,6 @@ check_version('blacs', '2.7.0', '3.0.0')
 check_version('zprocess', '2.2.7', '3')
 check_version('numpy', '1.15.1', '2')
 
-from labscript_utils import labscript_suite_install_dir, dedent
-
-LABSCRIPT_DEVICES_DIR = os.path.join(labscript_suite_install_dir, 'labscript_devices')
 
 """This file contains the machinery for registering and looking up what BLACS tab and
 runviewer parser classes belong to a particular labscript device. "labscript device"
@@ -46,18 +45,22 @@ level of labscript_devices folder, and that they have class decorators @BLACS_ta
 splitting it across multiple files.
 
 The "new" method is more flexible. It allows BLACS tabs and runviewer parsers to be
-defined in any importable file within a subfolder of labscript_devices. Classes using
-this method can be in files with any name, and do not need class decorators. Instead,
-the classes should be registered by creating a file called 'register_classes.py', which
-when imported, makes calls to labscript_devices.register_classes() to register
-which BLACS tab and runviewer parser class belong to each device. Tab and parser classes
-must be passed to register_classes() as fully qualified names, i.e.
-"labscript_devices.submodule.ClassName", not by passing in the classes themselves. This
-ensures imports can be deferred until the classes are actually needed. When BLACS and
-runviewer look up classes with get_BLACS_tab() and get_runviewer_parser(),
-populate_registry() will be called in order to find all files called
-'register_classes.py' within subfolders (at any depth) of labscript_devices, and they
-will be imported to run their code and hence register their classes.
+defined in any importable file within a subfolder of labscript_devices. Additionally,
+the 'user_devices' configuration setting in labconfig can be used to specify a
+comma-delimited list of names of importable packages containing additional labscript
+devices.
+
+Classes using the new method can be in files with any name, and do not need class
+decorators. Instead, the classes should be registered by creating a file called
+'register_classes.py', which when imported, makes calls to
+labscript_devices.register_classes() to register which BLACS tab and runviewer parser
+class belong to each device. Tab and parser classes must be passed to register_classes()
+as fully qualified names, i.e. "labscript_devices.submodule.ClassName", not by passing
+in the classes themselves. This ensures imports can be deferred until the classes are
+actually needed. When BLACS and runviewer look up classes with get_BLACS_tab() and
+get_runviewer_parser(), populate_registry() will be called in order to find all files
+called 'register_classes.py' within subfolders (at any depth) of labscript_devices, and
+they will be imported to run their code and hence register their classes.
 
 The "new" method does not impose any restrictions on code organisation within subfolders
 of labscript_devices, and so is preferable as it allows auxiliary utilities or resource
@@ -67,6 +70,39 @@ nice things to have.
 
 The old method may be deprecated in the future.
 """
+
+
+def _get_import_paths(import_names):
+    """For the given list of packages, return all folders containing their submodules.
+    If the packages do not exist, ignore them."""
+    paths = []
+    for name in import_names:
+        if PY2:
+            try:
+                _, location, _ = imp.find_module(name)
+            except ImportError:
+                continue
+            paths.append(os.path.dirname(location))
+        else:
+            spec = importlib.util.find_spec(name)
+            if spec is not None and spec.submodule_search_locations is not None:
+                paths.extend(spec.submodule_search_locations)
+    return paths
+
+
+def _get_device_dirs():
+    """Return the directory of labscript_devices, and the folders containing
+    submodules of any packages listed in the user_devices labconfig setting"""
+    try:
+        user_devices = LabConfig().get('DEFAULT', 'user_devices')
+    except (LabConfig.NoOptionError, LabConfig.NoSectionError):
+        user_devices = 'user_devices'
+    # Split on commas, remove whitespace:
+    user_devices = [s.strip() for s in user_devices.split(',')]
+    return _get_import_paths(['labscript_devices'] + user_devices)
+
+
+LABSCRIPT_DEVICES_DIRS = _get_device_dirs()
 
 
 class ClassRegister(object):
@@ -241,15 +277,16 @@ def populate_registry():
     # But they cannot all have the same name, so we import them as
     # labscript_devices._register_classes_script_<num> with increasing number.
     module_num = 0
-    for folder, _, filenames in os.walk(LABSCRIPT_DEVICES_DIR):
-        if 'register_classes.py' in filenames:
-            # The module name is the path to the file, relative to the labscript suite
-            # install directory:
-            # Open the file using the import machinery, and import it as module_name.
-            fp, pathname, desc = imp.find_module('register_classes', [folder])
-            module_name = 'labscript_devices._register_classes_script_%d' % module_num
-            _ = imp.load_module(module_name, fp, pathname, desc)
-            module_num += 1
+    for devices_dir in LABSCRIPT_DEVICES_DIRS:
+        for folder, _, filenames in os.walk(devices_dir):
+            if 'register_classes.py' in filenames:
+                # The module name is the path to the file, relative to the labscript suite
+                # install directory:
+                # Open the file using the import machinery, and import it as module_name.
+                fp, pathname, desc = imp.find_module('register_classes', [folder])
+                module_name = 'labscript_devices._register_classes_%d' % module_num
+                _ = imp.load_module(module_name, fp, pathname, desc)
+                module_num += 1
 
 
 if __name__ == '__main__':
