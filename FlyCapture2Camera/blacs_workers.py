@@ -44,10 +44,6 @@ class FlyCapture2_Camera(object):
         self.camera = PyCapture2.Camera()
         self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
         
-        config = self.camera.getConfiguration()
-        config.grabTimeout = 1000 # in ms
-        config.highPerformanceRetrieveBuffer = True
-        self.camera.setConfiguration(config)
         # set which values of properties to return
         self.get_props = ['present','absControl','absValue',
                           'onOff','autoManualMode',
@@ -60,6 +56,12 @@ class FlyCapture2_Camera(object):
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
         self._abort_acquisition = False
+
+        # set standard device configuration
+        config = self.camera.getConfiguration()
+        config.grabTimeout = 1000 # in ms
+        config.highPerformanceRetrieveBuffer = True
+        self.camera.setConfiguration(config)
         
         # check if GigE camera. If so, ensure max packet size is used
         cam_info = self.camera.getCameraInfo()
@@ -83,6 +85,19 @@ class FlyCapture2_Camera(object):
             
             # close second handle to camera
             gige_camera.disconnect()
+
+        # ensure camera is in Format7,Mode 0 custom image mode
+        fmt7_info, supported = self.camera.getFormat7Info(0)
+        if supported:
+            # to ensure Format7, must set custom image settings
+            # defaults to full sensor size and 'MONO8' pixel format
+            fmt7_default = PyCapture2.Format7ImageSettings(0,0,0,fmt7_info.maxWidth,fmt7_info.maxHeight,self.pixel_formats['MONO8'])
+            self._send_format7_config(fmt7_default)
+            
+        else:
+            msg = """Camera does not support Format7, Mode 0 custom image
+            configuration. This driver is therefore not compatible, as written."""
+            raise RuntimeError(dedent(msg))
 
     def set_attributes(self, attr_dict):
         """Sets all attribues in attr_dict.
@@ -145,12 +160,8 @@ class FlyCapture2_Camera(object):
             for k,v in image_dict.items():
                 setattr(image_mode,k,v)
                 
-            try:            
-                fmt7PktInfo, valid = self.camera.validateFormat7Settings(image_mode)
-                if valid:
-                    self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_mode)
-            except PyCapture2.Fc2error as e:
-                raise RuntimeError('Error configuring image settings') from e
+            self._send_format7_config(image_mode)
+            
         else:
             msg = """Camera does not support Format7, Mode 0 custom image
             configuration. This driver is therefore not compatible, as written."""
@@ -301,6 +312,15 @@ class FlyCapture2_Camera(object):
             uint8 data to desired format in _decode_image_data() method."""
             raise ValueError(dedent(msg))
         return image.copy()
+        
+    def _send_format7_config(self,image_config):
+        """Validates and sends the Format7 configuration packet."""
+        try:            
+            fmt7PktInfo, valid = self.camera.validateFormat7Settings(image_config)
+            if valid:
+                self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_config)
+        except PyCapture2.Fc2error as e:
+            raise RuntimeError('Error configuring image settings') from e
 
     def stop_acquisition(self):
         self.camera.stopCapture()
