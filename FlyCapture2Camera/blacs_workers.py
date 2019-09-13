@@ -40,6 +40,7 @@ class FlyCapture2_Camera(object):
         if ver < min_ver:
             raise RuntimeError(f"PyCapture2 version {ver} must be >= {min_ver}")
         
+        print('Connecting to SN:%d ...'%serial_number)
         bus = PyCapture2.BusManager()
         self.camera = PyCapture2.Camera()
         self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
@@ -56,42 +57,49 @@ class FlyCapture2_Camera(object):
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
         self._abort_acquisition = False
-
-        # set standard device configuration
-        config = self.camera.getConfiguration()
-        config.grabTimeout = 1000 # in ms
-        config.highPerformanceRetrieveBuffer = True
-        self.camera.setConfiguration(config)
         
         # check if GigE camera. If so, ensure max packet size is used
         cam_info = self.camera.getCameraInfo()
         if cam_info.interfaceType == PyCapture2.INTERFACE_TYPE.GIGE:
-            # open second GigE interface to camera with GigE config functions
+            # need to close generic camera first to avoid strange interactions
+            print('Checking Packet size for GigE Camera...')
+            self.camera.disconnect()
             gige_camera = PyCapture2.GigECamera()
             gige_camera.connect(bus.getCameraFromSerialNumber(serial_number))
             mtu = gige_camera.discoverGigEPacketSize()
             if mtu <= 1500:
-                msg = """Maximum Transmission Unit (MTU) for ethernet NIC 
-                FlyCapture2_Camera '%s' is connected to is only %d. Reliable
-                operation not expected. Please enable Jumbo frames on NIC."""
-                print(dedent(msg%(self.device_name,mtu)))
+                msg = """WARNING: Maximum Transmission Unit (MTU) for ethernet 
+                NIC FlyCapture2_Camera SN:%d is connected to is only %d. 
+                Reliable operation not expected. 
+                Please enable Jumbo frames on NIC."""
+                print(dedent(msg%(serial_number,mtu)))
             
             gige_pkt_size = gige_camera.getGigEProperty(PyCapture2.GIGE_PROPERTY_TYPE.GIGE_PACKET_SIZE)
             # only set if not already at correct value
             if gige_pkt_size.value != mtu:
                 gige_pkt_size.value = mtu
-                gige_camera.setGigEProperty(PyCapture2.GIGE_PROPERTY_TYPE.GIGE_PACKET_SIZE)
-                print('Packet size set to %d'%mtu)
+                gige_camera.setGigEProperty(gige_pkt_size)
+                print('  Packet size set to %d'%mtu)
+            else:
+                print('  GigE Packet size is %d'%gige_pkt_size.value)
             
-            # close second handle to camera
+            # close GigE handle to camera, re-open standard handle
             gige_camera.disconnect()
+            self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
+            
+        # set standard device configuration
+        config = self.camera.getConfiguration()
+        config.grabTimeout = 1000 # in ms
+        config.highPerformanceRetrieveBuffer = True
+        self.camera.setConfiguration(config)
 
         # ensure camera is in Format7,Mode 0 custom image mode
         fmt7_info, supported = self.camera.getFormat7Info(0)
         if supported:
             # to ensure Format7, must set custom image settings
             # defaults to full sensor size and 'MONO8' pixel format
-            fmt7_default = PyCapture2.Format7ImageSettings(0,0,0,fmt7_info.maxWidth,fmt7_info.maxHeight,self.pixel_formats['MONO8'])
+            print('Initializing to default Format7, Mode 0 configuration...')
+            fmt7_default = PyCapture2.Format7ImageSettings(0,0,0,fmt7_info.maxWidth,fmt7_info.maxHeight,self.pixel_formats['MONO8'].value)
             self._send_format7_config(fmt7_default)
             
         else:
