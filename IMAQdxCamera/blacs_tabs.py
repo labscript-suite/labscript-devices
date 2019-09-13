@@ -92,10 +92,12 @@ class ImageReceiver(ZMQServer):
             return
         if self.image_view.image is None:
             # First time setting an image. Do autoscaling etc:
-            self.image_view.setImage(image.T)
+            self.image_view.setImage(image.swapaxes(-1, -2))
         else:
             # Updating image. Keep zoom/pan/levels/etc settings.
-            self.image_view.setImage(image.T, autoRange=False, autoLevels=False)
+            self.image_view.setImage(
+                image.swapaxes(-1, -2), autoRange=False, autoLevels=False
+            )
         # Update fps indicator:
         if frame_rate is not None:
             self.label_fps.setText(f"{frame_rate:.01f} fps")
