@@ -60,6 +60,29 @@ class FlyCapture2_Camera(object):
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
         self._abort_acquisition = False
+        
+        # check if GigE camera. If so, ensure max packet size is used
+        cam_info = self.camera.getCameraInfo()
+        if cam_info.interfaceType == PyCapture2.INTERFACE_TYPE.GIGE:
+            # open second GigE interface to camera with GigE config functions
+            gige_camera = PyCapture2.GigECamera()
+            gige_camera.connect(bus.getCameraFromSerialNumber(serial_number))
+            mtu = gige_camera.discoverGigEPacketSize()
+            if mtu <= 1500:
+                msg = """Maximum Transmission Unit (MTU) for ethernet NIC 
+                FlyCapture2_Camera '%s' is connected to is only %d. Reliable
+                operation not expected. Please enable Jumbo frames on NIC."""
+                print(dedent(msg%(self.device_name,mtu)))
+            
+            gige_pkt_size = gige_camera.getGigEProperty(PyCapture2.GIGE_PROPERTY_TYPE.GIGE_PACKET_SIZE)
+            # only set if not already at correct value
+            if gige_pkt_size.value != mtu:
+                gige_pkt_size.value = mtu
+                gige_camera.setGigEProperty(PyCapture2.GIGE_PROPERTY_TYPE.GIGE_PACKET_SIZE)
+                print('Packet size set to %d'%mtu)
+            
+            # close second handle to camera
+            gige_camera.disconnect()
 
     def set_attributes(self, attr_dict):
         """Sets all attribues in attr_dict.
