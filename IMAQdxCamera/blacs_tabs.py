@@ -22,7 +22,7 @@ import h5py
 
 import numpy as np
 
-from qtutils import UiLoader, inmain_later, inmain_decorator
+from qtutils import UiLoader, inmain_decorator
 import qtutils.icons
 from qtutils.qt import QtWidgets, QtGui, QtCore
 import pyqtgraph as pg
@@ -33,7 +33,7 @@ from blacs.device_base_class import DeviceTab
 import labscript_utils.properties
 from labscript_utils.ls_zprocess import ZMQServer
 
-import threading
+
 
 
 def exp_av(av_old, data_new, dt, tau):
