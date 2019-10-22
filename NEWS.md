@@ -1,4 +1,4 @@
-## [2.6.0] - 2019-09-27
+## [2.6.0] - 2019-10-22
 
 This release includes four new device drivers, two bugfixes to device drivers, one minor
 enhancement to a device driver, and one new feature for the `labscript_devices` module
