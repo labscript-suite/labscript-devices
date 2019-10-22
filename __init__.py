@@ -21,7 +21,7 @@ import inspect
 from labscript_utils import labscript_suite_install_dir, dedent
 from labscript_utils.labconfig import LabConfig
 
-__version__ = '2.5.0'
+__version__ = '2.6.0'
 
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript', '2.6', '3')
