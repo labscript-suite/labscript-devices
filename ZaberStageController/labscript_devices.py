@@ -17,12 +17,36 @@ from .utils import get_device_number
 
 # Base class for stages:
 class ZaberStage(StaticAnalogQuantity):
-    limits = (-np.inf, np.inf)
+    limits = (0, np.inf)
     description = "Zaber Stage"
     @set_passed_properties(
         property_names={"connection_table_properties": ["limits"]}
     )
     def __init__(self, *args, limits=None, **kwargs):
+        """Static Analog output device for controlling the position of a Zaber stage.
+        Can be added as a child device of `ZaberStageController`. Subclasses for
+        specific models already have model-specific limits set for their values, but you
+        may further restrict these by setting the keyword argument limits=
+
+        Args:
+            *args:
+                Arguments to be passed to the  `__init__` method of the parent class
+                (StaticAnalogQuantity).
+
+            limits (tuple), default `None`
+                a two-tuple (min, max) for the minimum and maximum allowed positions, in
+                steps, that the device may be instructed to move to via a labscript
+                experiment or the BLACS front panel. If None, the limits set as a class
+                attribute will be used, which are set to the maximal positions allowed
+                by the device if using one of the model-specific subclasses defined in
+                this module, or is (0, inf) otherwise.
+
+            **kwargs:
+                Further keyword arguments to be passed to the `__init__` method of the
+                parent class (StaticAnalogQuantity).
+
+        """
+
         if limits is None:
             limits = self.limits
         StaticAnalogQuantity.__init__(self, *args, limits=limits, **kwargs)
@@ -47,13 +71,33 @@ class ZaberStageTLS28M(ZaberStage):
 
 class ZaberStageController(IntermediateDevice):
     allowed_children = [ZaberStage]
-    generation = 0
 
     @set_passed_properties(
         property_names={"connection_table_properties": ["com_port", "mock"]}
     )
-    def __init__(self, name, com_port="", mock=False):
-        IntermediateDevice.__init__(self, name, None)
+    def __init__(self, name, com_port="COM1", mock=False, **kwargs):
+        """Device for controlling a number of Zaber stages connected to a serial port.
+        Add stages as child devices, either by using one of them model-specific classes
+        in this module, or the generic `ZaberStage` class.
+
+        Args:
+            name (str)
+                device name
+
+            com_port (str), default: `'COM1'`
+                Serial port for communication, i.e. `'COM1' etc on Windows or
+                `'/dev/USBtty0'` or similar on unix.
+
+            mock (bool, optional), default: False
+                For testing purpses, simulate a device instead of communicating with
+                actual hardware.
+
+            **kwargs: Further keyword arguments to be passed to the `__init__` method of
+                the parent class (IntermediateDevice).
+
+        """
+
+        IntermediateDevice.__init__(self, name, None, **kwargs)
         self.BLACS_connection = com_port
 
     def add_device(self, device):

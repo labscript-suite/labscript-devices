@@ -38,8 +38,9 @@ class ZaberStageControllerTab(DeviceTab):
                 'step': self.base_step,
                 'decimals': self.base_decimals,
             }
-        # Sort by stage number:
+        # Sort by device number:
         ao_prop = {c: ao_prop[c] for c in sorted(ao_prop, key=get_device_number)}
+        self.child_connections = list(ao_prop.keys())
         # Create the output objects
         self.create_analog_outputs(ao_prop)
         # Create widgets for output objects
@@ -48,14 +49,18 @@ class ZaberStageControllerTab(DeviceTab):
         self.auto_place_widgets(("Zaber Stages", ao_widgets))
         
         # Set the capabilities of this device
-        self.supports_remote_value_check(False) # TODO: Implement
-        self.supports_smart_programming(False) #TODO: Implement
+        self.supports_remote_value_check(True)
+        self.supports_smart_programming(False) #TODO: Implement?
     
     def initialise_workers(self):
         # Create and set the primary worker
         self.create_worker(
             "main_worker",
             "labscript_devices.ZaberStageController.blacs_workers.ZaberWorker",
-            {'com_port': self.com_port, 'mock': self.mock},
+            {
+                'com_port': self.com_port,
+                'mock': self.mock,
+                'child_connections': self.child_connections,
+            },
         )
         self.primary_worker = "main_worker"
