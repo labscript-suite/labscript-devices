@@ -11,5 +11,6 @@
 #                                                                   #
 #####################################################################
 
-#TODO: check Python version high enough for zaber API
-
+import sys
+if sys.version_info < (3, 5):
+    raise RuntimeError("Zaber stage labscript driver requires Python 3.5+")
