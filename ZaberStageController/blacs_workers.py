@@ -12,6 +12,7 @@
 #####################################################################
 
 from blacs.tab_base_classes import Worker
+from time import monotonic
 from labscript_utils import dedent
 import labscript_utils.h5_lock, h5py
 
@@ -27,8 +28,9 @@ class MockZaberInterface(object):
     def close(self):
         print(f"mock close")
 
-
 zaber = None
+
+TIMEOUT = 60
 
 class ZaberInterface(object):
     def __init__(self, com_port):
@@ -40,15 +42,19 @@ class ZaberInterface(object):
                 installed. It is installable via pip with 'pip install zaber.serial'"""
             raise ImportError(dedent(msg))
 
-        self.port = zaber.AsciiSerial(com_port)
+        self.port = zaber.BinarySerial(com_port)
 
     def move(self, stage_number, position):
-        pass
+        device = zaber.BinaryDevice(self.port, stage_number)
+        device.move_abs(position)
+        deadline = monotonic() + TIMEOUT
+        while device.get_position() != position:
+            if monotonic() > deadline:
+                msg = "Device did not move to requested position within timeout"
+                raise TimeoutError(msg)
 
     def close(self):
-        pass
-
-
+        self.port.close()
 
 class ZaberWorker(Worker):
     def init(self):
@@ -56,17 +62,14 @@ class ZaberWorker(Worker):
             self.controller = MockZaberInterface(self.com_port)
         else:
             self.controller = ZaberInterface(self.com_port)
-        
+
     def program_manual(self, values):
-        #print "***************programming static*******************"
-        #self.stages.move_absolute(settings)
         for connection, value in values.items():
             stage_number = get_stage_number(connection)
-            self.controller.move(stage_number, value)
-        
+            self.controller.move(stage_number, int(round(value)))
         #TODO: return actual position of the zaber stage. Are they readable? Check API
         return values
-    
+
     # TODO: home stage function?
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
@@ -76,18 +79,18 @@ class ZaberWorker(Worker):
                 data = group['static_values']
                 values = {name: data[0][name] for name in data.dtype.names}
             else:
-                values = {} 
-        
+                values = {}
+
         return self.program_manual(values)
-                        
+
     def transition_to_manual(self):
         return True
-    
+
     def abort_buffered(self):
         return True
-        
+
     def abort_transition_to_buffered(self):
         return True
-    
+
     def shutdown(self):
         self.controller.close()
