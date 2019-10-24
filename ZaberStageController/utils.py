@@ -14,22 +14,16 @@
 from labscript_utils import dedent
 
 
-def get_stage_number(connection_str):
-    """Return the integer stage number from the connection string or raise ValueError if
-    the connection string is not in the format "stage <n>" with positive n."""
+def get_device_number(connection_str):
+    """Return the integer device number from the connection string or raise ValueError
+    if the connection string is not in the format "device <n>" with positive n."""
     try:
         prefix, num = connection_str.split(' ')
         num = int(num)
-        if prefix != 'stage' or num <= 0:
+        if prefix != 'device' or num <= 0:
             raise ValueError
     except (TypeError, ValueError):
-        msg = f"""Connection string '{connection_str}' not in required format 'stage
+        msg = f"""Connection string '{connection_str}' not in required format 'device
             <n>' with n > 0"""
         raise ValueError(dedent(msg)) from None
     return num
-
-
-if __name__ == '__main__':
-    assert get_stage_number('stage 1') == 1
-    # get_stage_number('stage   ')
-    get_stage_number(None)

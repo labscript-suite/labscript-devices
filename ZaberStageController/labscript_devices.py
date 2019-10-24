@@ -13,7 +13,7 @@
 from labscript import StaticAnalogQuantity, IntermediateDevice, set_passed_properties
 import numpy as np
 
-from .utils import get_stage_number
+from .utils import get_device_number
 
 # Base class for stages:
 class ZaberStage(StaticAnalogQuantity):
@@ -58,13 +58,13 @@ class ZaberStageController(IntermediateDevice):
 
     def add_device(self, device):
         # Error-check the connection string:
-        _ = get_stage_number(device.connection)
+        _ = get_device_number(device.connection)
         IntermediateDevice.add_device(self, device)
 
     def generate_code(self, hdf5_file):
         IntermediateDevice.generate_code(self, hdf5_file)
         stages = {stage.connection: stage for stage in self.child_devices}
-        connections = sorted(stages, key=get_stage_number)
+        connections = sorted(stages, key=get_device_number)
         dtypes = [(connection, int) for connection in connections]
         static_value_table = np.empty(1, dtype=dtypes)
         for connection, stage in stages.items():

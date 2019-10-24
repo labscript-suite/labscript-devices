@@ -16,7 +16,7 @@ from time import monotonic
 from labscript_utils import dedent
 import labscript_utils.h5_lock, h5py
 
-from .utils import get_stage_number
+from .utils import get_device_number
 
 class MockZaberInterface(object):
     def __init__(self, port):
@@ -65,7 +65,7 @@ class ZaberWorker(Worker):
 
     def program_manual(self, values):
         for connection, value in values.items():
-            stage_number = get_stage_number(connection)
+            stage_number = get_device_number(connection)
             self.controller.move(stage_number, int(round(value)))
         #TODO: return actual position of the zaber stage. Are they readable? Check API
         return values

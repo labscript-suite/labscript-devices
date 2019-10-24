@@ -12,7 +12,7 @@
 #####################################################################
 
 from blacs.device_base_class import DeviceTab
-from .utils import get_stage_number
+from .utils import get_device_number
 
 class ZaberStageControllerTab(DeviceTab):
     def initialise_GUI(self):
@@ -39,7 +39,7 @@ class ZaberStageControllerTab(DeviceTab):
                 'decimals': self.base_decimals,
             }
         # Sort by stage number:
-        ao_prop = {c: ao_prop[c] for c in sorted(ao_prop, key=get_stage_number)}
+        ao_prop = {c: ao_prop[c] for c in sorted(ao_prop, key=get_device_number)}
         # Create the output objects
         self.create_analog_outputs(ao_prop)
         # Create widgets for output objects
@@ -48,8 +48,8 @@ class ZaberStageControllerTab(DeviceTab):
         self.auto_place_widgets(("Zaber Stages", ao_widgets))
         
         # Set the capabilities of this device
-        self.supports_remote_value_check(False) # TODO: Implement this if supported by hardware
-        self.supports_smart_programming(False) #TODO: Implement smart programming
+        self.supports_remote_value_check(False) # TODO: Implement
+        self.supports_smart_programming(False) #TODO: Implement
     
     def initialise_workers(self):
         # Create and set the primary worker
