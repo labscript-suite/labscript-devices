@@ -58,16 +58,17 @@ class ZaberStageTLSR150D(ZaberStage):
     limits = (0, 76346)
     description = 'Zaber Stage T-LSR150D'
 
-
 class ZaberStageTLSR300D(ZaberStage):
     limits = (0, 151937)
     description = 'Zaber Stage T-LSR300D'
-
 
 class ZaberStageTLS28M(ZaberStage):
     limits = (0, 282879)
     description = 'Zaber Stage T-LS28-M'
 
+class ZaberStageTLSR300B(ZaberStage):
+    limits = (0, 607740)
+    description = 'Zaber Stage T-LSR150D'
 
 class ZaberStageController(IntermediateDevice):
     allowed_children = [ZaberStage]
