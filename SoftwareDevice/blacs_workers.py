@@ -26,14 +26,20 @@ PURPLE = '#AE81FF'
 GREEN = '#A6E22E'
 GREY = '#75715E' 
 
-def deserialise_function_table(function_table):
+def deserialise_function_table(function_table, device_name):
     table = []
     for t, name, source, args, kwargs in function_table:
         if t == -np.inf:
             t = 'start'
         elif t == np.inf:
             t = 'stop'
-        function, args, kwargs = deserialise_function(name, source, args, kwargs)
+        # We deserialise the functions in a namespace with the given __name__ and
+        # __file__ so that if the user instantiates a lyse.Run object, that the results
+        # will automatically be saved to a results group with the name of this
+        # SoftwareDevice, since lyse.Run inspects the filename to determine this.
+        function, args, kwargs = deserialise_function(
+            name, source, args, kwargs, __name__=device_name, __file__=device_name
+        )
         table.append((t, name, function, args, kwargs))
     return table
 
@@ -59,7 +65,9 @@ class SoftwareDeviceWorker(Worker):
                 return {}
             function_table = group['FUNCTION_TABLE'][:]
 
-        self.function_table = deserialise_function_table(function_table)
+        self.function_table = deserialise_function_table(
+            function_table, self.device_name
+        )
         self.shot_context = ShotContext(h5_file, self.device_name)
         if self.function_table[0][0] != 'start':
             rich_print("no start functions", color=GREY)
@@ -70,7 +78,7 @@ class SoftwareDeviceWorker(Worker):
             if t != 'start':
                 break
             del self.function_table[0]
-            rich_print(f"  t={t}: {name}()",color=BLUE)
+            rich_print(f"  t={t}: {name}()", color=BLUE)
             function(self.shot_context, t, *args, **kwargs)
         rich_print("[finished start functions]", color=PURPLE)
         return {}
@@ -96,3 +104,6 @@ class SoftwareDeviceWorker(Worker):
 
     def abort_buffered(self):
         return self.transition_to_manual()
+
+    def abort_transition_to_buffered(self):
+        return True

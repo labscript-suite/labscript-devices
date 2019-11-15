@@ -21,12 +21,13 @@ class SoftwareDevice(Device):
         instantiating this device to control the relative order that its 'start' and
         'stop' functions run compared to the transition_to_manual and
         transition_to_buffered functions of other devices. Multiple functions added to
-        run at the same time will be run in the order added.
+        run at the same time will be run in the order added. Running functions mid-shot
+        in software time is yet to be implemented.
 
         The function must have a call signature like the following:
 
-        def func(shot_context, t, ...):
-            ...
+            def func(shot_context, t, ...):
+                ...
 
         When it is called, a ShotContext instance will be passed in as the first
         argument, and the time at which the function was requested to run as the second
@@ -45,12 +46,25 @@ class SoftwareDevice(Device):
         - self.h5_file: the filepath to the shot's HDF5 file
         - self.device_name: the name of this SoftwareDevice
 
-        If you want to save data to the HDF5 file at the end of a shot, the recommended
-        place to do it is within the group 'data/<device_name>', for example:
+        If you want to save raw data to the HDF5 file at the end of a shot, the
+        recommended place to do it is within the group 'data/<device_name>', for
+        example:
 
-        with h5py.File(self.h5_file) as f:
-            data_group = f['data'].create_group(self.device_name)
-            # save datasets/attributes within this group
+            with h5py.File(self.h5_file) as f:
+                data_group = f['data'].create_group(self.device_name)
+                # save datasets/attributes within this group
+
+        Or, if you are doing analysis and want to save results that will be accessible
+        to lyse analysis routines in the usual way, you can instantiate a lyse.Run
+        object and call Run.save_result() etc:
+
+            import lyse
+            run = lyse.Run(shot_context.h5_file)
+            run.save_result('x', 7)
+
+        The group that the results will be saved to, which is usually the filename of
+        the lyse analysis routine, will instead be the device name of the
+        SoftwareDevice.
 
         The use case for which this device was implemented was to update runmanager's
         globals immediately after a shot, based on measurement data, such that

@@ -45,10 +45,15 @@ def serialise_function(function, *args, **kwargs):
     return function.__name__, source, args, kwargs
 
 
-def deserialise_function(name, source, args, kwargs):
+def deserialise_function(
+    name, source, args, kwargs, __name__=None, __file__='<string>'
+):
+    """Deserialise a function that was serialised by serialise_function. Optional
+    __name__ and __file__ arguments set those attributes in the namespace that the
+    function will be defined."""
     args = deserialise(args)
     kwargs = deserialise(kwargs)
     code = compile(source, '<string>', 'exec', dont_inherit=True,)
-    namespace = {'__name__': None, '__file__': '<string>'}
+    namespace = {'__name__': __name__, '__file__': __file__}
     exec(code, namespace)
     return namespace[name], args, kwargs

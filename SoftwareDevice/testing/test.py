@@ -10,6 +10,9 @@ SoftwareDevice('software_device')
 
 def foo(shot_context, t, arg):
     print(f"hello, {arg}!")
+    import lyse
+    run = lyse.Run(shot_context.h5_file)
+    run.save_result('x', 7)
 
 
 software_device.add_function('start', foo, 'world')
