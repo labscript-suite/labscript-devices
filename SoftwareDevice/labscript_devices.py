@@ -36,7 +36,8 @@ class SoftwareDevice(Device):
         state in an instance. As an example, you might set shot_context.serial to be an
         open serial connection to a device during a function set to run at t='start',
         and refer back to it in subsequent functions to read and write data. Other than
-        state stored in shot_context, the
+        state stored in shot_context, the functions must be self-contained, containing
+        any imports that they need.
 
         This object has a number of attributes:
 
