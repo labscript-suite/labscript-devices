@@ -205,9 +205,7 @@ class NI_DAQmxOutputWorker(Worker):
         # Check if DOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
         # case, run it as a non-buffered task.
-        self.DO_all_zero = all(
-            DO_table[port].sum() == 0 for port in DO_table.dtype.names
-        )
+        self.DO_all_zero = not np.any(DO_table)
         if self.DO_all_zero:
             DO_table = DO_table[0:1]
 
