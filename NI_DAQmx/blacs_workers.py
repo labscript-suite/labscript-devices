@@ -31,6 +31,7 @@ from PyDAQmx.DAQmxTypes import *
 from PyDAQmx.DAQmxCallBack import *
 
 import numpy as np
+from numpy.lib.recfunctions import structured_to_unstructured
 import labscript_utils.h5_lock
 import h5py
 from zprocess import Event
@@ -196,32 +197,32 @@ class NI_DAQmxOutputWorker(Worker):
                 line_final_value = bool((1 << line) & port_final_value)
                 final_values['%s/line%d' % (port_str, line)] = int(line_final_value)
 
+        # Convert DO table to a regular array and ensure it is C continguous:
+        DO_table = np.ascontiguousarray(
+            structured_to_unstructured(DO_table, dtype=np.uint32)
+        )
+
         # Check if DOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
         # case, run it as a non-buffered task.
-        self.DO_all_zero = all(
-            DO_table[port].sum() == 0 for port in DO_table.dtype.names
-        )
+        self.DO_all_zero = not np.any(DO_table)
         if self.DO_all_zero:
             DO_table = DO_table[0:1]
 
         if self.static_DO or self.DO_all_zero:
             # Static DO. Start the task and write data, no timing configuration.
             self.DO_task.StartTask()
-            # Write data for each port:
-            for port_str in ports:
-                # See the comment in self.program_manual as to why we are using uint32
-                # instead of the native size of the port
-                data = DO_table[port_str].astype(np.uint32, order='C')
-                self.DO_task.WriteDigitalU32(
-                    1,  # npts
-                    False,  # autostart
-                    10.0,  # timeout
-                    DAQmx_Val_GroupByChannel,
-                    data,
-                    written,
-                    None,
-                )
+            # Write data. See the comment in self.program_manual as to why we are using
+            # uint32 instead of the native size of each port
+            self.DO_task.WriteDigitalU32(
+                1,  # npts
+                False,  # autostart
+                10.0,  # timeout
+                DAQmx_Val_GroupByScanNumber,
+                DO_table,
+                written,
+                None,
+            )
         else:
             # We use all but the last sample (which is identical to the second last
             # sample) in order to ensure there is one more clock tick than there are
@@ -237,23 +238,18 @@ class NI_DAQmxOutputWorker(Worker):
                 DAQmx_Val_FiniteSamps,
                 npts,
             )
-            self.DO_task.CfgOutputBuffer(npts)
 
-            # Write data for each port:
-            for port_str in ports:
-                # Use all but the last sample as mentioned above. See the comment in
-                # self.program_manual as to why we are using uint32 instead of the native
-                # size of the port.
-                data = DO_table[port_str][:-1].astype(np.uint32, order='C')
-                self.DO_task.WriteDigitalU32(
-                    npts,
-                    False,  # autostart
-                    10.0,  # timeout
-                    DAQmx_Val_GroupByChannel,
-                    data,
-                    written,
-                    None,
-                )
+            # Write data. See the comment in self.program_manual as to why we are using
+            # uint32 instead of the native size of each port.
+            self.DO_task.WriteDigitalU32(
+                npts,
+                False,  # autostart
+                10.0,  # timeout
+                DAQmx_Val_GroupByScanNumber,
+                DO_table[:-1], # All but the last sample as mentioned above
+                written,
+                None,
+            )
 
             # Go!
             self.DO_task.StartTask()
@@ -273,15 +269,15 @@ class NI_DAQmxOutputWorker(Worker):
         # Collect the final values of the analog outs:
         final_values = dict(zip(AO_table.dtype.names, AO_table[-1]))
 
-        # Obtain a view that is a regular array:
-        AO_table = AO_table.view((AO_table.dtype[0], len(AO_table.dtype.names)))
-        # And convert to 64 bit floats:
-        AO_table = AO_table.astype(np.float64)
+        # Convert AO table to a regular array and ensure it is C continguous:
+        AO_table = np.ascontiguousarray(
+            structured_to_unstructured(AO_table, dtype=np.float64)
+        )
 
         # Check if AOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this
         # case, run it as a non-buffered task.
-        self.AO_all_zero = all(AO_table.flatten() == 0)
+        self.AO_all_zero = not np.any(AO_table)
         if self.AO_all_zero:
             AO_table = AO_table[0:1]
 
