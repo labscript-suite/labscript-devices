@@ -158,20 +158,14 @@ class NI_DAQmxTab(DeviceTab):
         if wait_acq_device == self.device_name:
             if wait_timeout_device:
                 wait_timeout_device = connection_table.find_by_name(wait_timeout_device)
-                if not hasattr(models, wait_timeout_device.device_class):
-                    msg = """If using an NI DAQmx device as a wait monitor input, then
-                        the wait monitor timeout device must also be an NI DAQmx device,
-                        not {}.""".format(
-                        wait_timeout_device.device_class
-                    )
-                    raise RuntimeError(dedent(msg))
                 wait_timeout_MAX_name = wait_timeout_device.properties['MAX_name']
             else:
                 wait_timeout_MAX_name = None
 
             if num_CI == 0:
-                msg = "Device cannot be a wait monitor as it has no counter inputs"
-                raise RuntimeError(msg)
+                msg = """Device cannot be the wait monitor acquisiiton device as it has
+                    no counter inputs"""
+                raise RuntimeError(dedent(msg))
 
             self.create_worker(
                 "wait_monitor_worker",
