@@ -409,6 +409,8 @@ class NI_DAQmx(IntermediateDevice):
         is the wait monitor timeout device, that a) the other device is a DAQmx device
         and b) the other device has a start_order lower than us and a stop_order higher
         than us."""
+        if compiler.wait_monitor is None:
+            return
         acquisition_device = compiler.wait_monitor.acquisition_device
         timeout_device = compiler.wait_monitor.timeout_device
         if acquisition_device is not self or timeout_device is None:
