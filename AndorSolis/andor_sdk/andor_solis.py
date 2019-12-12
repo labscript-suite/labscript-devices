@@ -24,8 +24,9 @@ try:
     if 'Windows' in platform.system(): 
         # Usually found here
         dll_dir = R'C:\Program Files\Andor SOLIS\Drivers'
+        sdk_dir = R'C:\Program Files\Andor SDK'
         # Usual dir exists?
-        if os.path.exists(dll_dir):
+        if not os.path.exists(dll_dir) and not os.path.exists(sdk_dir):
             raise OSError('Path does not exist, please set dll path')
     else:
         raise OSError("OS not supported, sorry M8")
