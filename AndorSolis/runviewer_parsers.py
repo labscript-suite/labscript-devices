@@ -11,9 +11,9 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-from labscript import StaticAnalogQuantity, Device, LabscriptError, set_passed_properties
+from labscript_devices import labscript_device, runviewer_parser
+from labscript import Device, LabscriptError, set_passed_properties
 import numpy as np
 
-class NewFocusPicoMotor8742Parser:
+class AndorSolisParser:
     pass

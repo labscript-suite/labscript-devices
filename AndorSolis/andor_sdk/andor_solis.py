@@ -59,7 +59,15 @@ def check_status(call_return):
     elif 'DRV_IDLE' in _SC[call_return]:
         return 'DRV_IDLE'
     elif 'DRV_NO_NEW_DATA' in _SC[call_return]:
-        return 'DRV_NO_NEW_DATA'
+         return 'DRV_NO_NEW_DATA'     
+    elif 'DRV_TEMP_NOT_REACHED' in _SC[call_return]:
+         return 'DRV_TEMP_NOT_REACHED'
+    elif 'DRV_TEMP_NOT_STABILIZED' in _SC[call_return]:
+         return 'DRV_TEMP_NOT_STABILIZED'
+    elif 'DRV_TEMP_STABILIZED' in _SC[call_return]:
+         return 'DRV_TEMP_STABILIZED'
+    elif 'DRV_TEMP_DRIFT' in _SC[call_return]:
+         return 'DRV_TEMP_DRIFT'     
     else:
         raw_message = "Return code: %d ... %s" % (call_return, _SC[call_return])
         raise AndorException(raw_message)
@@ -221,6 +229,14 @@ def Filter_GetThreshold():
     check_status(result)
     return float(threshold.value)
 
+def GetImagesPerDMA():
+    """ This function will return the maximum number of images that 
+        can be transferred during a single DMA transaction. """ 
+    andor_solis.GetImagesPerDMA.restype = ctypes.c_uint
+    images = ctypes.c_ulong()
+    result = andor_solis.GetImagesPerDMA(ctypes.byref(images))
+    check_status(result)
+    return int(images.value)
 
 @uint_winapi([ctypes.c_int])
 def Filter_SetAveragingFactor(averagingFactor):
@@ -1383,6 +1399,33 @@ def GetMostRecentImage(shape):
     )
     check_status(result)
     return np.ctypeslib.as_array(arr)
+
+
+def GetOldestImage(shape):
+    """ This function will update the data array with the oldest image in the 
+        circular buffer. Once the oldest image has been retrieved it no longer is 
+        available. The data are returned as long integers (32-bit signed integers). 
+        The "array" must be exactly the same size as the full image."""
+    andor_solis.GetOldestImage.restype = ctypes.c_uint
+    size = np.prod(shape)
+    arr = (ctypes.c_int32 * size)()
+    result = andor_solis.GetOldestImage(ctypes.pointer(arr), ctypes.c_ulong(size))
+    check_status(result)
+    return np.ctypeslib.as_array(arr)
+
+
+def GetOldestImage16(shape):
+    """ This function will update the data array with the oldest image in the 
+    circular buffer. Once the oldest image has been retrieved it no longer is 
+    available. The data are returned as long integers (32-bit signed integers). 
+    The "array" must be exactly the same size as the full image."""
+    andor_solis.GetOldestImage.restype = ctypes.c_uint
+    size = np.prod(shape)
+    arr = (ctypes.c_int16 * size)()
+    result = andor_solis.GetOldestImage16(ctypes.pointer(arr), ctypes.c_ulong(size))
+    check_status(result)
+    return np.ctypeslib.as_array(arr)
+
 
 @uint_winapi([ctypes.c_int])
 def SetFanMode(mode):

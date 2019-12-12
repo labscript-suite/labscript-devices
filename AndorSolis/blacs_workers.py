@@ -10,7 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-
+from zprocess import rich_print
 from labscript_devices.IMAQdxCamera.blacs_workers import MockCamera, IMAQdxCameraWorker
 
 class AndorCamera(object):
@@ -58,10 +58,14 @@ class AndorCamera(object):
         print(f"Actual readout time is {self.camera.readout_time} s.")
         print(f"Keep clean cycle time is {self.camera.keepClean_time} s.")
         if 'kinetic_series' in self.camera.acquisition_mode: 
+            print(f"Kinetics number is {self.camera.default_acquisition_attrs['number_kinetics']}.")
             print(f"Actual kinetics period is {self.camera.kinetics_timing} s.")
         print(f"Actual exposure time is {self.camera.exposure_time} s.")
         print(f"Actual digitization speed (HSpeed) is {self.camera.horizontal_shift_speed} MHz.")
         print(f"Actual vertical shift speed is {self.camera.vs_speed} us.")
+        rich_print(f" ---> EMCCD Gain value is {self.camera.emccd_gain}.", color='magenta')
+        if 'fast_kinetics' in self.camera.acquisition_mode:
+            print(f"FK mode Kinetics Number is {self.camera.number_fast_kinetics}.")
         print(f"    ---> Attempting to grab {n_images} acquisition(s).")
 
         if 'single' in self.camera.acquisition_mode:            
@@ -74,7 +78,18 @@ class AndorCamera(object):
                 self.camera.armed = True
             self.camera.armed = False
             print(f"Got {len(images)} of {n_images} acquisition(s).")
-        else:  
+        elif 'fast_kinetics' in self.camera.acquisition_mode:
+            nacquisitions = n_images // self.camera.number_fast_kinetics              
+            for image_number in range(nacquisitions):
+                self.camera.acquire()
+                print(f"    {image_number}: Acquire complete")
+                downloaded = self.camera.download_acquisition()
+                print(f"    {image_number}: Download complete")
+                images.extend(list(downloaded))
+                self.camera.armed = True
+            self.camera.armed = False # This last disarming may be redundant
+            print(f"Got {len(images)} images in {nacquisitions} FK series acquisition(s).")    
+        else: 
             self.camera.acquire()
             print(f"    Acquire complete")
             downloaded = self.camera.download_acquisition()
