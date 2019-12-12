@@ -478,6 +478,14 @@ class IMAQdxCameraWorker(Worker):
                 dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
 
+        # If the images are all the same shape, send them to the GUI for display:
+        try:
+            image_block = np.stack(self.images)
+        except ValueError:
+            print("Cannot display images in the GUI, they are not all the same shape")
+        else:
+            self._send_image_to_parent(image_block)
+
         self.images = None
         self.n_images = None
         self.attributes_to_save = None
