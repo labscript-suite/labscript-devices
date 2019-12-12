@@ -61,6 +61,7 @@ class AndorCam(object):
         self.cooling = False
         self.preamp = False
         self.emccd = False
+        self.emccd_gain = None
         self.armed = False
         self.initialize_camera()
 
@@ -240,7 +241,7 @@ class AndorCam(object):
             self.index_vs_speed = custom_option
 
             # For FastKinetics mode the calls are different
-            if 'fast_kinetics' in self.acquisition_mode
+            if 'fast_kinetics' in self.acquisition_mode:
                 number_fkvs_speeds = GetNumberFKVShiftSpeeds()
                 if not custom_option in range(number_fkvs_speeds):
                     raise ValueError("Invalid vertical shift speed custom option value")
@@ -281,15 +282,16 @@ class AndorCam(object):
         # Get actual horizontal shifting (i.e. digitization) speed
         self.horizontal_shift_speed = GetHSSpeed(ad_number, 0, self.index_hs_speed)
      
-    def setup_acquisition(self, added_attributes={}):
+    def setup_acquisition(self, added_attributes=None):
         """ Main acquisition configuration method. Available acquisition modes are
         below. The relevant methods are called with the corresponding acquisition 
         attributes dictionary, then the camera is armed and ready """
+        if added_attributes is None:
+            added_attributes = {}
 
         # Override default acquisition attrs with added ones
-        self.acquisition_attributes = self.default_acquisition_attrs
-        for attr, val in added_attributes.items():
-            self.acquisition_attributes[attr] = val
+        self.acquisition_attributes = self.default_acquisition_attrs.copy()
+        self.acquisition_attributes.update(added_attributes)
     
         self.acquisition_mode = self.acquisition_attributes['acquisition']
 
@@ -305,14 +307,14 @@ class AndorCam(object):
                 self.acquisition_attributes['water_cooling'],
             )
 
-        # Get current temperature and temperature status
-        self.temperature, self.temperature_status = GetTemperatureF()
-        if self.chatty:
-            rich_print(
-                f"""At setup_acquisition the temperature is: 
-                {self.temperature}; with status {self.temperature_status}""",
-                color='magenta',
-            )
+            # Get current temperature and temperature status
+            self.temperature, self.temperature_status = GetTemperatureF()
+            if self.chatty:
+                rich_print(
+                    f"""At setup_acquisition the temperature is: 
+                    {self.temperature}; with status {self.temperature_status}""",
+                    color='magenta',
+                )
 
         # Available modes
         modes = {
@@ -447,7 +449,7 @@ class AndorCam(object):
         SetTriggerMode(modes[attrs['trigger']])
 
         # Specify edge if invertible trigger capability is present
-        if 'INVERT' in self.trig_capability:
+        if 'INVERT' in self.trig_caps:
             SetTriggerInvert(edge_modes[attrs['trigger_edge']])
 
         if attrs['trigger'] == 'external':
@@ -499,9 +501,8 @@ class AndorCam(object):
             attrs['width'] = 1
 
         self.image_shape = (
-            int(attrs['number_kinetics']),
-            int(attrs['height']/attrs['ybin']),
-            int(attrs['width']/attrs['xbin']),
+            attrs['height'] // attrs['ybin'],
+            attrs['width'] // attrs['xbin'],
         )
         
         # For a full-frame kinetic series, we simply set the frame for readout. 
@@ -511,26 +512,18 @@ class AndorCam(object):
         # self.emgain_caps). For higher ranges use SetEMGainMode(). We also need to
         # enable the frame transfer mode.
         if self.acquisition_mode == 'kinetic_series':
-            SetImage(
-                attrs['xbin'],
-                attrs['ybin'],
-                attrs['left_start'],
-                attrs['width'] + attrs['left_start'] - 1,
-                attrs['bottom_start'],
-                attrs['height'] + attrs['bottom_start'] - 1,
-            )
             if self.acquisition_attributes['crop']:
-            SetOutputAmplifier(0)
-            SetFrameTransferMode(1)
-            SetIsolatedCropModeEx(
-                int(1),
-                int(attrs['height']),
-                int(attrs['width']),
-                attrs['ybin'],
-                attrs['xbin'],
-                attrs['left_start'],
-                attrs['bottom_start'],
-            )
+                SetOutputAmplifier(0)
+                SetFrameTransferMode(1)
+                SetIsolatedCropModeEx(
+                    int(1),
+                    int(attrs['height']),
+                    int(attrs['width']),
+                    attrs['ybin'],
+                    attrs['xbin'],
+                    attrs['left_start'],
+                    attrs['bottom_start'],
+                )
         else:
             SetFrameTransferMode(0)
             SetIsolatedCropModeEx(
@@ -542,14 +535,14 @@ class AndorCam(object):
                 attrs['left_start'],
                 attrs['bottom_start'],
             )
-            SetImage(
-                attrs['xbin'],
-                attrs['ybin'],
-                attrs['left_start'],
-                attrs['width'] + attrs['left_start'] - 1,
-                attrs['bottom_start'],
-                attrs['height'] + attrs['bottom_start'] - 1,
-            )
+        SetImage(
+            attrs['xbin'],
+            attrs['ybin'],
+            attrs['left_start'],
+            attrs['width'] + attrs['left_start'] - 1,
+            attrs['bottom_start'],
+            attrs['height'] + attrs['bottom_start'] - 1,
+        )
 
     def acquire(self):
         """ Carries down the acquisition, if the camera is armed and
@@ -606,15 +599,16 @@ class AndorCam(object):
                 AbortAcquisition()
                 raise AndorException('Acquisition aborted due to timeout')
 
-    def download_acquisition(self,):
-        """ Download buffered acquisition """
-        shape = self.image_shape
-
-        # Various useful FK image shapes
+    def download_acquisition(self):
+        """ Download buffered acquisition. For fast kinetics, returns a 3D
+        array of shape (N_fast_kinetics, Ny//N, Nx). Otherwise, returns array
+        of shape (N_exposures, Ny, Nx)."""
+        
+        N = self.acquisition_attributes['number_kinetics']
         if 'fast_kinetics' in self.acquisition_mode:
-            fk_read_shape = (1, *shape[1::])
-            fk_single_shape = (shape[1] // shape [0], shape[2])
-            fk_save_shape = (shape[0], shape[1] // shape[0], shape[2])
+            shape = (N, self.image_shape[0] // N, self.image_shape[1])
+        else:
+            shape = (N, self.image_shape[0], self.image_shape[1])
 
         # self.abort_acquisition # This seems like a bad thing to do here...
 
@@ -625,23 +619,24 @@ class AndorCam(object):
                 f"Number of available images in the circular buffer is {available_images}."
             )
 
-        if (available_images[1] - available_images[0]) + 1 == shape[0]:
+        if (available_images[1] - available_images[0]) + 1 == N:
             # Special save format for FK frames
             if 'fast_kinetics' in self.acquisition_mode:
-                fk_data = GetAcquiredData(fk_read_shape)
-                data = np.array(fk_data).reshape(fk_save_shape)
+                data = GetAcquiredData(shape)
                 if self.chatty:
                     print(
-                        f"Shape of the downloaded images in FK mode are {fk_save_shape}"
+                        f"Shape of the downloaded images in FK mode are {data.shape}"
                     )
             # Regular save format for other acquisition modes
             else:
-                # data = GetAcquiredData(shape)
-                data = GetOldestImage16(*shape[1::])
+                print("Shape passed to GetAcquiredData is", shape)
+                data = GetAcquiredData(shape)
+                # data = GetOldestImage16(shape)
+                print("Data shape and dtype is:", data.shape, data.dtype)
         else:
             print(
                 f"""------> Incorrect number of images to download: 
-                {available_images}, expecting: {shape[0]}."""
+                {available_images}, expecting: {N}."""
             )
             data = np.zeros(shape)
 

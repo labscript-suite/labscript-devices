@@ -39,7 +39,7 @@ class AndorCamera(object):
         self.camera.acquire()
         images = self.camera.download_acquisition()
         print(f'Exposure time was {self.camera.exposure_time}')
-        return images[-1] # return last element
+        return images # This may be a 3D array of several images
 
     def configure_acquisition(self, continuous=False, bufferCount=None):
         self.camera.setup_acquisition(self.attributes)
@@ -68,7 +68,7 @@ class AndorCamera(object):
             print(f"FK mode Kinetics Number is {self.camera.number_fast_kinetics}.")
         print(f"    ---> Attempting to grab {n_images} acquisition(s).")
 
-        if 'single' in self.camera.acquisition_mode:            
+        if 'single' in self.camera.acquisition_mode:
             for image_number in range(n_images):
                 self.camera.acquire()
                 print(f"    {image_number}: Acquire complete")
@@ -79,7 +79,7 @@ class AndorCamera(object):
             self.camera.armed = False
             print(f"Got {len(images)} of {n_images} acquisition(s).")
         elif 'fast_kinetics' in self.camera.acquisition_mode:
-            nacquisitions = n_images // self.camera.number_fast_kinetics              
+            nacquisitions = n_images // self.camera.number_fast_kinetics
             for image_number in range(nacquisitions):
                 self.camera.acquire()
                 print(f"    {image_number}: Acquire complete")

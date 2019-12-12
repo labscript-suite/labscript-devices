@@ -305,7 +305,7 @@ def GetAcquiredData(shape):
     arr = (ctypes.c_int32 * size)()
     result = andor_solis.GetAcquiredData(ctypes.pointer(arr), ctypes.c_ulong(size))
     check_status(result)
-    return np.ctypeslib.as_array(arr)
+    return np.ctypeslib.as_array(arr).reshape(shape)
 
 def GetAcquiredData16(shape):
     """ 16-bit version of the GetAcquiredData function. 
@@ -316,7 +316,7 @@ def GetAcquiredData16(shape):
     arr = (ctypes.c_uint16 * size)()  # not 100% sure this should be unsigned.
     result = andor_solis.GetAcquiredData16(ctypes.pointer(arr), ctypes.c_ulong(size))
     check_status(result)
-    return np.ctypeslib.as_array(arr)
+    return np.ctypeslib.as_array(arr).reshape(shape)
 
 def GetAcquiredFloatData(shape):
     """ This function is reserved """
