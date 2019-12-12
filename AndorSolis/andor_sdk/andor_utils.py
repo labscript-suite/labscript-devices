@@ -147,9 +147,6 @@ class AndorCam(object):
         # thermalization will happen over this timescale)
         thermal_timeout = 10 * s
 
-        # Pull initial temperature and cooling status
-        self.temperature, self.temperature_status = GetTemperatureF()
-
         # When cooling down, set fan depending on the cooling reservoir
         if water_cooling:
             SetFanMode(2)
@@ -160,6 +157,9 @@ class AndorCam(object):
         # Set temperature and enable TEC
         SetTemperature(temperature_setpoint)
         CoolerON()
+
+        # Pull initial temperature and cooling status
+        self.temperature, self.temperature_status = GetTemperatureF()
 
         # Wait until stable
         if wait_until_stable:
@@ -305,6 +305,7 @@ class AndorCam(object):
             self.enable_cooldown(
                 self.acquisition_attributes['temperature'],
                 self.acquisition_attributes['water_cooling'],
+                wait_until_stable = True,
             )
 
             # Get current temperature and temperature status
