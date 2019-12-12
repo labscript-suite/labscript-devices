@@ -22,7 +22,7 @@ import h5py
 
 import numpy as np
 
-from qtutils import UiLoader, inmain_later
+from qtutils import UiLoader, inmain_decorator
 import qtutils.icons
 from qtutils.qt import QtWidgets, QtGui, QtCore
 import pyqtgraph as pg
@@ -58,7 +58,13 @@ class ImageReceiver(ZMQServer):
         self.frame_rate = None
         self.update_event = None
 
+    @inmain_decorator(wait_for_return=True)
     def handler(self, data):
+        # Acknowledge immediately so that the worker process can begin acquiring the
+        # next frame. This increases the possible frame rate since we may render a frame
+        # whilst acquiring the next, but does not allow us to accumulate a backlog since
+        # only one call to this method may occur at a time.
+        self.send([b'ok'])
         md = json.loads(data[0])
         image = np.frombuffer(memoryview(data[1]), dtype=md['dtype'])
         image = image.reshape(md['shape'])
@@ -71,34 +77,30 @@ class ImageReceiver(ZMQServer):
             else:
                 self.frame_rate = 1 / dt
         self.last_frame_time = this_frame_time
-        # Wait for the previous update to compete so we don't accumulate a backlog:
-        if self.update_event is not None:
-            while True:
-                # Don't block, and check for self.stopping regularly in case we are
-                # shutting down. Otherwise if shutdown is called from the main thread we
-                # would deadlock.
-                try:
-                    self.update_event.get(timeout=0.1)
-                    break
-                except Empty:
-                    if self.stopping:
-                        return
-        self.update_event = inmain_later(self.update, image, self.frame_rate)
-        return [b'ok']
-
-    def update(self, image, frame_rate):
-        if not self.mainloop_thread.is_alive():
-            # We have been shut down. Nothing to do here.
-            return
         if self.image_view.image is None:
             # First time setting an image. Do autoscaling etc:
-            self.image_view.setImage(image.T)
+            self.image_view.setImage(image.swapaxes(-1, -2))
         else:
             # Updating image. Keep zoom/pan/levels/etc settings.
-            self.image_view.setImage(image.T, autoRange=False, autoLevels=False)
+            self.image_view.setImage(
+                image.swapaxes(-1, -2), autoRange=False, autoLevels=False
+            )
         # Update fps indicator:
-        if frame_rate is not None:
-            self.label_fps.setText(f"{frame_rate:.01f} fps")
+        if self.frame_rate is not None:
+            self.label_fps.setText(f"{self.frame_rate:.01f} fps")
+
+        # Tell Qt to send posted events immediately to prevent a backlog of paint events
+        # and other low-priority events. It seems that we cannot make our qtutils
+        # CallEvents (which are used to call this method in the main thread) low enough
+        # priority to ensure all other occur before our next call to self.handler()
+        # runs. This may be because the CallEvents used by qtutils.invoke_in_main have
+        # their own event handler (qtutils.invoke_in_main.Caller), perhaps posted event
+        # priorities are only meaningful within the context of a single event handler,
+        # and not for the Qt event loop as a whole. In any case, this seems to fix it.
+        # Manually calling this is usually a sign of bad coding, but I think it is the
+        # right solution to this problem. This solves issue #36.
+        QtGui.QApplication.instance().sendPostedEvents()
+        return self.NO_RESPONSE
 
 
 class IMAQdxCameraTab(DeviceTab):

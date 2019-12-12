@@ -10,6 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
 
 import numpy as np
 from labscript_devices import BLACS_tab, runviewer_parser
@@ -92,7 +96,7 @@ class PhaseMatrixQuickSyn(Device):
         dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
         static_dtypes = [('freq0', np.uint64)] + \
                         [('gate0', np.uint16)]
-        static_table = np.zeros(1, dtype=static_dtypes)   
+        static_table = np.zeros(1, dtype=static_dtypes)
         static_table['freq0'].fill(1)
         static_table['freq0'] = dds.frequency.raw_output[0]
         static_table['gate0'] = dds.gate.raw_output[0]
@@ -195,7 +199,6 @@ class PhaseMatrixQuickSynTab(DeviceTab):
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
     def update_lock_recovery(self):
         value = self.status_ui.lock_recovery_button.isChecked()
-        print value
         yield(self.queue_work(self._primary_worker,'update_lock_recovery',value))
 
 
@@ -211,11 +214,11 @@ class QuickSynWorker(Worker):
         self.connection.readlines()
         
         #check to see if the reference is set to external. If not, make it so! (should we ask the user about this?)
-        self.connection.write('ROSC:SOUR?\r')
-        response = self.connection.readline()
+        self.connection.write(b'ROSC:SOUR?\r')
+        response = self.connection.readline().decode('utf8')
         if response == 'INT\n':
             #ref was set to internal, let's change it to ext
-            self.connection.write('ROSC:SOUR EXT\r')
+            self.connection.write(b'ROSC:SOUR EXT\r')
     
     def check_remote_values(self):
         # Get the currently output values:
@@ -225,12 +228,12 @@ class QuickSynWorker(Worker):
         count = 0
 
 
-        self.connection.write('FREQ?\r')
-        line = self.connection.readline()
+        self.connection.write(b'FREQ?\r')
+        line = self.connection.readline().decode('utf8')
 
         if line == '':
             #try again
-            line = self.connection.readline()
+            line = self.connection.readline().decode('utf8')
             if line == '':
                 raise Exception("Device didn't say what its frequncy was :(")
             
@@ -239,8 +242,8 @@ class QuickSynWorker(Worker):
 
         # wait a little while first, it doesn't like being asked things too quickly!
         time.sleep(0.05)
-        self.connection.write('OUTP:STAT?\r')
-        line = self.connection.readline()
+        self.connection.write(b'OUTP:STAT?\r')
+        line = self.connection.readline().decode('utf8')
         if line == '':
             raise Exception("Device didn't say what its status was :(")
         time.sleep(0.05)    
@@ -255,8 +258,8 @@ class QuickSynWorker(Worker):
     def check_status(self):
         results = {}
         line = ''
-        self.connection.write('STAT?\r')
-        line = self.connection.readline()
+        self.connection.write(b'STAT?\r')
+        line = self.connection.readline().decode('utf8')
         if line == '':
             raise Exception("Device didn't say what its status was :(")
         time.sleep(0.05)    
@@ -290,8 +293,8 @@ class QuickSynWorker(Worker):
         results['lock_recovery'] = int(status[-8])
         
         # now let's check it's temperature!
-        self.connection.write('DIAG:MEAS? 21\r')
-        results['temperature'] = float(self.connection.readline())
+        self.connection.write(b'DIAG:MEAS? 21\r')
+        results['temperature'] = float(self.connection.readline().decode('utf8'))
         
         # check if the temperature is bad, if it is, raise an exception. Hopefully one day this will be sent to syslog,
         #at which point we'll add some extra magic to segregate into warning and critical temperatures.
@@ -307,7 +310,7 @@ class QuickSynWorker(Worker):
         #program in millihertz:
         freq*=1e3
         command = 'FREQ %i\r'%freq
-        self.connection.write(command)
+        self.connection.write(command.encode('utf8'))
         
         # add some sleep time here since the phasematrix gets grumpy
         time.sleep(0.05)
@@ -315,7 +318,7 @@ class QuickSynWorker(Worker):
         
         gate = front_panel_values['dds 0']['gate']
         command = 'OUTP:STAT %i\r'%gate
-        self.connection.write(command)
+        self.connection.write(command.encode('utf8'))
         
         return self.check_remote_values()
         
@@ -340,9 +343,9 @@ class QuickSynWorker(Worker):
             if 'STATIC_DATA' in group:
                 data = group['STATIC_DATA'][:][0]
                 
-        self.connection.write('FREQ %i\r'%(data['freq0']))
+        self.connection.write(b'FREQ %i\r'%(data['freq0']))
         time.sleep(0.05)
-        self.connection.write('OUTP:STAT 1')#%i'%(data['gate0']))
+        self.connection.write(b'OUTP:STAT 1')#%i'%(data['gate0']))
         
         
         # Save these values into final_values so the GUI can

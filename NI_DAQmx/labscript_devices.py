@@ -31,6 +31,7 @@ from labscript import (
     AnalogIn,
     bitfield,
     config,
+    compiler,
     LabscriptError,
     set_passed_properties,
 )
@@ -377,6 +378,13 @@ class NI_DAQmx(IntermediateDevice):
                         acq['units'],
                     )
                 )
+        if acquisitions and compiler.wait_table and compiler.wait_monitor is None:
+            msg = """Cannot do analog input on an NI DAQmx device in an experiment that
+                uses waits without a wait monitor. This is because input data cannot be
+                'chunked' into requested segments without knowledge of the durations of
+                the waits. See labscript.WaitMonitor for details."""
+            raise LabscriptError(dedent(msg))
+
         # The 'a256' dtype below limits the string fields to 256
         # characters. Can't imagine this would be an issue, but to not
         # specify the string length (using dtype=str) causes the strings
@@ -395,6 +403,51 @@ class NI_DAQmx(IntermediateDevice):
             acquisition_table[i] = acq
 
         return acquisition_table
+
+    def _check_wait_monitor_timeout_device_config(self):
+        """Check that if we are the wait monitor acquisition device and another device
+        is the wait monitor timeout device, that a) the other device is a DAQmx device
+        and b) the other device has a start_order lower than us and a stop_order higher
+        than us."""
+        if compiler.wait_monitor is None:
+            return
+        acquisition_device = compiler.wait_monitor.acquisition_device
+        timeout_device = compiler.wait_monitor.timeout_device
+        if acquisition_device is not self or timeout_device is None:
+            return
+        if timeout_device is self:
+            return
+        if not isinstance(timeout_device, NI_DAQmx):
+            msg = """If using an NI DAQmx device as a wait monitor acquisition device,
+                then the wait monitor timeout device must also be an NI DAQmx device,
+                not {}."""
+            raise TypeError(dedent(msg).format(type(timeout_device)))
+        timeout_start = timeout_device.start_order
+        if timeout_start is None:
+            timeout_start = 0
+        timeout_stop = timeout_device.stop_order
+        if timeout_stop is None:
+            timeout_stop = 0
+        self_start = self.start_order
+        if self_start is None:
+            self_start = 0
+        self_stop = self.stop_order
+        if self_stop is None:
+            self_stop = 0
+        if timeout_start >= self_start or timeout_stop <= self_stop:
+            msg = """If using different DAQmx devices as the wait monitor acquisition
+                and timeout devices, the timeout device must transition_to_buffered
+                before the acquisition device, and transition_to_manual after it, in
+                order to ensure the output port for timeout pulses is not in use (by the
+                manual mode DO task) when the wait monitor subprocess attempts to use
+                it. To achieve this, pass the start_order and stop_order keyword
+                arguments to the devices in your connection table, ensuring that the
+                timeout device has a lower start_order and a higher stop_order than the
+                acquisition device. The default start_order and stop_order is zero, so
+                if you are not otherwise controlling the order that devices are
+                programmed, you can set start_order=-1, stop_order=1 on the timeout
+                device only."""
+            raise RuntimeError(dedent(msg))
 
     def generate_code(self, hdf5_file):
         IntermediateDevice.generate_code(self, hdf5_file)
@@ -430,6 +483,7 @@ class NI_DAQmx(IntermediateDevice):
         AI_table = self._make_analog_input_table(inputs)
 
         self._check_AI_not_too_fast(AI_table)
+        self._check_wait_monitor_timeout_device_config()
 
         grp = self.init_device_group(hdf5_file)
         if AO_table is not None:
