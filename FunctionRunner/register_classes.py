@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/SoftwareDevice/blacs_tabs.py                   #
+# /labscript_devices/FunctionRunner/register_classes.py             #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #
@@ -10,21 +10,10 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from labscript_devices import register_classes
 
-from blacs.device_base_class import DeviceTab
-
-
-class SoftwareDeviceTab(DeviceTab):
-    def restore_builtin_save_data(self, data):
-        DeviceTab.restore_builtin_save_data(self, data)
-        # Override restored settings and show and maximise the outputbox for this tab:
-        self.set_terminal_visible(True)
-        self._ui.splitter.setSizes([0, 0, 1])
-
-    def initialise_workers(self):
-        self.create_worker(
-            'main_worker',
-            'labscript_devices.SoftwareDevice.blacs_workers.SoftwareDeviceWorker',
-            {},
-        )
-        self.primary_worker = 'main_worker'
+register_classes(
+    'FunctionRunner',
+    BLACS_tab='labscript_devices.FunctionRunner.blacs_tabs.FunctionRunnerTab',
+    runviewer_parser=None,
+)

@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/SoftwareDevice/blacs_worker.py                 #
+# /labscript_devices/FunctionRunner/blacs_worker.py                 #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #
@@ -36,7 +36,7 @@ def deserialise_function_table(function_table, device_name):
         # We deserialise the functions in a namespace with the given __name__ and
         # __file__ so that if the user instantiates a lyse.Run object, that the results
         # will automatically be saved to a results group with the name of this
-        # SoftwareDevice, since lyse.Run inspects the filename to determine this.
+        # FunctionRunner, since lyse.Run inspects the filename to determine this.
         function, args, kwargs = deserialise_function(
             name, source, args, kwargs, __name__=device_name, __file__=device_name
         )
@@ -51,7 +51,7 @@ class ShotContext(object):
         self.globals = runmanager.get_shot_globals(h5_file)
 
 
-class SoftwareDeviceWorker(Worker):
+class FunctionRunnerWorker(Worker):
     def program_manual(self, values):
         return {}
 

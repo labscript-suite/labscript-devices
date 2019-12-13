@@ -5,9 +5,9 @@ import labscript_utils.h5_lock, h5py
 from .utils import serialise_function
 
 
-class SoftwareDevice(Device):
-    """A labscript device to run custom functions before, after, or during the
-    experiment in software time"""
+class FunctionRunner(Device):
+    """A labscript device to run custom functions before, after, or during (not yet
+    implemented) the experiment in software time"""
 
     def __init__(self, name, **kwargs):
         Device.__init__(self, name=name, parent_device=None, connection=None, **kwargs)
@@ -44,7 +44,7 @@ class SoftwareDevice(Device):
 
         - self.globals: the shot globals
         - self.h5_file: the filepath to the shot's HDF5 file
-        - self.device_name: the name of this SoftwareDevice
+        - self.device_name: the name of this FunctionRunner
 
         If you want to save raw data to the HDF5 file at the end of a shot, the
         recommended place to do it is within the group 'data/<device_name>', for
@@ -64,7 +64,7 @@ class SoftwareDevice(Device):
 
         The group that the results will be saved to, which is usually the filename of
         the lyse analysis routine, will instead be the device name of the
-        SoftwareDevice.
+        FunctionRunner.
 
         The use case for which this device was implemented was to update runmanager's
         globals immediately after a shot, based on measurement data, such that

@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/SoftwareDevice/utils.py                        #
+# /labscript_devices/FunctionRunner/utils.py                        #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #
