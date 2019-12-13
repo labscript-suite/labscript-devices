@@ -1,11 +1,11 @@
 from labscript import *
 from labscript_devices.DummyPseudoclock.labscript_devices import DummyPseudoclock
-from labscript_devices.SoftwareDevice.labscript_devices import SoftwareDevice
+from labscript_devices.FunctionRunner.labscript_devices import FunctionRunner
 
 labscript_init('test.h5', new=True, overwrite=True)
 
 DummyPseudoclock('pseudoclock')
-SoftwareDevice('software_device')
+FunctionRunner('function_runner')
 
 
 def foo(shot_context, t, arg):
@@ -15,7 +15,7 @@ def foo(shot_context, t, arg):
     run.save_result('x', 7)
 
 
-software_device.add_function('start', foo, 'world')
+function_runner.add_function('start', foo, 'world')
 
 start()
 stop(1)
