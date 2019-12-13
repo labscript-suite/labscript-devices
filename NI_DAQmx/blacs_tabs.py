@@ -22,6 +22,7 @@ from labscript_utils import VersionException, dedent
 
 from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
+from . import models
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -155,14 +156,16 @@ class NI_DAQmxTab(DeviceTab):
         self.primary_worker = "main_worker"
 
         if wait_acq_device == self.device_name:
-            if wait_timeout_device != self.device_name:
-                msg = """The wait monitor acquisition device must be the same as the
-                    wait timeout device."""
-                raise RuntimeError(msg)
+            if wait_timeout_device:
+                wait_timeout_device = connection_table.find_by_name(wait_timeout_device)
+                wait_timeout_MAX_name = wait_timeout_device.properties['MAX_name']
+            else:
+                wait_timeout_MAX_name = None
 
             if num_CI == 0:
-                msg = "Device cannot be a wait monitor as it has no counter inputs"
-                raise RuntimeError(msg)
+                msg = """Device cannot be the wait monitor acquisiiton device as it has
+                    no counter inputs"""
+                raise RuntimeError(dedent(msg))
 
             self.create_worker(
                 "wait_monitor_worker",
@@ -170,6 +173,7 @@ class NI_DAQmxTab(DeviceTab):
                 {
                     'MAX_name': self.MAX_name,
                     'wait_acq_connection': wait_acq_connection,
+                    'wait_timeout_MAX_name': wait_timeout_MAX_name,
                     'wait_timeout_connection': wait_timeout_connection,
                     'timeout_trigger_type': timeout_trigger_type,
                     'min_semiperiod_measurement': min_semiperiod_measurement,

@@ -27,10 +27,44 @@ from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
 PyCapture2 = None
 
 class FlyCapture2_Camera(object):
+    """The backend hardware interface class for the FlyCapture2Camera.
+    
+    This class handles all of the API/hardware implementation details for the
+    corresponding labscript device. It is used by the BLACS worker to send
+    appropriate API commands to the camera for the standard BLACS camera operations
+    (i.e. transition_to_buffered, get_attributes, snap, etc).
+    
+    Attributes:
+        camera (PyCapture2.Camera): Handle to connected camera.
+        get_props (list): This list sets which values of each property object 
+            are returned when queried by :obj:`get_attribute`.
+        pixel_formats (IntEnum): An IntEnum object that is automatically 
+            populated with the supported pixel types of the connected camera.
+        width (int): Width of images for most recent acquisition. 
+            Used by :obj:`_decode_image_data` to format images correctly.
+        height (int): Height of images for most recent acquisition.
+            Used by :obj:`_decode_image_data` to format images correctly.
+        pixelFormat (str): Pixel format name for most recent acquisition.
+            Used by :obj:`_decode_image_data` to format images correctly.
+        _abort_acquisition (bool): Abort flag that is polled during buffered
+            acquisitions.
+    """
     def __init__(self, serial_number):
         """Initialize FlyCapture2 API camera.
         
-        Serial number should be of int type."""
+        Searches all cameras reachable by the host using the provided serial
+        number. Fails with API error if camera not found.
+        
+        This function also does a significant amount of default configuration.
+        
+        * It defaults the grab timeout to 1 s
+        * Ensures use of the API's HighPerformanceRetrieveBuffer
+        * Ensures the camera is in Format 7, Mode 0 with full frame readout and MONO8 pixels
+        * If using a GigE camera, automatically maximizes the packet size and warns if Jumbo packets are not enabled on the NIC
+        
+        Args:
+            serial_number (int): serial number of camera to connect to
+        """
         
         global PyCapture2
         import PyCapture2
@@ -40,14 +74,11 @@ class FlyCapture2_Camera(object):
         if ver < min_ver:
             raise RuntimeError(f"PyCapture2 version {ver} must be >= {min_ver}")
         
+        print('Connecting to SN:%d ...'%serial_number)
         bus = PyCapture2.BusManager()
         self.camera = PyCapture2.Camera()
         self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
         
-        config = self.camera.getConfiguration()
-        config.grabTimeout = 1000 # in ms
-        config.highPerformanceRetrieveBuffer = True
-        self.camera.setConfiguration(config)
         # set which values of properties to return
         self.get_props = ['present','absControl','absValue',
                           'onOff','autoManualMode',
@@ -60,15 +91,68 @@ class FlyCapture2_Camera(object):
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
         self._abort_acquisition = False
+        
+        # check if GigE camera. If so, ensure max packet size is used
+        cam_info = self.camera.getCameraInfo()
+        if cam_info.interfaceType == PyCapture2.INTERFACE_TYPE.GIGE:
+            # need to close generic camera first to avoid strange interactions
+            print('Checking Packet size for GigE Camera...')
+            self.camera.disconnect()
+            gige_camera = PyCapture2.GigECamera()
+            gige_camera.connect(bus.getCameraFromSerialNumber(serial_number))
+            mtu = gige_camera.discoverGigEPacketSize()
+            if mtu <= 1500:
+                msg = """WARNING: Maximum Transmission Unit (MTU) for ethernet 
+                NIC FlyCapture2_Camera SN:%d is connected to is only %d. 
+                Reliable operation not expected. 
+                Please enable Jumbo frames on NIC."""
+                print(dedent(msg%(serial_number,mtu)))
+            
+            gige_pkt_size = gige_camera.getGigEProperty(PyCapture2.GIGE_PROPERTY_TYPE.GIGE_PACKET_SIZE)
+            # only set if not already at correct value
+            if gige_pkt_size.value != mtu:
+                gige_pkt_size.value = mtu
+                gige_camera.setGigEProperty(gige_pkt_size)
+                print('  Packet size set to %d'%mtu)
+            else:
+                print('  GigE Packet size is %d'%gige_pkt_size.value)
+            
+            # close GigE handle to camera, re-open standard handle
+            gige_camera.disconnect()
+            self.camera.connect(bus.getCameraFromSerialNumber(serial_number))
+            
+        # set standard device configuration
+        config = self.camera.getConfiguration()
+        config.grabTimeout = 1000 # in ms
+        config.highPerformanceRetrieveBuffer = True
+        self.camera.setConfiguration(config)
+
+        # ensure camera is in Format7,Mode 0 custom image mode
+        fmt7_info, supported = self.camera.getFormat7Info(0)
+        if supported:
+            # to ensure Format7, must set custom image settings
+            # defaults to full sensor size and 'MONO8' pixel format
+            print('Initializing to default Format7, Mode 0 configuration...')
+            fmt7_default = PyCapture2.Format7ImageSettings(0,0,0,fmt7_info.maxWidth,fmt7_info.maxHeight,self.pixel_formats['MONO8'].value)
+            self._send_format7_config(fmt7_default)
+            
+        else:
+            msg = """Camera does not support Format7, Mode 0 custom image
+            configuration. This driver is therefore not compatible, as written."""
+            raise RuntimeError(dedent(msg))
 
     def set_attributes(self, attr_dict):
         """Sets all attribues in attr_dict.
+        
         FlyCapture does not control all settings through same interface,
         so we must do them separately.
-        Interfaces are: {
-            <Standard PROPERTY_TYPE>,
-            'TriggerMode',
-            'ImageMode'}
+        Interfaces are: <Standard PROPERTY_TYPE>, TriggerMode, ImageMode
+            
+        Args:
+            attr_dict (dict): dictionary of property dictionaries to set for the camera.
+                These property dictionaries assume a specific structure, outlined in
+                :obj:`set_attribute`, :obj:`set_trigger_mode` and , :obj:`set_image_mode`
+                methods.
         """
         
         for prop, vals in attr_dict.items():
@@ -82,7 +166,17 @@ class FlyCapture2_Camera(object):
                 self.set_attribute(prop, vals)
                 
     def set_trigger_mode(self,trig_dict):
-        """Configures triggering options via Trigger Mode interface."""
+        """Configures triggering options via Trigger Mode interface.
+        
+        Args:
+            trig_dict (dict): dictionary with trigger mode property settings. Allowed keys:
+                
+                * 'onOff': bool
+                * 'polarity': 0,1
+                * 'source': int
+                * 'mode': int
+                
+        """
         trig_mode = self.camera.getTriggerMode()
         for k,v in trig_dict.items():
             setattr(trig_mode,k,v)
@@ -94,7 +188,17 @@ class FlyCapture2_Camera(object):
             raise Exception(msg) from e
             
     def set_image_mode(self,image_settings):
-        """Configures ROI and image control via Format 7, Mode 0 interface."""
+        """Configures ROI and image control via Format 7, Mode 0 interface.
+        
+        Args:
+            image_settings (dict): dictionary of image settings. Allowed keys:
+                
+                * 'pixelFormat': valid pixel format string, i.e. 'MONO8'
+                * 'offsetX': int
+                * 'offsetY': int
+                * 'width': int
+                * 'height': int
+        """
         image_info, supported = self.camera.getFormat7Info(0)
         Hstep = image_info.offsetHStepSize
         Vstep = image_info.offsetVStepSize
@@ -122,12 +226,8 @@ class FlyCapture2_Camera(object):
             for k,v in image_dict.items():
                 setattr(image_mode,k,v)
                 
-            try:            
-                fmt7PktInfo, valid = self.camera.validateFormat7Settings(image_mode)
-                if valid:
-                    self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_mode)
-            except PyCapture2.Fc2error as e:
-                raise RuntimeError('Error configuring image settings') from e
+            self._send_format7_config(image_mode)
+            
         else:
             msg = """Camera does not support Format7, Mode 0 custom image
             configuration. This driver is therefore not compatible, as written."""
@@ -135,13 +235,23 @@ class FlyCapture2_Camera(object):
             
     def set_attribute(self, name, values):
         """Set the values of the attribute of the given name using the provided
-        dictionary values. Typical structure is:
-        values = {'onOff':True,
-                  'autoManualMode':False,
-                  'absControl':True,
-                  'absValue':0.0}
+        dictionary values. 
         
-        Note that invalid settings tend to coerce instead of error."""
+        Generally, absControl should be used to configure settings. Note that
+        invalid settings tend to coerce instead of presenting an error.
+        
+        Args:
+            name (str): 
+            values (dict): Dictionary of settings for the property. Allowed keys are:
+                
+                * 'onOff': bool
+                * 'autoManualMode': bool
+                * 'absControl': bool
+                * 'absValue': float
+                * 'valueA': int
+                * 'valueB': int
+                * 'onePush': bool
+        """
         try:
             prop = self.camera.getProperty(getattr(PyCapture2.PROPERTY_TYPE,name))
             
@@ -156,10 +266,12 @@ class FlyCapture2_Camera(object):
     def get_attributes(self, visibility_level, writeable_only=True):
         """Return a nested dict of all readable attributes.
         
-        Structure is of form: {
-            <Standard PROPERTY_TYPE>:{},
-            'TriggerMode':{},
-            'ImageMode':{}}
+        Args:
+            visibility_level (str): Not used.
+            writeable_only (:obj:`bool`, optional): Not used
+            
+        Returns:
+            dict: Dictionary of property dictionaries
         """
         props = {}
         prop_names = {prop for prop in dir(PyCapture2.PROPERTY_TYPE) 
@@ -191,7 +303,15 @@ class FlyCapture2_Camera(object):
         return props
 
     def get_attribute(self, name):
-        """Return current values dictionary of attribute of the given name"""
+        """Return current values dictionary of attribute of the given name.
+        
+        Args:
+            name (str): Property name to read
+            
+        Returns:
+            dict: Dictionary of property values with structure as defined in
+                :obj:`set_attribute`.
+        """
         try:
             prop_dict = {}
             prop = self.camera.getProperty(getattr(PyCapture2.PROPERTY_TYPE,name))
@@ -203,7 +323,11 @@ class FlyCapture2_Camera(object):
             raise Exception(f"Failed to get attribute {name}") from e
 
     def snap(self):
-        """Acquire a single image and return it"""
+        """Acquire a single image and return it
+        
+        Returns:
+            numpy.array: Acquired image
+        """
         
         self.configure_acquisition(continuous=False,bufferCount=1)
         image = self.grab()
@@ -212,9 +336,17 @@ class FlyCapture2_Camera(object):
 
     def configure_acquisition(self, continuous=True, bufferCount=10):
         """Configure acquisition buffer count and grab mode.
-        Continuous mode only keeps most recent frames. Else, keep all frames.
         
-        Also get returned image parameters for formatting purposes.
+        This method also saves image width, heigh, and pixelFormat to class
+        attributes for returned image formatting.
+        
+        Args:
+            continuous (:obj:`bool`, optional): If True, camera will continuously
+                acquire and only keep most recent frames in the buffer. If False,
+                all acquired frames are kept and error occurs if buffer is exceeded.
+                Default is True.
+            bufferCount (:obj:`int`, optional): Number of memory buffers to use 
+                in the acquistion. Default is 10.
         """
         config = self.camera.getConfiguration()
         config.numBuffers = bufferCount
@@ -234,7 +366,11 @@ class FlyCapture2_Camera(object):
         self.camera.startCapture()
             
     def grab(self):
-        """Grab and return single image during pre-configured acquisition."""
+        """Grab and return single image during pre-configured acquisition.
+        
+        Returns:
+            numpy.array: Returns formatted image
+        """
         
         result = self.camera.retrieveBuffer()
         
@@ -244,7 +380,16 @@ class FlyCapture2_Camera(object):
         return self._decode_image_data(img)
 
     def grab_multiple(self, n_images, images):
-        """Grab n_images into images array during buffered acquistion."""
+        """Grab n_images into images array during buffered acquistion.
+        
+        Grab method involves a continuous loop with fast timeout in order to
+        poll :obj:`_abort_acquisition` for a signal to abort.
+        
+        Args:
+            n_images (int): Number of images to acquire. Should be same number
+                as the bufferCount in :obj:`configure_acquisition`.
+            images (list): List that images will be saved to as they are acquired
+        """
         print(f"Attempting to grab {n_images} images.")
         for i in range(n_images):
             while True:
@@ -262,9 +407,19 @@ class FlyCapture2_Camera(object):
         print(f"Got {len(images)} of {n_images} images.")
         
     def _decode_image_data(self,img):
-        """FlyCapture2 image buffers require significant formatting.
+        """Formats returned FlyCapture2 API image buffers.
+        
+        FlyCapture2 image buffers require significant formatting.
         This returns what one would expect from a camera.
-        configure_acquisition must be called first to set image format parameters."""
+        :obj:`configure_acquisition` must be called first to set image format parameters.
+        
+        Args:
+            img (numpy.array): A 1-D array image buffer of uint8 values to format
+            
+        Returns:
+            numpy.array: Formatted array based on :obj:`width`, :obj:`height`, 
+                and :obj:`pixelFormat`.
+        """
         pix_fmt = self.pixelFormat
         if pix_fmt.startswith('MONO'):
             if pix_fmt.endswith('8'):
@@ -278,27 +433,52 @@ class FlyCapture2_Camera(object):
             uint8 data to desired format in _decode_image_data() method."""
             raise ValueError(dedent(msg))
         return image.copy()
+        
+    def _send_format7_config(self,image_config):
+        """Validates and sends the Format7 configuration packet.
+        
+        Args:
+            image_config (PyCapture2.Format7ImageSettings): Format7ImageSettings
+                object to validate and send to camera.
+        """
+        try:            
+            fmt7PktInfo, valid = self.camera.validateFormat7Settings(image_config)
+            if valid:
+                self.camera.setFormat7ConfigurationPacket(fmt7PktInfo.recommendedBytesPerPacket, image_config)
+        except PyCapture2.Fc2error as e:
+            raise RuntimeError('Error configuring image settings') from e
 
     def stop_acquisition(self):
+        """Tells camera to stop current acquistion."""
         self.camera.stopCapture()
 
     def abort_acquisition(self):
+        """Sets :obj:`_abort_acquisition` flag to break buffered acquisition loop."""
         self._abort_acquisition = True
 
     def close(self):
+        """Closes :obj:`camera` handle to the camera."""
         self.camera.disconnect()
 
 
 class FlyCapture2CameraWorker(IMAQdxCameraWorker):
     """FlyCapture2 API Camera Worker. 
     
-    Inherits from IMAQdxCameraWorker. Overloads get_attributes_as_dict 
-    to use FlyCapture2Camera.get_attributes() method."""
+    Inherits from obj:`IMAQdxCameraWorker`. Defines :obj:`interface_class` and overloads
+    :obj:`get_attributes_as_dict` to use FlyCapture2Camera.get_attributes() method."""
     interface_class = FlyCapture2_Camera
 
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
-        level"""
-        return self.camera.get_attributes(visibility_level)
+        level
+        
+        Args:
+            visibility_level (str): Normally configures level of attribute detail
+                to return. Is not used by FlyCapture2_Camera.
+        """
+        if self.mock:
+            return IMAQdxCameraWorker.get_attributes_as_dict(self,visibility_level)
+        else:
+            return self.camera.get_attributes(visibility_level)
 
 

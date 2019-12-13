@@ -54,6 +54,7 @@ class PulseBlaster_No_DDS(PulseBlaster):
         PseudoclockDevice.generate_code(self, hdf5_file)
         dig_outputs, ignore = self.get_direct_outputs()
         pb_inst = self.convert_to_pb_inst(dig_outputs, [], {}, {}, {})
+        self._check_wait_monitor_ok()
         self.write_pb_inst_to_h5(pb_inst, hdf5_file) 
         
 
@@ -403,9 +404,16 @@ class PulseblasterNoDDSWorker(Worker):
             else:
                 raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
             
-            # Are there waits in use in this experiment? The monitor waiting for the end of
-            # the experiment will need to know:
-            self.waits_pending =  bool(len(hdf5_file['waits']))
+            # Are there waits in use in this experiment? The monitor waiting for the end
+            # of the experiment will need to know:
+            wait_monitor_exists = bool(hdf5_file['waits'].attrs['wait_monitor_acquisition_device'])
+            waits_in_use = bool(len(hdf5_file['waits']))
+            self.waits_pending = wait_monitor_exists and waits_in_use
+            if waits_in_use and not wait_monitor_exists:
+                # This should be caught during labscript compilation, but just in case.
+                # having waits but not a wait monitor means we can't tell when the shot
+                # is over unless the shot ends in a STOP instruction:
+                assert self.programming_scheme == 'pb_stop_programming/STOP'
             
             # Now we build a dictionary of the final state to send back to the GUI:
             return_values = {}
@@ -436,7 +444,7 @@ class PulseblasterNoDDSWorker(Worker):
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = status['waiting']
         elif self.programming_scheme == 'pb_stop_programming/STOP':
-            done_condition = True # status['stopped']
+            done_condition = status['stopped']
             
         if time_based_shot_over is not None:
             done_condition = time_based_shot_over

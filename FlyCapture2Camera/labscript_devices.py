@@ -14,5 +14,7 @@
 from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
 
 class FlyCapture2Camera(IMAQdxCamera):
+    """Thin sub-class of :obj:`IMAQdxCamera`."""
+    
     description = 'FlyCapture2 Camera'
 

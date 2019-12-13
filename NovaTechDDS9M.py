@@ -42,11 +42,29 @@ class NovaTechDDS9M(IntermediateDevice):
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
     @set_passed_properties(
-        property_names = {'connection_table_properties': ['com_port', 'baud_rate', 'default_baud_rate', 'update_mode', 'synchronous_first_line_repeat', 'phase_mode']}
-        )
-    def __init__(self, name, parent_device, 
-                 com_port = "", baud_rate=115200, default_baud_rate=None, update_mode='synchronous', synchronous_first_line_repeat=False, phase_mode='default', **kwargs):
-
+        property_names={
+            'connection_table_properties': [
+                'com_port',
+                'baud_rate',
+                'default_baud_rate',
+                'update_mode',
+                'synchronous_first_line_repeat',
+                'phase_mode',
+            ]
+        }
+    )
+    def __init__(
+        self,
+        name,
+        parent_device,
+        com_port="",
+        baud_rate=115200,
+        default_baud_rate=None,
+        update_mode='synchronous',
+        synchronous_first_line_repeat=False,
+        phase_mode='continuous',
+        **kwargs
+    ):
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s'%(com_port, str(baud_rate))
 
@@ -59,8 +77,8 @@ class NovaTechDDS9M(IntermediateDevice):
         if not default_baud_rate in bauds and default_baud_rate is not None:     
             raise LabscriptError('default_baud_rate must be one of {0} or None (to indicate no default)'.format(list(bauds)))            
 
-        if not phase_mode in ['default', 'aligned', 'continuous']:
-            raise LabscriptError('phase_mode must be \'default\', \'aligned\' or \'continuous\'')
+        if not phase_mode in ['aligned', 'continuous']:
+            raise LabscriptError('phase_mode must be \'aligned\' or \'continuous\'')
 
         self.update_mode = update_mode
         self.phase_mode = phase_mode 
@@ -251,7 +269,7 @@ class NovatechDDS9MTab(DeviceTab):
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         connection_table_properties = connection_object.properties
         
-        self.phase_mode = connection_table_properties.get('phase_mode', 'default')
+        self.phase_mode = connection_table_properties.get('phase_mode', 'continuous')
 
         self.com_port = connection_table_properties.get('com_port', None)
         self.baud_rate = connection_table_properties.get('baud_rate', None)
@@ -327,10 +345,14 @@ class NovatechDDS9mWorker(Worker):
         
         # Set phase mode method
         phase_mode_commands = {
-            'default': b'm 0',
             'aligned': b'm a',
             'continuous': b'm n',
         }
+
+        # Backward compat for shots compiled with phase_mode='default', which was based
+        # on a misunderstanding of the working of the device and never did anything.
+        phase_mode_commands['default'] = phase_mode_commands['continuous']
+
         self.phase_mode_command = phase_mode_commands[self.phase_mode]
 
         self.connection.write(b'e d\r\n')
@@ -346,6 +368,12 @@ class NovatechDDS9mWorker(Worker):
         if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
         
+        # Ensure we are in single-tone mode:
+        self.connection.write(b'm 0\r\n')
+        if self.connection.readline() != b"OK\r\n":
+            raise Exception('Error: Failed to execute command: "m 0"')
+
+        # Set the phase mode:
         self.connection.write(b'%s\r\n'%self.phase_mode_command)
         if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode.decode('utf8'))
@@ -412,15 +440,19 @@ class NovatechDDS9mWorker(Worker):
      
     def transition_to_buffered(self,device_name,h5file,initial_values,fresh):
 
-        # Pretty please reset your memory pointer to zero:
+        # The "double clutch" trick: switching to table mode and back again, before
+        # going into table mode for real, is observed empirically to resolve an
+        # off-by-one error in table mode in some circumstances. Presumably it resets the
+        # memory pointer of the device to zero (though it is a mystery why it would not
+        # be zero already at this point)
 
         # Transition to table mode:
         self.connection.write(b'm t\r\n')
         self.connection.readline()
         # And back to manual mode
-        self.connection.write(b'%s\r\n'%self.phase_mode_command)
+        self.connection.write(b'm 0\r\n')
         if self.connection.readline() != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"' % self.phase_mode_command.decode('utf8'))
+            raise Exception('Error: Failed to execute command: "m 0"')
 
 
         # Store the initial values in case we have to abort and restore them:
@@ -525,9 +557,9 @@ class NovatechDDS9mWorker(Worker):
         return self.transition_to_manual(True)
     
     def transition_to_manual(self,abort = False):
-        self.connection.write(b'%s\r\n'%self.phase_mode_command)
+        self.connection.write(b'm 0\r\n')
         if self.connection.readline() != b"OK\r\n":
-            raise Exception('Error: Failed to execute command: "%s"'%self.phase_mode_command.decode('utf8'))
+            raise Exception('Error: Failed to execute command: "m 0"')
         self.connection.write(b'I a\r\n')
         if self.connection.readline() != b"OK\r\n":
             raise Exception('Error: Failed to execute command: "I a"')
