@@ -68,6 +68,9 @@ class ImageReceiver(ZMQServer):
         md = json.loads(data[0])
         image = np.frombuffer(memoryview(data[1]), dtype=md['dtype'])
         image = image.reshape(md['shape'])
+        if len(image.shape) == 3 and image.shape[0] == 1:
+            # If only one image given as a 3D array, convert to 2D array:
+            image = image.reshape(image.shape[1:])
         this_frame_time = perf_counter()
         if self.last_frame_time is not None:
             dt = this_frame_time - self.last_frame_time
