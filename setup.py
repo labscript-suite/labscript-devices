@@ -49,6 +49,7 @@ except ImportError:
 
 SETUP_REQUIRES = ['setuptools', 'setuptools_scm']
 
+# TODO: Add commented-out requirements once they are on conda:
 INSTALL_REQUIRES = [
     "labscript_utils >= 2.13.2",
     "blacs >= 2.7.0",
@@ -57,6 +58,7 @@ INSTALL_REQUIRES = [
     "zprocess >=2.18.0",
     "numpy >=1.15.1",
     "pyserial",
+    "pillow",
     # PyDAQmx
     # PyNIVision
     # spinapi
