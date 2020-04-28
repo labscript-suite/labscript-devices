@@ -1,0 +1,10 @@
+Copyright (c) 2013, Monash University
+All rights reserved.
+
+This project (labscript_devices) is dual licensed under the 2-clause BSD license and 3-clause BSD license (see the files BSD-2-CLAUSE-LICENSE.txt and BSD-3-CLAUSE-LICENSE.txt), subject to the following conditions:
+
+1) If you wish to use this project with PySide and/or a commercial license of PyQt, the use of this project is governed by the terms of one of the licenses, chosen at your discretion.
+
+2) If you wish to use this project with the free (GPLv2 or GPLv3 licensed) version of PyQt, the use of this project is governed by the terms of the 3-clause BSD license only, along with the terms specified in the GPL_EXCEPTIONS.TXT file in the PyQt project source code.
+
+These terms are in place to guarantee compatibility with the terms outlined in the GPL License Exceptions of the PyQt project (see the GPL_EXCEPTIONS.TXT file in the source code of the PyQt project)
