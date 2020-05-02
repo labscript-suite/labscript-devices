@@ -40,7 +40,6 @@
 
 import os
 from setuptools import setup
-from runpy import run_path
 
 try:
     from setuptools_conda import dist_conda
@@ -49,7 +48,6 @@ except ImportError:
 
 SETUP_REQUIRES = ['setuptools', 'setuptools_scm']
 
-# TODO: Add commented-out requirements once they are on conda:
 INSTALL_REQUIRES = [
     "labscript_utils >= 2.13.2",
     "blacs >= 2.7.0",
@@ -59,14 +57,14 @@ INSTALL_REQUIRES = [
     "numpy >=1.15.1",
     "pyserial",
     "pillow",
-    # PyDAQmx
-    # PyNIVision
-    # spinapi
+    "PyDAQmx",
+    "PyNIVision",
+    "spinapi",
 ]
 
 setup(
     name='labscript_devices',
-    version=run_path(os.path.join('labscript_devices', '__version__.py'))['__version__'],
+    use_scm_version=True,
     description="Device drivers for the labscript suite",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
