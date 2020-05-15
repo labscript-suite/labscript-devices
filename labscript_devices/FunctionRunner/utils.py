@@ -12,6 +12,7 @@
 #####################################################################
 
 import inspect
+import textwrap
 from types import FunctionType
 from labscript_utils import dedent
 from labscript_utils.properties import serialise, deserialise
@@ -38,7 +39,7 @@ def serialise_function(function, *args, **kwargs):
         raise TypeError(dedent(msg))
 
     # Serialise the function, args and kwargs:
-    source = inspect.getsource(function)
+    source = textwrap.dedent(inspect.getsource(function))
     args = serialise(args)
     kwargs = serialise(kwargs)
 
