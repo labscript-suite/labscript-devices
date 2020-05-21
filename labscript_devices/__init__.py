@@ -21,11 +21,7 @@ import inspect
 from labscript_utils import labscript_suite_install_dir, dedent
 from labscript_utils.labconfig import LabConfig
 
-from labscript_utils.versions import get_version, NoVersionInfo
-from pathlib import Path
-__version__ = get_version(__name__, import_path=Path(__file__).parent.parent)
-if __version__ is NoVersionInfo:
-    __version__ = None
+from .__version__ import __version__
 
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('labscript', '2.6', '3')
