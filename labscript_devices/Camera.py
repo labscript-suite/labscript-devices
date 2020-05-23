@@ -10,15 +10,6 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-
-from labscript_utils import check_version
-check_version('labscript', '2.0.1', '3')
-check_version('zprocess', '2.4.8', '3')
-from labscript_utils import PY2
-if PY2:
-    str = unicode
-
 from labscript_devices import BLACS_tab
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties
 import numpy as np

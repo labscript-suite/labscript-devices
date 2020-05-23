@@ -1,9 +1,3 @@
-from __future__ import print_function, unicode_literals, division, absolute_import
-
-from labscript_utils import check_version
-
-check_version('PyDAQmx', '1.4.2', '2.0.0')
-
 import ctypes
 import PyDAQmx as daqmx
 import PyDAQmx.DAQmxConstants as c

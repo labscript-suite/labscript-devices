@@ -1,15 +1,3 @@
-from __future__ import division, unicode_literals, print_function, absolute_import
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-
-check_version('labscript_utils', '2.13.2', '3')
-from labscript_utils import PY2
-
-if PY2:
-    str = unicode
 
 import os
 import sys
@@ -18,16 +6,10 @@ import imp
 import warnings
 import traceback
 import inspect
-from labscript_utils import labscript_suite_install_dir, dedent
+from labscript_utils import dedent
 from labscript_utils.labconfig import LabConfig
 
 from .__version__ import __version__
-
-check_version('qtutils', '2.0.0', '3.0.0')
-check_version('labscript', '2.6', '3')
-check_version('blacs', '2.7.0', '3.0.0')
-check_version('zprocess', '2.17.0', '3')
-check_version('numpy', '1.15.1', '2')
 
 
 """This file contains the machinery for registering and looking up what BLACS tab and
@@ -77,16 +59,9 @@ def _get_import_paths(import_names):
     If the packages do not exist, ignore them."""
     paths = []
     for name in import_names:
-        if PY2:
-            try:
-                _, location, _ = imp.find_module(name)
-            except ImportError:
-                continue
-            paths.append(os.path.dirname(location))
-        else:
-            spec = importlib.util.find_spec(name)
-            if spec is not None and spec.submodule_search_locations is not None:
-                paths.extend(spec.submodule_search_locations)
+        spec = importlib.util.find_spec(name)
+        if spec is not None and spec.submodule_search_locations is not None:
+            paths.extend(spec.submodule_search_locations)
     return paths
 
 

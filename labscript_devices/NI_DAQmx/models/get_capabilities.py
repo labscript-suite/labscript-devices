@@ -10,19 +10,6 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-
-if PY2:
-    str = unicode
-    import io
-
-    open = io.open
-
-
-from labscript_utils import check_version
-
-check_version('PyDAQmx', '1.4.2', '2.0.0')
 
 import numpy as np
 import os

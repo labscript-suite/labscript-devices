@@ -1,7 +1,3 @@
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 import time
 import numpy as np
 from blacs.tab_base_classes import Worker

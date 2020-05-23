@@ -10,10 +10,6 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_utils import dedent
@@ -857,8 +853,6 @@ class PulseBlasterTab(DeviceTab):
 
 class PulseblasterWorker(Worker):
     def init(self):
-        from labscript_utils import check_version
-        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess

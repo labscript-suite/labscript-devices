@@ -10,20 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 # COMMON IMPORTS
 import base64
 import os
 import struct
 import PIL.Image
-if PY2:
-    from StringIO import StringIO as BytesIO
-else:
-    from io import BytesIO
+from io import BytesIO
     
 import labscript_utils.h5_lock, h5py
 
