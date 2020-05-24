@@ -10,24 +10,16 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-
 import nivision as nv
 import time
 import numpy as np
-import os
 import sys
-import time
-import zprocess
-from labscript_utils import check_version
 from labscript_utils.camera_server import CameraServer
 import labscript_utils.properties
 import labscript_utils.shared_drive
 # importing this wraps zlock calls around HDF file openings and closings:
 import labscript_utils.h5_lock
 import h5py
-assert sys.version_info >= (3, 6), 'imaqdx_server.py requires Python 3.6 or above.'
-check_version('zprocess', '1.3.3', '3.0')
 import threading
 
 __author__ = ['dt', 'rpanderson', 'cbillington']

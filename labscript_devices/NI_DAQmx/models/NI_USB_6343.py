@@ -20,12 +20,6 @@
 #####################################################################
 
 
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-
-if PY2:
-    str = unicode
-
 from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 
 CAPABILITIES = {

@@ -3,7 +3,7 @@ import h5py
 import numpy as np
 
 import labscript_utils.properties as properties
-from labscript_utils import dedent, VersionException
+from labscript_utils import dedent
 
 
 class NI_DAQmxParser(object):
@@ -36,7 +36,7 @@ class NI_DAQmxParser(object):
                     class. The new runviewer parser is not backward compatible with old
                     shot files. Either downgrade labscript_devices to 2.2.0 or less, or
                     recompile the shot with labscript_devices 2.3.0 or greater."""
-                raise VersionException(dedent(msg))
+                raise RuntimeError(dedent(msg))
 
             ports = props['ports']
             static_AO = props['static_AO']

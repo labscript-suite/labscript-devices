@@ -10,15 +10,9 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-
-if PY2:
-    str = unicode
-
 import labscript_utils.h5_lock
 import h5py
-from labscript_utils import VersionException, dedent
+from labscript_utils import dedent
 
 from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
@@ -43,7 +37,7 @@ class NI_DAQmxTab(DeviceTab):
                 to 2.4.0 or less, or recompile the connection table with
                 labscript_devices 2.5.0 or greater.
                 """
-            raise VersionException(dedent(msg))
+            raise RuntimeError(dedent(msg))
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']

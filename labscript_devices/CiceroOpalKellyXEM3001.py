@@ -11,11 +11,6 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
-
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties, compiler, IntermediateDevice, WaitMonitor, DigitalOut
 from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
 
@@ -461,8 +456,6 @@ class CiceroOpalKellyXEM3001Worker(Worker):
     
         # Initialise connection to OPAL KELLY Board
         self.dev = ok.okCFrontPanel()
-        if PY2:
-            self.serial = bytes(self.serial)
         assert self.dev.OpenBySerial(self.serial) == self.dev.NoError
         
         try:
@@ -488,8 +481,6 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             raise RuntimeError('Cannot flash the FPGA for the current reference clock configuration as the .bit file is missing. Please ensure the correct bit file is available at %s'%fpga_path)
             
         self.logger.debug('Flashing FPGA bit file located at: %s'%fpga_path)
-        if PY2:
-            fpga_path = bytes(fpga_path)
         self.dev.ConfigureFPGA(fpga_path)
         assert self.dev.IsFrontPanelEnabled(), 'Flashing of the FPGA failed. The device is not configured with the .bit file correctly'
 

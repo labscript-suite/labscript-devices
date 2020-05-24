@@ -10,15 +10,6 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import print_function, unicode_literals, absolute_import, division
-
-try:
-    from labscript_utils import check_version
-except ImportError:
-    raise ImportError('Require labscript_utils > 2.1.0')
-    
-check_version('labscript', '2.0.1', '3')
-
 from labscript_devices import BLACS_tab
 from labscript_devices.Camera import Camera, CameraTab
 from labscript import set_passed_properties

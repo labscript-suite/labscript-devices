@@ -10,9 +10,3 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-
-from labscript_utils import check_version
-
-import sys
-if sys.version_info < (3, 5):
-    raise RuntimeError("FunctionRunner requires Python 3.5+")

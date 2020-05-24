@@ -12,8 +12,6 @@ import numpy as np
 from .status_codes import _SC
 from .andor_structures import ColorDemosaicInfo, AndorCapabilities
 
-PYTHON = sys.version_info
-
 # Custom ctypes
 at_32 = ctypes.c_long
 at_64 = ctypes.c_uint64

@@ -30,11 +30,6 @@ from labscript_utils.ls_zprocess import Context
 from labscript_utils.shared_drive import path_to_local
 from labscript_utils.properties import set_attributes
 
-# Required for knowing the parent device's hostname when running remotely:
-from labscript_utils import check_version
-
-check_version('zprocess', '2.12.0', '3')
-
 # Don't import nv yet so as not to throw an error, allow worker to run as a dummy
 # device, or for subclasses to import this module to inherit classes without requiring
 # nivision

@@ -10,18 +10,12 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 from labscript_devices import BLACS_tab, runviewer_parser
 from labscript_devices.PulseBlaster import PulseBlaster, PulseBlasterParser
 from labscript import PseudoclockDevice, config
 
 import numpy as np
-
-import time
 
 
 class PulseBlaster_No_DDS(PulseBlaster):
@@ -237,8 +231,6 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
 class PulseblasterNoDDSWorker(Worker):
     core_clock_freq = 100
     def init(self):
-        from labscript_utils import check_version
-        check_version('spinapi', '3.2.0', '4')
         exec('from spinapi import *', globals())
         global h5py; import labscript_utils.h5_lock, h5py
         global zprocess; import zprocess

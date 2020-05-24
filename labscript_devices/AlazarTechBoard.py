@@ -2,17 +2,12 @@
 # Hacked up from NIboard.py by LDT 2017-01-26
 #
 # Copyright (c) Monash University 2017
-from __future__ import division, unicode_literals, print_function
 import ctypes
 import numpy as np
 import signal
 import sys
 import time
 from tqdm import tqdm
-
-from labscript_utils import PY2
-if PY2:
-    str = unicode
 
 # Install atsapi.py into site-packages for this to work
 # or keep in local directory.
@@ -275,11 +270,7 @@ class GuilessWorker(Worker):
         global h5py
         import labscript_utils.h5_lock
         import h5py
-        from labscript_utils import PY2
-        if PY2:
-            from Queue import Queue
-        else:
-            from queue import Queue
+        from queue import Queue
         import threading
 
         # SDK startup

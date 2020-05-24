@@ -11,16 +11,8 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division, unicode_literals, print_function, absolute_import
-from labscript_utils import PY2, check_version
-
-if PY2:
-    str = unicode
-
-
 __version__ = '1.0.0'
 
-check_version('labscript', '2.5.0', '3.0.0')
 
 from labscript import (
     IntermediateDevice,
