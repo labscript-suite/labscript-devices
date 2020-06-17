@@ -21,6 +21,7 @@ The *labscript suite* supports a range of commercial and open-source hardware, 
 ## Supported hardware
 
 The following devices have been implemented in the _labscript suite_:<sup>†</sup>
+* [AlazarTech](https://www.alazartech.com) PCI Express Digitizers (e.g. [ATS9462](https://www.alazartech.com/Product/ATS9462); PR [#41](http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/41))
 * [LightCrafter DMD](http://www.ti.com/tool/DLPLCR4500EVM) Digital Micro-mirror Device (PR [#43](https://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/43))
 * [MOGLabs Agile RF Synthesizers](https://www.moglabs.com/products/rf-electronics/agile-rf-synth) (ARF/XRF)
 * [National Instruments Data Acquisition](http://www.ni.com/data-acquisition/) ([DAQmx](https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z000000P8baSAC)) devices:
@@ -43,6 +44,7 @@ The following devices have been implemented in the _labscript suite_:<sup>†</s
   
   **Note:** Since v2.5.0 (June 2019), [`labscript_devices.NI_DAQmx`](https://github.com/labscript-suite/labscript-devices/tree/master/labscript_devices/NI_DAQmx) can be used to automatically generate a labscript device class for _any_ NI-DAQmx device! (PR [#56](https://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/56))
 
+* [NovaTech DDS9m](http://www.novatechsales.com/PDF_files/dds9mds_lr.pdf) 170MHz Four Channel Direct Digital Synthesized Signal Generator (see [blog post](http://labscriptsuite.org/blog/tag/novatech-dds9m/))
 * [OpalKelly XEM3001](https://opalkelly.com/products/xem3001/) FPGA Boards used by the Cicero control system (PR [#50](https://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/50))
 * [PineBlaster](http://labscriptsuite.org/hardware/pineblaster) Open-source Digital Pattern Generator
 * [SpinCore](https://www.spincore.com/products/#pulsegeneration) Programmable Pulse Generators and Direct Digital Synthesis
