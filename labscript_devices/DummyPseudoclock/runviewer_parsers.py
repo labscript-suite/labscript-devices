@@ -5,7 +5,6 @@ import numpy as np
 
 class DummyPseudoclockParser(object):
     clock_resolution = 25e-9
-    clock_type = 'fast clock'
     trigger_delay = 350e-9
     wait_delay = 2.5e-6
 
