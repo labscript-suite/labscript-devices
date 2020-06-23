@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/FlyCapture2Camera/blacs_tabs.py                #
+# /labscript_devices/SpinnakerCamera/blacs_tabs.py                  #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #

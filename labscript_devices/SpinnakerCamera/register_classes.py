@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/SpinnakerCamera/register_classes.py          #
+# /labscript_devices/SpinnakerCamera/register_classes.py            #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #

@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/SpinnakerCamera/blacs_workers.py             #
+# /labscript_devices/SpinnakerCamera/blacs_workers.py               #
 #                                                                   #
 # Copyright 2019, Monash University and contributors                #
 #                                                                   #
@@ -249,8 +249,7 @@ class Spinnaker_Camera(object):
 class SpinnakerCameraWorker(IMAQdxCameraWorker):
     """Spinnaker API Camera Worker.
 
-    Inherits from IMAQdxCameraWorker. Overloads get_attributes_as_dict
-    to use SpinnakerCamera.get_attributes() method."""
+    Inherits from IMAQdxCameraWorker."""
     interface_class = Spinnaker_Camera
 
     #def continuous_loop(self, dt):
