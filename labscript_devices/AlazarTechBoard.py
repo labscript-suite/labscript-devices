@@ -316,7 +316,7 @@ class GuilessWorker(Worker):
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.h5file = h5file  # We'll need this in transition_to_manual
         self.device_name = device_name
-        with h5py.File(h5file) as hdf5_file:
+        with h5py.File(h5file, 'r') as hdf5_file:
             print("\nUsing "+h5file)
             self.atsparam = atsparam = labscript_utils.properties.get(
                 hdf5_file, device_name, 'device_properties')
@@ -379,7 +379,7 @@ class GuilessWorker(Worker):
 
         # Store the actual acquisition rate back as an attribute.
         # Again, this should be done as an ACQUISITIONS table entry, but not today
-        with h5py.File(h5file) as hdf5_file:
+        with h5py.File(h5file, 'r+') as hdf5_file:
             hdf5_file['devices'][device_name].attrs.create(
                 'acquisition_rate', actual_acquisition_rate, dtype='int32')
 
@@ -585,7 +585,7 @@ class GuilessWorker(Worker):
         # Waits on the acquisition thread, and manages the lock
         self.wait_acquisition_complete()
         # Write data to HDF5 file
-        with h5py.File(self.h5file) as hdf5_file:
+        with h5py.File(self.h5file, 'r+') as hdf5_file:
             grp = hdf5_file.create_group('/data/traces/'+self.device_name)
             if self.channels & ats.CHANNEL_A:
                 dsetA = grp.create_dataset(

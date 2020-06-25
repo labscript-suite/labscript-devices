@@ -90,7 +90,7 @@ class ZaberWorker(Worker):
         return self.check_remote_values()
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
-        with h5py.File(h5file) as hdf5_file:
+        with h5py.File(h5file, 'r') as hdf5_file:
             group = hdf5_file['/devices/' + device_name]
             if 'static_values' in group:
                 data = group['static_values']

@@ -457,7 +457,7 @@ class NovatechDDS9mWorker(Worker):
         self.final_values = {}
         static_data = None
         table_data = None
-        with h5py.File(h5file) as hdf5_file:
+        with h5py.File(h5file, 'r') as hdf5_file:
             group = hdf5_file['/devices/'+device_name]
             # If there are values to set the unbuffered outputs to, set them now:
             if 'STATIC_DATA' in group:

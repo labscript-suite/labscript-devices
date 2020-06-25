@@ -17,7 +17,7 @@ class TekScopeWorker(Worker):
     def transition_to_buffered(self, device_name, h5file, front_panel_values, refresh):
         self.h5file = h5file  # We'll need this in transition_to_manual
         self.device_name = device_name
-        with h5py.File(h5file) as hdf5_file:
+        with h5py.File(h5file, 'r') as hdf5_file:
             print('\n' + h5file)
             self.scope_params = scope_params = labscript_utils.properties.get(
                 hdf5_file, device_name, 'device_properties')
@@ -53,7 +53,7 @@ class TekScopeWorker(Worker):
             data[ch] = vals[ch]
 
         # Open the file after download so as not to hog the file lock
-        with h5py.File(self.h5file) as hdf_file:
+        with h5py.File(self.h5file, 'r+') as hdf_file:
             grp = hdf_file.create_group('/data/traces')
             print('Saving traces...')
             dset = grp.create_dataset(self.device_name, data=data)

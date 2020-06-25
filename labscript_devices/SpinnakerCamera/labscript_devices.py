@@ -1,8 +1,8 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/DummyPseudoclock/register_classes.py           #
+# /labscript_devices/SpinnakerCamera/labscript_devices.py           #
 #                                                                   #
-# Copyright 2017, Christopher Billington                            #
+# Copyright 2019, Monash University and contributors                #
 #                                                                   #
 # This file is part of labscript_devices, in the labscript suite    #
 # (see http://labscriptsuite.org), and is licensed under the        #
@@ -10,14 +10,8 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-import labscript_devices
 
-labscript_device_name = 'DummyPseudoclock'
-blacs_tab = 'labscript_devices.DummyPseudoclock.blacs_tabs.DummyPseudoclockTab'
-parser = 'labscript_devices.DummyPseudoclock.runviewer_parsers.DummyPseudoclockParser'
+from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
 
-labscript_devices.register_classes(
-    labscript_device_name=labscript_device_name,
-    BLACS_tab=blacs_tab,
-    runviewer_parser=parser,
-)
+class SpinnakerCamera(IMAQdxCamera):
+    description = 'Spinnaker Camera'
