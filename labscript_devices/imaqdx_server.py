@@ -363,7 +363,7 @@ class IMAQdxCameraServer(CameraServer):
             #     # Just save the first however many we were expecting:
             #     self.imgs = self.imgs[:n_images]
 
-            with h5py.File(h5_filepath) as h5_file:
+            with h5py.File(h5_filepath, 'r+') as h5_file:
                 # Use orientation for image path, camera_name if orientation unspecified
                 if self.device_properties['orientation']:
                     image_path = self.image_path + _ensure_str(self.device_properties['orientation'])

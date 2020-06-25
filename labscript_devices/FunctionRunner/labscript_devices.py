@@ -50,7 +50,7 @@ class FunctionRunner(Device):
         recommended place to do it is within the group 'data/<device_name>', for
         example:
 
-            with h5py.File(self.h5_file) as f:
+            with h5py.File(self.h5_file, 'r+') as f:
                 data_group = f['data'].create_group(self.device_name)
                 # save datasets/attributes within this group
 
