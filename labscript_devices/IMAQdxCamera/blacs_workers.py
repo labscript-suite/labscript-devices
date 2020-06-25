@@ -429,7 +429,7 @@ class IMAQdxCameraWorker(Worker):
 
         print(f"Saving {len(self.images)}/{len(self.exposures)} images.")
 
-        with h5py.File(self.h5_filepath) as f:
+        with h5py.File(self.h5_filepath, 'r+') as f:
             # Use orientation for image path, device_name if orientation unspecified
             if self.orientation is not None:
                 image_path = 'images/' + self.orientation
