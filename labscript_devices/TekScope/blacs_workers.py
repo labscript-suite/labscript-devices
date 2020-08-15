@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import labscript_utils.h5_lock
 import h5py
@@ -6,14 +5,18 @@ import h5py
 from blacs.tab_base_classes import Worker
 import labscript_utils.properties
 
+
 class TekScopeWorker(Worker):
     def init(self):
         global TekScope
         from .TekScope import TekScope
+
         self.scope = TekScope(self.addr, termination=self.termination)
         manufacturer, model, sn, revision = self.scope.idn.split(',')
         assert manufacturer.lower() == 'tektronix'
-        "Device is made by {:s}, not by Tektronix, and is actually a {:s}".format(manufacturer, model)
+        "Device is made by {:s}, not by Tektronix, and is actually a {:s}".format(
+            manufacturer, model
+        )
         print('Connected to {} (SN: {})'.format(model, sn))
 
     def transition_to_buffered(self, device_name, h5file, front_panel_values, refresh):
@@ -21,10 +24,10 @@ class TekScopeWorker(Worker):
         self.device_name = device_name
         with h5py.File(h5file, 'r') as hdf5_file:
             print('\n' + h5file)
-            self.scope_params = scope_params = labscript_utils.properties.get(
-                hdf5_file, device_name, 'device_properties')
+            self.scope_params = labscript_utils.properties.get(
+                hdf5_file, device_name, 'device_properties'
+            )
             self.scope.dev.timeout = 1000 * self.scope_params.get('timeout', 5)
-            # hdf5_file['devices'][device_name].attrs.create('some name', some_value, dtype='some_type')
 
         self.scope.unlock()
         self.scope.set_acquire_state(True)
@@ -42,9 +45,11 @@ class TekScopeWorker(Worker):
         print('Downloading...')
         for ch, enabled in channels.items():
             if enabled:
-                wfmp[ch], t, vals[ch] = self.scope.waveform(ch, 
-                        int16=self.scope_params.get('int16', False),
-                        preamble_string=self.preamble_string)
+                wfmp[ch], t, vals[ch] = self.scope.waveform(
+                    ch,
+                    int16=self.scope_params.get('int16', False),
+                    preamble_string=self.preamble_string,
+                )
                 wtype.append((ch, 'float'))
                 print(wfmp[ch]['WFID'])
 
