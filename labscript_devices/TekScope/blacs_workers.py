@@ -1,11 +1,13 @@
 import time
 import numpy as np
+import labscript_utils.h5_lock
+import h5py
+
 from blacs.tab_base_classes import Worker
 import labscript_utils.properties
 
 class TekScopeWorker(Worker):
     def init(self):
-        global h5py; import labscript_utils.h5_lock, h5py
         global TekScope
         from .TekScope import TekScope
         self.scope = TekScope(self.addr, termination=self.termination)
