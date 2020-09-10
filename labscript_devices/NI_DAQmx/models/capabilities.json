@@ -169,6 +169,42 @@
         "supports_buffered_DO": true,
         "supports_semiperiod_measurement": false
     },
+    "PCIe-6343": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 500000.0,
+        "max_AI_single_chan_rate": 500000.0,
+        "max_AO_sample_rate": 917431.1926605505,
+        "max_DO_sample_rate": 1000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
     "PCIe-6363": {
         "AI_range": [
             -10.0,
@@ -280,6 +316,42 @@
         "ports": {
             "port0": {
                 "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true
+    },
+    "PXIe-6363": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
                 "supports_buffered": true
             },
             "port1": {
