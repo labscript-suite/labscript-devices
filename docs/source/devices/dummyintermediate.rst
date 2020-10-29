@@ -1,0 +1,2 @@
+Dummy Intermediate Device
+=========================

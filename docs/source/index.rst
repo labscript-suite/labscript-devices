@@ -11,7 +11,11 @@ labscript-devices
    :hidden:
    :caption: DOCUMENTATION
 
-   
+   introduction
+   devices
+   user_devices
+   ex_conn_tables
+   adding_devices
 
 .. toctree::
    :maxdepth: 2
