@@ -10,7 +10,6 @@ This device allows control of Basler scientific cameras via the `Pylon API <http
    labscript_devices.PylonCamera.labscript_devices
    labscript_devices.PylonCamera.blacs_tabs
    labscript_devices.PylonCamera.blacs_workers
-   labscript_devices.PylonCamera.register_classes
 
 Installation
 ~~~~~~~~~~~~
@@ -38,39 +37,57 @@ Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration i
 2. Mirroring the Pylon Viewer parameter names and values.
 3. Connecting to the camera with a minimal configuration, viewing the current parameters dictionary, and copying the relevant values to the connection table (preferred).
 
-This is an example configuration for a GigE camera.
+Below are generic configurations for GigE and USB3 based cameras.
 
 .. code-block:: python
+
+   from labscript import *
    
    from labscript_devices.PylonCamera.labscript_devices import PylonCamera
 
    PylonCamera('gigeCamera',parent_device=parent,connection=conn,
                serial_number=1234567, # set to the camera serial number
-               minimum_recovery_time=36e-6, # the minimum exposure time depends on the camera model & configuration
-               camera_attributs={},
-               manual_camera_attributes={})
+               minimum_recovery_time=20e-3, # the minimum exposure time depends on the camera model & configuration
+               camera_attributs={
+                  'ExposureTimeAbs':1000, #in us
+                  'ExposureMode':'Timed',
+                  'ExposureAuto':'Off',
+                  'GainAuto':'Off',
+                  'PixelFormat':'Mono12Packed',
+                  'Gamma':1.0,
+                  'BlackLevelRaw':0,
+                  'TriggerSource':'Line 1',
+                  'TriggerMode':'On'
+               },
+               manual_camera_attributes={
+                  'TriggerSource':'Software',
+                  'TriggerMode':'Off'
+               })
+
+   PylonCamera('usb3Camera',parent_device=parent,connection=conn,
+               serial_number=12345678, 
+               minimum_recovery_time=36e-3, 
+               camera_attributs={
+                  'ExposureTime':1000, #in us
+                  'ExposureMode':'Timed',
+                  'ExposureAuto':'Off',
+                  'GainAuto':'Off',
+                  'PixelFormat':'Mono12Packed',
+                  'Gamma':1.0,
+                  'BlackLevel':0,
+                  'TriggerSource':'Line 1',
+                  'TriggerMode':'On'
+               },
+               manual_camera_attributes={
+                  'TriggerSource':'Software',
+                  'TriggerMode':'Off'
+               })
 
    start()
 
    gigeCamera.expose(t=0.5,'exposure1')
 
-   stop(1)
-
-This is an example configuration for a USB3 camera.
-
-.. code-block:: python
-   
-   from labscript_devices.PylonCamera.labscript_devices import PylonCamera
-
-   PylonCamera('usb3Camera',parent_device=parent,connection=conn,
-               serial_number=1234567, 
-               minimum_recovery_time=36e-6, 
-               camera_attributs={},
-               manual_camera_attributes={})
-
-   start()
-
-   usb3Camera.expose(t=0.5,'exposure1')
+   usb3Camera.expose(t=0.45,'exposure2')
 
    stop(1)
 
@@ -98,12 +115,6 @@ Detailed Documentation
    :private-members:
 
 .. automodule:: labscript_devices.PylonCamera.blacs_workers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
-.. automodule:: labscript_devices.PylonCamera.register_classes
    :members:
    :undoc-members:
    :show-inheritance:
