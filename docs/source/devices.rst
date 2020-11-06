@@ -39,6 +39,7 @@ The camera devices provide interfaces for using various scientific cameras to ac
    devices/IMAQdx
    devices/pylon
    devices/flycapture2
+   devices/spinnaker
    devices/andorsolis
 
 
