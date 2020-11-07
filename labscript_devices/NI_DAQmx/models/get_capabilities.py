@@ -290,124 +290,124 @@ def get_min_semiperiod_measurement(device_name):
             return dtmin
     return dtmin
 
+if __name__ == '__main__':
+    capabilities = {}
+    if os.path.exists(CAPABILITIES_FILE):
+        with open(CAPABILITIES_FILE) as f:
+            try:
+                capabilities = json.load(f)
+            except ValueError:
+                pass
 
-capabilities = {}
-if os.path.exists(CAPABILITIES_FILE):
-    with open(CAPABILITIES_FILE) as f:
+
+    models = []
+    for name in DAQmxGetSysDevNames().split(', '):
+        model = DAQmxGetDevProductType(name)
+        print("found device:", name, model)
+        if model not in models:
+            models.append(model)
+        capabilities[model] = {}
         try:
-            capabilities = json.load(f)
-        except ValueError:
-            pass
-
-
-models = []
-for name in DAQmxGetSysDevNames().split(', '):
-    model = DAQmxGetDevProductType(name)
-    print("found device:", name, model)
-    if model not in models:
-        models.append(model)
-    capabilities[model] = {}
-    try:
-        capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(
-            name
-        )
-    except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
-        capabilities[model]["supports_buffered_AO"] = False
-    try:
-        capabilities[model]["max_DO_sample_rate"] = DAQmxGetDevDOMaxRate(name)
-        capabilities[model]["supports_buffered_DO"] = True
-    except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
-        capabilities[model]["max_DO_sample_rate"] = None
-        capabilities[model]["supports_buffered_DO"] = False
-    if capabilities[model]["supports_buffered_AO"]:
-        capabilities[model]["max_AO_sample_rate"] = DAQmxGetDevAOMaxRate(name)
-    else:
-        capabilities[model]["max_AO_sample_rate"] = None
-
-    capabilities[model]["num_AO"] = len(DAQmxGetDevAOPhysicalChans(name))
-    capabilities[model]["num_AI"] = len(DAQmxGetDevAIPhysicalChans(name))
-    if capabilities[model]["num_AI"] > 0:
-        single_rate = DAQmxGetDevAIMaxSingleChanRate(name)
-        multi_rate = DAQmxGetDevAIMaxMultiChanRate(name)
-    else:
-        single_rate = None
-        multi_rate = None
-    capabilities[model]["max_AI_single_chan_rate"] = single_rate
-    capabilities[model]["max_AI_multi_chan_rate"] = multi_rate
-
-    capabilities[model]["ports"] = {}
-    ports = DAQmxGetDevDOPorts(name)
-    chans = DAQmxGetDevDOLines(name)
-    for port in ports:
-        if '_' in port:
-            # Ignore the alternate port names such as 'port0_32' that allow using two or
-            # more ports together as a single, larger one:
-            continue
-        port_info = {}
-        capabilities[model]["ports"][port] = port_info
-        port_chans = [chan for chan in chans if chan.split('/')[0] == port]
-        port_info['num_lines'] = len(port_chans)
-        if capabilities[model]["supports_buffered_DO"]:
-            port_info['supports_buffered'] = port_supports_buffered(name, port)
+            capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(
+                name
+            )
+        except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
+            capabilities[model]["supports_buffered_AO"] = False
+        try:
+            capabilities[model]["max_DO_sample_rate"] = DAQmxGetDevDOMaxRate(name)
+            capabilities[model]["supports_buffered_DO"] = True
+        except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
+            capabilities[model]["max_DO_sample_rate"] = None
+            capabilities[model]["supports_buffered_DO"] = False
+        if capabilities[model]["supports_buffered_AO"]:
+            capabilities[model]["max_AO_sample_rate"] = DAQmxGetDevAOMaxRate(name)
         else:
-            port_info['supports_buffered'] = False
+            capabilities[model]["max_AO_sample_rate"] = None
 
-    capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
-    supports_semiperiod = supports_semiperiod_measurement(name)
-    capabilities[model]["supports_semiperiod_measurement"] = supports_semiperiod
-    if capabilities[model]["num_CI"] > 0 and supports_semiperiod:
-        min_semiperiod_measurement = get_min_semiperiod_measurement(name)
-    else:
-        min_semiperiod_measurement = None
-    capabilities[model]["min_semiperiod_measurement"] = min_semiperiod_measurement
+        capabilities[model]["num_AO"] = len(DAQmxGetDevAOPhysicalChans(name))
+        capabilities[model]["num_AI"] = len(DAQmxGetDevAIPhysicalChans(name))
+        if capabilities[model]["num_AI"] > 0:
+            single_rate = DAQmxGetDevAIMaxSingleChanRate(name)
+            multi_rate = DAQmxGetDevAIMaxMultiChanRate(name)
+        else:
+            single_rate = None
+            multi_rate = None
+        capabilities[model]["max_AI_single_chan_rate"] = single_rate
+        capabilities[model]["max_AI_multi_chan_rate"] = multi_rate
 
-    if capabilities[model]['num_AO'] > 0:
-        AO_ranges = []
-        raw_limits = DAQmxGetDevAOVoltageRngs(name)
-        for i in range(0, len(raw_limits), 2):
-            Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
-            AO_ranges.append([Vmin, Vmax])
-        # Find range with the largest maximum voltage and use that:
-        Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
-        # Confirm that no other range has a voltage lower than Vmin,
-        # since if it does, this violates our assumptions and things might not
-        # be as simple as having a single range:
-        assert min(AO_ranges)[0] >= Vmin
-        capabilities[model]["AO_range"] = [Vmin, Vmax]
-    else:
-        capabilities[model]["AO_range"] = None
+        capabilities[model]["ports"] = {}
+        ports = DAQmxGetDevDOPorts(name)
+        chans = DAQmxGetDevDOLines(name)
+        for port in ports:
+            if '_' in port:
+                # Ignore the alternate port names such as 'port0_32' that allow using two or
+                # more ports together as a single, larger one:
+                continue
+            port_info = {}
+            capabilities[model]["ports"][port] = port_info
+            port_chans = [chan for chan in chans if chan.split('/')[0] == port]
+            port_info['num_lines'] = len(port_chans)
+            if capabilities[model]["supports_buffered_DO"]:
+                port_info['supports_buffered'] = port_supports_buffered(name, port)
+            else:
+                port_info['supports_buffered'] = False
 
-    if capabilities[model]['num_AI'] > 0:
-        AI_ranges = []
-        raw_limits = DAQmxGetDevAIVoltageRngs(name)
-        for i in range(0, len(raw_limits), 2):
-            Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
-            AI_ranges.append([Vmin, Vmax])
-        # Restrict to the ranges allowed for non-differential input:
-        AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
-        # Find range with the largest maximum voltage and use that:
-        Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
-        # Confirm that no other range has a voltage lower than Vmin,
-        # since if it does, this violates our assumptions and things might not
-        # be as simple as having a single range:
-        assert min(AI_ranges)[0] >= Vmin
-        capabilities[model]["AI_range"] = [Vmin, Vmax]
-    else:
-        capabilities[model]["AI_range"] = None
+        capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
+        supports_semiperiod = supports_semiperiod_measurement(name)
+        capabilities[model]["supports_semiperiod_measurement"] = supports_semiperiod
+        if capabilities[model]["num_CI"] > 0 and supports_semiperiod:
+            min_semiperiod_measurement = get_min_semiperiod_measurement(name)
+        else:
+            min_semiperiod_measurement = None
+        capabilities[model]["min_semiperiod_measurement"] = min_semiperiod_measurement
 
-    if capabilities[model]["num_AI"] > 0:
-        capabilities[model]["AI_start_delay"] = AI_start_delay(name)
-    else:
-        capabilities[model]["AI_start_delay"] = None
+        if capabilities[model]['num_AO'] > 0:
+            AO_ranges = []
+            raw_limits = DAQmxGetDevAOVoltageRngs(name)
+            for i in range(0, len(raw_limits), 2):
+                Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
+                AO_ranges.append([Vmin, Vmax])
+            # Find range with the largest maximum voltage and use that:
+            Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
+            # Confirm that no other range has a voltage lower than Vmin,
+            # since if it does, this violates our assumptions and things might not
+            # be as simple as having a single range:
+            assert min(AO_ranges)[0] >= Vmin
+            capabilities[model]["AO_range"] = [Vmin, Vmax]
+        else:
+            capabilities[model]["AO_range"] = None
+
+        if capabilities[model]['num_AI'] > 0:
+            AI_ranges = []
+            raw_limits = DAQmxGetDevAIVoltageRngs(name)
+            for i in range(0, len(raw_limits), 2):
+                Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
+                AI_ranges.append([Vmin, Vmax])
+            # Restrict to the ranges allowed for non-differential input:
+            AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
+            # Find range with the largest maximum voltage and use that:
+            Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
+            # Confirm that no other range has a voltage lower than Vmin,
+            # since if it does, this violates our assumptions and things might not
+            # be as simple as having a single range:
+            assert min(AI_ranges)[0] >= Vmin
+            capabilities[model]["AI_range"] = [Vmin, Vmax]
+        else:
+            capabilities[model]["AI_range"] = None
+
+        if capabilities[model]["num_AI"] > 0:
+            capabilities[model]["AI_start_delay"] = AI_start_delay(name)
+        else:
+            capabilities[model]["AI_start_delay"] = None
 
 
-with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
-    data = json.dumps(capabilities, sort_keys=True, indent=4)
-    f.write(data)
+    with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
+        data = json.dumps(capabilities, sort_keys=True, indent=4)
+        f.write(data)
 
-print("added/updated capabilities for %d models" % len(models))
-print("Total models with known capabilities: %d" % len(capabilities))
-for model in capabilities:
-    if model not in models:
-        print(model, 'capabilities not updated')
-print("run generate_subclasses.py to make labscript devices for these models")
+    print("added/updated capabilities for %d models" % len(models))
+    print("Total models with known capabilities: %d" % len(capabilities))
+    for model in capabilities:
+        if model not in models:
+            print(model, 'capabilities not updated')
+    print("run generate_subclasses.py to make labscript devices for these models")
