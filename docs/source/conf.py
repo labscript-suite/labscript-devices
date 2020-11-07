@@ -50,7 +50,7 @@ extensions = [
 ]
 
 autodoc_typehints = 'description'
-autoclass_content = 'init'
+autoclass_content = 'both'  # options: 'both', 'class', 'init'
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
 autosectionlabel_prefix_document = True
@@ -225,3 +225,18 @@ def setup(app):
                 img_path=img_path
             )
         )
+
+    # hook to run apidoc before building
+    app.connect('builder-inited',run_apidoc)
+
+def run_apidoc(_):
+    """Runs apidoc with our desired parameters to generate the NI_DAQmx models docs.
+
+    Also manually strips out some irrelevant stuff."""
+    from sphinx.ext.apidoc import main
+    daq_models_path = os.path.join(os.path.abspath('..'),'labscript_devices')
+    out_path = os.path.join(os.path.dirname(Path(__file__)),'devices','_apidoc')
+    templates_path = os.path.join(os.path.dirname(Path(__file__)),'_templates')
+    main(['-TMf','-s','inc',
+          '-t', templates_path,
+          '-o',out_path,daq_models_path])
