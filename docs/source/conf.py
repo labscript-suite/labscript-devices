@@ -235,8 +235,8 @@ def run_apidoc(_):
     Also manually strips out some irrelevant stuff."""
     from sphinx.ext.apidoc import main
     daq_models_path = os.path.join(os.path.abspath('..'),'labscript_devices')
-    out_path = os.path.join(os.path.dirname(Path(__file__)),'devices','_apidoc')
-    templates_path = os.path.join(os.path.dirname(Path(__file__)),'_templates')
+    out_path = os.path.join(os.path.dirname(Path(__file__)),'devices','_apidoc','models')
+    templates_path = os.path.join(os.path.dirname(Path(__file__)),'_templates','models')
     main(['-TMf','-s','inc',
           '-t', templates_path,
           '-o',out_path,daq_models_path])
