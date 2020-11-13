@@ -76,7 +76,8 @@ Below are generic configurations for GigE and USB3 based cameras.
                   'Gamma':1.0,
                   'BlackLevel':0,
                   'TriggerSource':'Line 1',
-                  'TriggerMode':'On'
+                  'TriggerMode':'On',
+                  'ShutterMode':'Global'
                },
                manual_camera_attributes={
                   'TriggerSource':'Software',
@@ -91,6 +92,21 @@ Below are generic configurations for GigE and USB3 based cameras.
 
    stop(1)
 
+Utilities
+~~~~~~~~~
+
+The Pylon labscript device includes a script in the `testing` subfolder that can automatically determine the full-frame sensor readout time and maximum possible framerate. This tool helps in correctly determining the appropriate `minimum_recovery_time` to set for each device. The minimum recovery time is a function of the model used, the communication bus used, and minor details of the setup (such as host controller firmwares, cable lengths, host computer workload, etc). As a result, live testing of the device is often needed to accurately determine the actual recovery time needed between shots.
+
+The script is run from within the testing folder using
+
+.. code-block:: python
+
+   python ExposureTiming.py [camera_sn]
+with `[camera_sn]` being the serial number of the camera to connect to and test.
+
+The script reports the minimum recovery time between two shots of 1 ms exposure each, without the use of overlapped exposure mode. Editing the script to include your typical experiment parameters will help in more accurately determining your minimum recovery time. Typically, the minimum recovery time should be slightly longer than the reported sensor readout time.
+
+Note that in overlapped exposure mode, a second exposure is begun before the first exposure has finished reading out and *must* end after the readout of the first exposure frame is complete. This allows for a series of two exposures with shorter delay between them, at the expense of limitations on the length of the second exposure. The script will also report the minimum time between the end of one exposure and the beginning of the second (nominally `readout_time - exposure_time`). Note that this feature is automatically handled at the Pylon API level; this labscript device is not actively aware of it. As a result, incorrect uses of overlapped mode will not be caught at compile time, but rather during the shot as hardware errors.
 
 
 Detailed Documentation

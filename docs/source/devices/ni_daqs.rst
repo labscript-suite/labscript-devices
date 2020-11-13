@@ -90,7 +90,7 @@ An example configuration of a `WaitMonitor` using a NI DAQ is shown here
 	# Necessary to ensure even number of digital out lines in shot
 	DigitalOut('daq_do1',daq,'port0/line1')
 
-Note that the counter connection is specified using the logical label `'ctr0'`. On many NI DAQs, the physical connection to this counter is PFI9. The physical wiring for this configuration would have port0/line0 wired directly to PFI9, which PFI1 being sent to the master pseudoclock retriggering system in case of timeout. If timeouts are not expect/represent experiment failure, this physical connection can be omitted.
+Note that the counter connection is specified using the logical label `'ctr0'`. On many NI DAQs, the physical connection to this counter is PFI9. The physical wiring for this configuration would have port0/line0 wired directly to PFI9, with PFI1 being sent to the master pseudoclock retriggering system in case of timeout. If timeouts are not expected/represent experiment failure, this physical connection can be omitted.
 
 
 Detailed Documentation

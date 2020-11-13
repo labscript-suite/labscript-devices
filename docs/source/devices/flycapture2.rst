@@ -29,7 +29,9 @@ Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration i
 2. Mirroring the FlyCap Viewer parameter names and values.
 3. Connecting to the camera with a minimal configuration, viewing the current parameters dictionary, and copying the relevant values to the connection table (preferred).
 
-Below is a generic configuration.
+The python structure for setting these values differs somewhat from other camera devices in labscript, taking the form of nested dictionaries. This structure most closely matches the structure of the FlyCapture2 SDK in that each camera property has multiple sub-elements that control the feature. In this implementation, the standard camera properties are set using keys with ALL CAPS. The control of the Trigger Mode and Image Mode properties is handled separately, using a slightly different nesting structure than the other properties.
+
+Below is a generic configuration for a Point Grey Blackfly PGE-23S6M-C device.
 
 .. code-block:: python
 
@@ -40,8 +42,43 @@ Below is a generic configuration.
    FlyCapture2Camera('gigeCamera',parent_device=parent,connection=conn,
                serial_number=1234567, # set to the camera serial number
                minimum_recovery_time=36e-6, # the minimum exposure time depends on the camera model & configuration
-               camera_attributs={},
-               manual_camera_attributes={})
+               camera_attributs={
+                                 'GAMMA':{
+                                          'onOff':False,
+                                          'absControl':True,
+                                          'absValue':1},
+                                 'AUTO_EXPOSURE':{
+                                          'onOff':True,
+                                          'absControl':True,
+                                          'autoManualMode':False,
+                                          'absValue':0},
+                                 'GAIN':{
+                                          'autoManualMode':False,
+                                          'absControl':True,
+                                          'absValue':0},
+                                 'SHARPNESS':{
+                                          'onOff':False,
+                                          'autoManualMode':False,
+                                          'absValue':1024},
+                                 'FRAME_RATE':{
+                                          'autoManualMode':False,
+                                          'absControl':True},
+                                 'SHUTTER':{
+                                          'autoManualMode':False,
+                                          'absValue':0},
+                                 'TriggerMode':{
+                                          'polarity':1,
+                                          'source':0,
+                                          'mode':1,
+                                          'onOff':True},
+                                 'ImageMode':{
+                                          'width':1920,
+                                          'height':1200,
+                                          'offsetX':0,
+                                          'offsetY':0,
+                                          'pixelFormat':'MONO16'}
+               },
+               manual_camera_attributes={'TriggerMode':{'onOff':False}})
 
    start()
 
