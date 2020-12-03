@@ -381,8 +381,7 @@ class PulseblasterNoDDSWorker(Worker):
                 if fresh or len(self.smart_cache['pulse_program']) != len(pulse_program) or \
                 (self.smart_cache['pulse_program'] != pulse_program).any():
                     self.smart_cache['pulse_program'] = pulse_program
-                    for args in pulse_program:
-                        pb_inst_pbonly(*args)
+                    map(pb_inst_pbonly, *pulse_program)
                         
             if self.programming_scheme == 'pb_start/BRANCH':
                 # We will be triggered by pb_start() if we are are the master pseudoclock or a single hardware trigger
