@@ -231,8 +231,7 @@ def setup(app):
 
 def run_apidoc(_):
     """Runs apidoc with our desired parameters to generate the NI_DAQmx models docs.
-
-    Also manually strips out some irrelevant stuff."""
+    """
     from sphinx.ext.apidoc import main
     daq_models_path = os.path.join(os.path.abspath('..'),'labscript_devices')
     out_path = os.path.join(os.path.dirname(Path(__file__)),'devices','_apidoc','models')
