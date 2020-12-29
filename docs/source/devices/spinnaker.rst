@@ -15,7 +15,7 @@ First ensure that the Spinnaker SDK is installed.
 
 The python wrapper is available via FLIR. It must be installed separately and pointed to the correct conda environment during install.
 
-For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames. That maximum allowed value (typically 9000) is preferable to avoid dropped frames.
+For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames. The maximum allowed value (typically 9000) is preferable to avoid dropped frames.
 
 Usage
 ~~~~~
@@ -34,15 +34,45 @@ Below is a generic configuration.
    
    from labscript_devices.SpinnakerCamera.labscript_devices import SpinnakerCamera
 
+   CCT_global_camera_attributes = {
+      'AnalogControl::GainAuto': 'Off',
+      'AnalogControl::Gain': 0.0,
+      'AnalogControl::BlackLevelEnabled': True,
+      'AnalogControl::BlackLevel': 0.0,
+      'AnalogControl::GammaEnabled': False,
+      'AnalogControl::SharpnessEnabled': False,
+      'ImageFormatControl::Width': 1008,
+      'ImageFormatControl::Height': 800,
+      'ImageFormatControl::OffsetX': 200,
+      'ImageFormatControl::OffsetY': 224,
+      'ImageFormatControl::PixelFormat': 'Mono16',
+      'ImageFormatControl::VideoMode': 'Mode0',
+      'AcquisitionControl::TriggerMode': 'Off',
+      'AcquisitionControl::TriggerSource': 'Line0',
+      'AcquisitionControl::TriggerSelector': 'ExposureActive',
+      'AcquisitionControl::TriggerActivation': 'FallingEdge',
+    }
+   CCT_manual_mode_attributes = {
+      'AcquisitionControl::TriggerMode': 'Off',
+      'AcquisitionControl::ExposureMode': 'Timed',
+   }
+   CCT_buffered_mode_attributes = {
+      'AcquisitionControl::TriggerMode': 'On',
+      'AcquisitionControl::ExposureMode': 'TriggerWidth',
+   }
+
    SpinnakerCamera('gigeCamera',parent_device=parent,connection=conn,
                serial_number=1234567, # set to the camera serial number
                minimum_recovery_time=36e-6, # the minimum exposure time depends on the camera model & configuration
-               camera_attributs={},
-               manual_camera_attributes={})
+               trigger_edge_type='falling',
+               camera_attributs={**CCT_global_camera_attributes,
+                                 **CCT_buffered_mode_attributes},
+               manual_camera_attributes={**CCT_global_camera_attributes,
+                                         **CCT_manual_mode_attributes})
 
    start()
 
-   gigeCamera.expose(t=0.5,'exposure1')
+   gigeCamera.expose(t=0.5,'exposure1',trigger_duration=0.25)
 
 
    stop(1)
