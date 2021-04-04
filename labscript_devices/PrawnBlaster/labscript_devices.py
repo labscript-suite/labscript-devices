@@ -171,7 +171,7 @@ class PrawnBlaster(PseudoclockDevice):
         if out_pins is None:
             out_pins = [9, 11, 13, 15]
         if in_pins is None:
-            in_pins = [0, 2, 4, 6]
+            in_pins = [0, 0, 0, 0]
         if len(out_pins) < num_pseudoclocks:
             raise LabscriptError(
                 f"The PrawnBlaster {self.name} is configured with {num_pseudoclocks} but only has pin numbers specified for {len(out_pins)}."
@@ -350,7 +350,7 @@ class PrawnBlaster(PseudoclockDevice):
                 f"PULSE_PROGRAM_{i}", compression=config.compression, data=pulse_program
             )
 
-        # TODO: is this needed, the PulseBlasters don't save it...
+        # This is needed so the BLACS worker knows whether or not to be a wait monitor
         self.set_property(
             "is_master_pseudoclock",
             self.is_master_pseudoclock,

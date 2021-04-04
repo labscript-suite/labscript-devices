@@ -14,6 +14,7 @@ import time
 import labscript_utils.h5_lock
 import h5py
 from blacs.tab_base_classes import Worker
+from labscript_utils.connections import _ensure_str
 import labscript_utils.properties as properties
 
 
@@ -24,9 +25,23 @@ class PrawnBlasterWorker(Worker):
         global serial; import serial
         global time; import time
         global re; import re
+        global numpy; import numpy
+        global zprocess; import zprocess
         self.smart_cache = {}
         self.cached_pll_params = {}
         # fmt: on
+
+        self.all_waits_finished = zprocess.Event("all_waits_finished", type="post")
+        self.wait_durations_analysed = zprocess.Event(
+            "wait_durations_analysed", type="post"
+        )
+        self.wait_completed = zprocess.Event("wait_completed", type="post")
+        self.current_wait = 0
+        self.wait_table = None
+        self.measured_waits = None
+        self.wait_timeout = None
+        self.h5_file = None
+        self.started = False
 
         self.prawnblaster = serial.Serial(self.com_port, 115200, timeout=1)
         self.check_status()
@@ -43,11 +58,64 @@ class PrawnBlasterWorker(Worker):
             assert self.prawnblaster.readline().decode() == "ok\r\n"
 
     def check_status(self):
+        if self.started and self.wait_table is not None and self.current_wait < len(self.wait_table):
+            # Try to read out wait. For now, we're only reading out waits from
+            # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
+            self.prawnblaster.write(b"getwait %d %d\r\n" % (0, self.current_wait))
+            response = self.prawnblaster.readline().decode()
+            if response != "wait not yet available\r\n":
+                # Parse the response from the PrawnBlaster
+                wait_remaining = int(response)
+                clock_resolution = self.device_properties["clock_resolution"]
+                timeout_length = round(
+                    self.wait_table[self.current_wait]["timeout"] / clock_resolution
+                )
+
+                if wait_remaining == (2 ** 32 - 1):
+                    # The wait hit the timeout - save the timeout duration as wait length
+                    # and flag that this wait timedout
+                    self.measured_waits[self.current_wait] = (
+                        timeout_length * clock_resolution
+                    )
+                    self.wait_timeout[self.current_wait] = True
+                else:
+                    # Calculate wait length
+                    self.measured_waits[self.current_wait] = (
+                        timeout_length - wait_remaining
+                    ) * clock_resolution
+                    self.wait_timeout[self.current_wait] = False
+
+                self.logger.info(
+                    f"Wait {self.current_wait} finished. Length={self.measured_waits[self.current_wait]:.9f}s. Timed-out={self.wait_timeout[self.current_wait]}"
+                )
+
+                # Inform any interested parties that a wait has completed:
+                self.wait_completed.post(
+                    self.h5_file,
+                    data=_ensure_str(self.wait_table[self.current_wait]["label"]),
+                )
+
+                # increment the wait we are looking for!
+                self.current_wait += 1
+
+                # post message if all waits are done
+                if len(self.wait_table) == self.current_wait:
+                    self.logger.info("All waits finished")
+                    self.all_waits_finished.post(self.h5_file)
+
+        # Determine if we are still waiting for wait information
+        waits_pending = False
+        if self.wait_table is not None:
+            if self.current_wait == len(self.wait_table):
+                waits_pending = False
+            else:
+                waits_pending = True
+
         self.prawnblaster.write(b"status\r\n")
         response = self.prawnblaster.readline().decode()
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
-            return int(match.group(1)), int(match.group(2)), False
+            return int(match.group(1)), int(match.group(2)), waits_pending
         elif response:
             raise Exception(
                 f"PrawnBlaster is confused: saying '{response}' instead of 'run-status:<int> clock-status:<int>'"
@@ -74,6 +142,11 @@ class PrawnBlasterWorker(Worker):
         if fresh:
             self.smart_cache = {}
 
+        self.h5_file = h5file  # store reference to h5 file for wait monitor
+        self.current_wait = 0  # reset wait analysis
+        self.started = False   # Prevent status check from detecting previous wait values
+                               # betwen now and when we actually send the start signal
+
         # Get data from HDF5 file
         pulse_programs = []
         with h5py.File(h5file, "r") as hdf5_file:
@@ -81,79 +154,48 @@ class PrawnBlasterWorker(Worker):
             for i in range(self.num_pseudoclocks):
                 pulse_programs.append(group[f"PULSE_PROGRAM_{i}"][:])
                 self.smart_cache.setdefault(i, [])
-            device_properties = labscript_utils.properties.get(
+            self.device_properties = labscript_utils.properties.get(
                 hdf5_file, device_name, "device_properties"
             )
-            self.is_master_pseudoclock = device_properties["is_master_pseudoclock"]
+            self.is_master_pseudoclock = self.device_properties["is_master_pseudoclock"]
 
-        # TODO: Configure clock from device properties
+            # waits
+            dataset = hdf5_file["waits"]
+            acquisition_device = dataset.attrs["wait_monitor_acquisition_device"]
+            timeout_device = dataset.attrs["wait_monitor_timeout_device"]
+            if (
+                len(dataset) > 0
+                and acquisition_device
+                == "%s_internal_wait_monitor_outputs" % device_name
+                and timeout_device == "%s_internal_wait_monitor_outputs" % device_name
+            ):
+                self.wait_table = dataset[:]
+                self.measured_waits = numpy.zeros(len(self.wait_table))
+                self.wait_timeout = numpy.zeros(len(self.wait_table), dtype=bool)
+            else:
+                self.wait_table = (
+                    None  # This device doesn't need to worry about looking at waits
+                )
+                self.measured_waits = None
+                self.wait_timeout = None
+
+        # Configure clock from device properties
         clock_mode = 0
-        clock_vcofreq = 0
-        clock_plldiv1 = 0
-        clock_plldiv2 = 0
-        if device_properties["external_clock_pin"] is not None:
-            if device_properties["external_clock_pin"] == 20:
+        if self.device_properties["external_clock_pin"] is not None:
+            if self.device_properties["external_clock_pin"] == 20:
                 clock_mode = 1
-            elif device_properties["external_clock_pin"] == 22:
+            elif self.device_properties["external_clock_pin"] == 22:
                 clock_mode = 2
             else:
                 raise RuntimeError(
-                    f"Invalid external clock pin {device_properties['external_clock_pin']}. Pin must be 20, 22 or None."
+                    f"Invalid external clock pin {self.device_properties['external_clock_pin']}. Pin must be 20, 22 or None."
                 )
-        clock_frequency = device_properties["clock_frequency"]
-
-        if clock_mode == 0:
-            if clock_frequency == 100e6:
-                clock_vcofreq = 1200e6
-                clock_plldiv1 = 6
-                clock_plldiv2 = 2
-            elif clock_frequency in self.cached_pll_params:
-                pll_params = self.cached_pll_params[clock_frequency]
-                clock_vcofreq = pll_params["vcofreq"]
-                clock_plldiv1 = pll_params["plldiv1"]
-                clock_plldiv2 = pll_params["plldiv2"]
-            else:
-                self.logger.info("Calculating PLL parameters...")
-                osc_freq = 12e6
-                # Techniclally FBDIV can be 16-320 (see 2.18.2 in
-                # https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf )
-                # however for a 12MHz reference clock, the range is smaller to ensure
-                # vcofreq is between 400 and 1600 MHz.
-                found = False
-                for fbdiv in range(134, 33, -1):
-                    vcofreq = osc_freq * fbdiv
-                    # PLL1 div should be greater than pll2 div if possible so we start high
-                    for pll1 in range(7, 0, -1):
-                        for pll2 in range(1, 8):
-                            if vco_freq / (pll1 * pll2) == clock_frequency:
-                                found = True
-                                clock_vcofreq = vcofreq
-                                clock_plldiv1 = pll1
-                                clock_plldiv2 = pll2
-                                pll_params = {}
-                                pll_params["vcofreq"] = clock_vcofreq
-                                pll_params["plldiv1"] = clock_plldiv1
-                                pll_params["plldiv2"] = clock_plldiv2
-                                self.cached_pll_params[clock_frequency] = pll_params
-                                break
-                        if found:
-                            break
-                    if found:
-                        break
-                if not found:
-                    raise RuntimeError(
-                        "Could not determine appropriate clock paramaters"
-                    )
+        clock_frequency = self.device_properties["clock_frequency"]
 
         # Now set the clock details
-        self.prawnblaster.write(
-            b"setclock %d %d %d %d %d\r\n"
-            % (clock_mode, clock_frequency, clock_vcofreq, clock_plldiv1, clock_plldiv2)
-        )
+        self.prawnblaster.write(b"setclock %d %d\r\n" % (clock_mode, clock_frequency))
         response = self.prawnblaster.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
-
-        # TODO: Save any information we need for wait monitor
 
         # Program instructions
         for pseudoclock, pulse_program in enumerate(pulse_programs):
@@ -187,8 +229,32 @@ class PrawnBlasterWorker(Worker):
         response = self.prawnblaster.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
 
+        # set started = True
+        self.started = True
+
     def transition_to_manual(self):
-        # TODO: write this
+        if self.wait_table is not None:
+            with h5py.File(self.h5_file, "a") as hdf5_file:
+                # Work out how long the waits were, save em, post an event saying so
+                dtypes = [
+                    ("label", "a256"),
+                    ("time", float),
+                    ("timeout", float),
+                    ("duration", float),
+                    ("timed_out", bool),
+                ]
+                data = numpy.empty(len(self.wait_table), dtype=dtypes)
+                data["label"] = self.wait_table["label"]
+                data["time"] = self.wait_table["time"]
+                data["timeout"] = self.wait_table["timeout"]
+                data["duration"] = self.measured_waits
+                data["timed_out"] = self.wait_timeout
+
+                self.logger.info(str(data))
+
+                hdf5_file.create_dataset("/data/waits", data=data)
+
+            self.wait_durations_analysed.post(self.h5_file)
         return True
 
     def shutdown(self):
