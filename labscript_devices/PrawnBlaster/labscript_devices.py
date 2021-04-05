@@ -105,7 +105,13 @@ class PrawnBlaster(PseudoclockDevice):
     description = "PrawnBlaster"
     clock_limit = 1 / 60e-9
     clock_resolution = 10e-9
-    trigger_delay = 70e-9
+    # There appears to be ~50ns buffer on input and then we know there is 80ns between
+    # trigger detection and first output pulse
+    trigger_delay = 130e-9
+    # Overestimate that covers indefinite waits (which labscript does not yet support)
+    trigger_minimum_duration = 160e-9 
+    # There are 4 ASM instructions between end of pulse and being ready to detect
+    # a retrigger
     wait_delay = 40e-9
     allowed_children = [_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock]
     max_instructions = 60000
@@ -124,6 +130,7 @@ class PrawnBlaster(PseudoclockDevice):
                 "clock_limit",
                 "clock_resolution",
                 "trigger_delay",
+                "trigger_minimum_duration",
                 "wait_delay",
                 "max_instructions",
             ],
@@ -156,6 +163,7 @@ class PrawnBlaster(PseudoclockDevice):
             self.clock_limit *= factor
             self.clock_resolution *= factor
             self.trigger_delay *= factor
+            self.trigger_minimum_duration *= factor
             self.wait_delay *= factor
 
         # Instantiate the base class
