@@ -107,7 +107,8 @@ class PrawnBlaster(PseudoclockDevice):
     clock_resolution = 10e-9
     # There appears to be ~50ns buffer on input and then we know there is 80ns between
     # trigger detection and first output pulse
-    trigger_delay = 130e-9
+    input_response_time = 50e-9
+    trigger_delay = input_response_time + 80e-9
     # Overestimate that covers indefinite waits (which labscript does not yet support)
     trigger_minimum_duration = 160e-9 
     # There are 4 ASM instructions between end of pulse and being ready to detect
@@ -129,6 +130,7 @@ class PrawnBlaster(PseudoclockDevice):
                 "external_clock_pin",
                 "clock_limit",
                 "clock_resolution",
+                "input_response_time",
                 "trigger_delay",
                 "trigger_minimum_duration",
                 "wait_delay",
@@ -162,6 +164,7 @@ class PrawnBlaster(PseudoclockDevice):
             factor = (1 / clock_frequency) / self.clock_resolution
             self.clock_limit *= factor
             self.clock_resolution *= factor
+            self.input_response_time *= factor
             self.trigger_delay *= factor
             self.trigger_minimum_duration *= factor
             self.wait_delay *= factor

@@ -58,7 +58,11 @@ class PrawnBlasterWorker(Worker):
             assert self.prawnblaster.readline().decode() == "ok\r\n"
 
     def check_status(self):
-        if self.started and self.wait_table is not None and self.current_wait < len(self.wait_table):
+        if (
+            self.started
+            and self.wait_table is not None
+            and self.current_wait < len(self.wait_table)
+        ):
             # Try to read out wait. For now, we're only reading out waits from
             # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
             self.prawnblaster.write(b"getwait %d %d\r\n" % (0, self.current_wait))
@@ -67,6 +71,7 @@ class PrawnBlasterWorker(Worker):
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
                 clock_resolution = self.device_properties["clock_resolution"]
+                input_response_time = self.device_properties["input_response_time"]
                 timeout_length = round(
                     self.wait_table[self.current_wait]["timeout"] / clock_resolution
                 )
@@ -80,9 +85,13 @@ class PrawnBlasterWorker(Worker):
                     self.wait_timeout[self.current_wait] = True
                 else:
                     # Calculate wait length
+                    # This is a measurement of between the end of the last pulse and the
+                    # retrigger signal. We obtain this by subtracting off the time it takes
+                    # to detect the pulse in the ASM code once the trigger has hit the input
+                    # pin (stored in input_response_time)
                     self.measured_waits[self.current_wait] = (
-                        timeout_length - wait_remaining
-                    ) * clock_resolution
+                        (timeout_length - wait_remaining) * clock_resolution
+                    ) - input_response_time
                     self.wait_timeout[self.current_wait] = False
 
                 self.logger.info(
@@ -142,10 +151,12 @@ class PrawnBlasterWorker(Worker):
         if fresh:
             self.smart_cache = {}
 
+        # fmt: off
         self.h5_file = h5file  # store reference to h5 file for wait monitor
         self.current_wait = 0  # reset wait analysis
         self.started = False   # Prevent status check from detecting previous wait values
-                               # betwen now and when we actually send the start signal
+        #                        betwen now and when we actually send the start signal
+        # fmt: on
 
         # Get data from HDF5 file
         pulse_programs = []
