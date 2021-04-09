@@ -103,7 +103,7 @@ class _PrawnBlasterDummyIntermediateDevice(IntermediateDevice):
 
 class PrawnBlaster(PseudoclockDevice):
     description = "PrawnBlaster"
-    clock_limit = 1 / 60e-9
+    clock_limit = 1 / 50e-9
     clock_resolution = 10e-9
     # There appears to be ~50ns buffer on input and then we know there is 80ns between
     # trigger detection and first output pulse
