@@ -59,6 +59,8 @@ class NI_DAQmx(IntermediateDevice):
                 "clock_mirror_terminal",
                 "AI_range",
                 "AI_start_delay",
+                "AI_term",
+                "AI_chans",
                 "AO_range",
                 "max_AI_multi_chan_rate",
                 "max_AI_single_chan_rate",
@@ -72,6 +74,7 @@ class NI_DAQmx(IntermediateDevice):
                 "supports_buffered_AO",
                 "supports_buffered_DO",
                 "supports_semiperiod_measurement",
+                "supports_simultaneous_AI_sampling",
                 "clock_limit",
                 "wait_monitor_minimum_pulse_width",
                 "wait_monitor_supports_wait_completed_events",
@@ -90,7 +93,10 @@ class NI_DAQmx(IntermediateDevice):
         clock_mirror_terminal=None,
         acquisition_rate=None,
         AI_range=None,
+        AI_range_Diff=None,
         AI_start_delay=0,
+        AI_term='RSE',
+        AI_term_cfg=None,
         AO_range=None,
         max_AI_multi_chan_rate=None,
         max_AI_single_chan_rate=None,
@@ -104,6 +110,7 @@ class NI_DAQmx(IntermediateDevice):
         supports_buffered_AO=False,
         supports_buffered_DO=False,
         supports_semiperiod_measurement=False,
+        supports_simultaneous_AI_sampling=False,
         **kwargs
     ):
         """Generic class for NI_DAQmx devices.
@@ -192,12 +199,20 @@ class NI_DAQmx(IntermediateDevice):
         self.max_DO_sample_rate = max_DO_sample_rate
         self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
+        self.AI_term = AI_term
+        self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
+        if not len(self.AI_chans):
+            msg = """AI termination {0} not supported by this device."""
+            raise LabscriptError(dedent(msg.format(AI_term))) 
+        if AI_term == 'Diff':
+            self.AI_range = AI_range_Diff  
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
         self.supports_buffered_AO = supports_buffered_AO
         self.supports_buffered_DO = supports_buffered_DO
         self.supports_semiperiod_measurement = supports_semiperiod_measurement
+        self.supports_simultaneous_AI_sampling = supports_simultaneous_AI_sampling
 
         if self.supports_buffered_DO and self.supports_buffered_AO:
             self.clock_limit = min(self.max_DO_sample_rate, self.max_AO_sample_rate)
@@ -291,8 +306,7 @@ class NI_DAQmx(IntermediateDevice):
                     buffered output"""
                 raise ValueError(dedent(msg) % port_str)
         elif isinstance(device, AnalogIn):
-            ai_num = split_conn_AI(device.connection)
-            if ai_num >= self.num_AI:
+            if device.connection not in self.AI_chans:
                 msg = """Cannot add analog input with connection string '%s' to device
                 with num_AI=%d"""
                 raise ValueError(dedent(msg) % (device.connection, self.num_AI))
@@ -352,7 +366,9 @@ class NI_DAQmx(IntermediateDevice):
             # Either no AI in use, or already checked against single channel rate in
             # __init__.
             return
-        if self.acquisition_rate <= self.max_AI_multi_chan_rate / n:
+        if self.supports_simultaneous_AI_sampling and self.acquisition_rate <= self.max_AI_multi_chan_rate:
+            return
+        elif self.acquisition_rate <= self.max_AI_multi_chan_rate / n:
             return
         msg = """Requested acqusition_rate %f for device %s with %d analog input
             channels in use is too fast. Device supports a rate of %f per channel when

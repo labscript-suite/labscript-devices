@@ -179,6 +179,7 @@ DAQmxGetDevAIMaxMultiChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxMultiChanRa
 DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
 DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 DAQmxGetPhysicalChanAITermCfgs = int32_prop(PyDAQmx.DAQmxGetPhysicalChanAITermCfgs)
+DAQmxGetDevAISimultaneousSamplingSupported = bool_prop(PyDAQmx.DAQmxGetDevAISimultaneousSamplingSupported)
 
 
 def port_supports_buffered(device_name, port, clock_terminal=None):
@@ -569,12 +570,12 @@ for name in DAQmxGetSysDevNames().split(', '):
     capabilities[model]["max_AI_multi_chan_rate"] = multi_rate
     if capabilities[model]["num_AI"] > 0:
         capabilities[model]["AI_term_cfg"] = supported_AI_terminal_configurations(name)
-        cfgs = [item for sublist in capabilities[model]["AI_term_cfg"].values()
-                for item in sublist]
-        capabilities[model]["num_AI_Diff"] = cfgs.count('Diff')
-        capabilities[model]["num_AI_RSE"] = cfgs.count('RSE')
-    else:
-        capabilities[model]["AI_term_cfg"] = None
+        cfgs = [item for sublist in capabilities[model]["AI_term_cfg"].values() for item in sublist]
+        if cfgs.count('RSE'):
+            capabilities[model]["AI_term"] = 'RSE'
+        elif cfgs.count('Diff'):
+            capabilities[model]["AI_term"] = 'Diff'
+        capabilities[model]["supports_simultaneous_AI_sampling"] = DAQmxGetDevAISimultaneousSamplingSupported(name)
 
     capabilities[model]["ports"] = {}
     ports = DAQmxGetDevDOPorts(name)

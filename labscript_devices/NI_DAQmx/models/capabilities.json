@@ -465,5 +465,73 @@
         "supports_buffered_AO": true,
         "supports_buffered_DO": true,
         "supports_semiperiod_measurement": true
+    },
+    "USB-6366": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_range_Diff": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 4e-08,
+        "AI_term": "Diff",
+        "AI_term_cfg": {
+            "ai0": [
+                "Diff"
+            ],
+            "ai1": [
+                "Diff"
+            ],
+            "ai2": [
+                "Diff"
+            ],
+            "ai3": [
+                "Diff"
+            ],
+            "ai4": [
+                "Diff"
+            ],
+            "ai5": [
+                "Diff"
+            ],
+            "ai6": [
+                "Diff"
+            ],
+            "ai7": [
+                "Diff"
+            ]
+        },
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 2000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 3333333.3333333335,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 8,
+        "num_AO": 2,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 8,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true,
+        "supports_simultaneous_AI_sampling": true
     }
 }

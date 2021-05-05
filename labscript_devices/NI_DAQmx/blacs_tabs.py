@@ -41,6 +41,7 @@ class NI_DAQmxTab(DeviceTab):
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']
+        AI_chans = properties['AI_chans']
         ports = properties['ports']
         num_CI = properties['num_CI']
 
@@ -187,6 +188,8 @@ class NI_DAQmxTab(DeviceTab):
                 {
                     'MAX_name': self.MAX_name,
                     'num_AI': num_AI,
+                    'AI_chans': AI_chans,
+                    'AI_term': properties['AI_term'],
                     'AI_range': properties['AI_range'],
                     'AI_start_delay': properties['AI_start_delay'],
                     'clock_terminal': clock_terminal,
