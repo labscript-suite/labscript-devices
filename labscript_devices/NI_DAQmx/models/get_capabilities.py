@@ -178,6 +178,7 @@ DAQmxGetDevAIMaxSingleChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxSingleChan
 DAQmxGetDevAIMaxMultiChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxMultiChanRate)
 DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
 DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
+DAQmxGetPhysicalChanAITermCfgs = int32_prop(PyDAQmx.DAQmxGetPhysicalChanAITermCfgs)
 
 
 def port_supports_buffered(device_name, port, clock_terminal=None):
@@ -252,8 +253,13 @@ def AI_start_delay(device_name):
     Vmin, Vmax = DAQmxGetDevAIVoltageRngs(device_name)[0:2]
     num_samples = 1000
     chan = device_name + '/ai0'
+    supp_types = DAQmxGetPhysicalChanAITermCfgs(chan)
+    if supp_types & c.DAQmx_Val_Bit_TermCfg_RSE:
+        input_type = c.DAQmx_Val_RSE
+    elif supp_types & c.DAQmx_Val_Bit_TermCfg_Diff:
+        input_type = c.DAQmx_Val_Diff
     task.CreateAIVoltageChan(
-        chan, "", c.DAQmx_Val_RSE, Vmin, Vmax, c.DAQmx_Val_Volts, None
+        chan, "", input_type, Vmin, Vmax, c.DAQmx_Val_Volts, None
     )
     task.CfgSampClkTiming(
         "", rate, c.DAQmx_Val_Rising, c.DAQmx_Val_ContSamps, num_samples
@@ -265,7 +271,12 @@ def AI_start_delay(device_name):
     sample_timebase_rate = float64()
 
     task.GetStartTrigDelay(start_trig_delay)
-    task.GetDelayFromSampClkDelay(delay_from_sample_clock)
+    try:
+        task.GetDelayFromSampClkDelay(delay_from_sample_clock)
+    except PyDAQmx.DAQmxFunctions.AttributeNotSupportedInTaskContextError:
+        # seems simultaneous sampling devices do not have this property, 
+        # so assume it is zero
+        delay_from_sample_clock.value = 0
     task.GetSampClkTimebaseRate(sample_timebase_rate)
 
     task.ClearTask()
@@ -273,6 +284,26 @@ def AI_start_delay(device_name):
     total_delay_in_ticks = start_trig_delay.value + delay_from_sample_clock.value
     total_delay_in_seconds = total_delay_in_ticks / sample_timebase_rate.value
     return total_delay_in_seconds
+
+
+def supported_AI_terminal_configurations(device_name):
+    """Determine which analong input configurations are supported for each AI.
+
+    Valid options are RSE, NRSE, Diff, and PseudoDiff.
+    The labscript driver only supports RSE, NRSE, and Diff.
+    """
+    supp_types = {}
+    poss_types = {'RSE': c.DAQmx_Val_Bit_TermCfg_RSE,
+                  'NRSE': c.DAQmx_Val_Bit_TermCfg_NRSE,
+                  'Diff': c.DAQmx_Val_Bit_TermCfg_Diff,
+                  'PseudoDiff': c.DAQmx_Val_Bit_TermCfg_PseudoDIFF}
+    chans = DAQmxGetDevAIPhysicalChans(device_name)
+    for chan in chans:
+        byte = DAQmxGetPhysicalChanAITermCfgs(device_name+'/'+chan)
+        chan_types = [key for key, val in poss_types.items() if val & byte]
+        supp_types[chan] = chan_types
+
+    return supp_types
 
 
 def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
@@ -403,7 +434,8 @@ if __name__ == '__main__':
 
     models = []
     for name in DAQmxGetSysDevNames().split(', '):
-        model = DAQmxGetDevProductType(name)
+        # ignore extra details in model names
+        model = DAQmxGetDevProductType(name).split(' ')[0]
         print("found device:", name, model)
         if model not in models:
             models.append(model)
@@ -495,6 +527,120 @@ if __name__ == '__main__':
             capabilities[model]["AI_range"] = [Vmin, Vmax]
         else:
             capabilities[model]["AI_range"] = None
+            capabilities = json.load(f)
+        except ValueError:
+            pass
+
+
+models = []
+for name in DAQmxGetSysDevNames().split(', '):
+    # ignore extra details in model names
+    model = DAQmxGetDevProductType(name).split(' ')[0]
+    print("found device:", name, model)
+    if model not in models:
+        models.append(model)
+    capabilities[model] = {}
+    try:
+        capabilities[model]["supports_buffered_AO"] = DAQmxGetDevAOSampClkSupported(
+            name
+        )
+    except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
+        capabilities[model]["supports_buffered_AO"] = False
+    try:
+        capabilities[model]["max_DO_sample_rate"] = DAQmxGetDevDOMaxRate(name)
+        capabilities[model]["supports_buffered_DO"] = True
+    except PyDAQmx.DAQmxFunctions.AttrNotSupportedError:
+        capabilities[model]["max_DO_sample_rate"] = None
+        capabilities[model]["supports_buffered_DO"] = False
+    if capabilities[model]["supports_buffered_AO"]:
+        capabilities[model]["max_AO_sample_rate"] = DAQmxGetDevAOMaxRate(name)
+    else:
+        capabilities[model]["max_AO_sample_rate"] = None
+
+    capabilities[model]["num_AO"] = len(DAQmxGetDevAOPhysicalChans(name))
+    capabilities[model]["num_AI"] = len(DAQmxGetDevAIPhysicalChans(name))
+    if capabilities[model]["num_AI"] > 0:
+        single_rate = DAQmxGetDevAIMaxSingleChanRate(name)
+        multi_rate = DAQmxGetDevAIMaxMultiChanRate(name)
+    else:
+        single_rate = None
+        multi_rate = None
+    capabilities[model]["max_AI_single_chan_rate"] = single_rate
+    capabilities[model]["max_AI_multi_chan_rate"] = multi_rate
+    if capabilities[model]["num_AI"] > 0:
+        capabilities[model]["AI_term_cfg"] = supported_AI_terminal_configurations(name)
+        cfgs = [item for sublist in capabilities[model]["AI_term_cfg"].values()
+                for item in sublist]
+        capabilities[model]["num_AI_Diff"] = cfgs.count('Diff')
+        capabilities[model]["num_AI_RSE"] = cfgs.count('RSE')
+    else:
+        capabilities[model]["AI_term_cfg"] = None
+
+    capabilities[model]["ports"] = {}
+    ports = DAQmxGetDevDOPorts(name)
+    chans = DAQmxGetDevDOLines(name)
+    for port in ports:
+        if '_' in port:
+            # Ignore the alternate port names such as 'port0_32' that allow using two or
+            # more ports together as a single, larger one:
+            continue
+        port_info = {}
+        capabilities[model]["ports"][port] = port_info
+        port_chans = [chan for chan in chans if chan.split('/')[0] == port]
+        port_info['num_lines'] = len(port_chans)
+        if capabilities[model]["supports_buffered_DO"]:
+            port_info['supports_buffered'] = port_supports_buffered(name, port)
+        else:
+            port_info['supports_buffered'] = False
+
+    capabilities[model]["num_CI"] = len(DAQmxGetDevCIPhysicalChans(name))
+    supports_semiperiod = supports_semiperiod_measurement(name)
+    capabilities[model]["supports_semiperiod_measurement"] = supports_semiperiod
+    if capabilities[model]["num_CI"] > 0 and supports_semiperiod:
+        min_semiperiod_measurement = get_min_semiperiod_measurement(name)
+    else:
+        min_semiperiod_measurement = None
+    capabilities[model]["min_semiperiod_measurement"] = min_semiperiod_measurement
+
+    if capabilities[model]['num_AO'] > 0:
+        AO_ranges = []
+        raw_limits = DAQmxGetDevAOVoltageRngs(name)
+        for i in range(0, len(raw_limits), 2):
+            Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
+            AO_ranges.append([Vmin, Vmax])
+        # Find range with the largest maximum voltage and use that:
+        Vmin, Vmax = max(AO_ranges, key=lambda range: range[1])
+        # Confirm that no other range has a voltage lower than Vmin,
+        # since if it does, this violates our assumptions and things might not
+        # be as simple as having a single range:
+        assert min(AO_ranges)[0] >= Vmin
+        capabilities[model]["AO_range"] = [Vmin, Vmax]
+    else:
+        capabilities[model]["AO_range"] = None
+
+    if capabilities[model]['num_AI'] > 0:
+        AI_ranges = []
+        raw_limits = DAQmxGetDevAIVoltageRngs(name)
+        for i in range(0, len(raw_limits), 2):
+            Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
+            AI_ranges.append([Vmin, Vmax])
+        # Find range with the largest maximum voltage and use that:
+        Vmin_raw, Vmax_raw = max(AI_ranges, key=lambda range: range[1])
+        # Confirm that no other range has a voltage lower than Vmin,
+        # since if it does, this violates our assumptions and things might not
+        # be as simple as having a single range:
+        assert min(AI_ranges)[0] >= Vmin_raw
+        capabilities[model]["AI_range_Diff"] = [Vmin_raw, Vmax_raw]
+        if 'RSE' in capabilities[model]["AI_term_cfg"]['ai0']:
+            # Now limit to non-differential inputs (if available), which may have lower ranges
+            AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
+        # Find RSE range with the largest maximum voltage and use that:
+        Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
+        assert min(AI_ranges)[0] >= Vmin
+        capabilities[model]["AI_range"] = [Vmin, Vmax]
+    else:
+        capabilities[model]["AI_range"] = None
+        capabilities[model]["AI_range_Diff"] = None
 
         if capabilities[model]["num_AI"] > 0:
             capabilities[model]["AI_start_delay"] = AI_start_delay(name)
