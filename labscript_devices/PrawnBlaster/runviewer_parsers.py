@@ -82,7 +82,7 @@ class PrawnBlasterParser(object):
                         for j in range(1, -1, -1):
                             time.append(t)
                             states.append(j)
-                            t += row['period'] * clock_factor
+                            t += row['half_period'] * clock_factor
 
             clock = (np.array(time), np.array(states))
 

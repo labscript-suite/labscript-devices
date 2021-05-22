@@ -70,7 +70,13 @@ class PrawnBlasterWorker(Worker):
             if response != "wait not yet available\r\n":
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
-                clock_resolution = self.device_properties["clock_resolution"]
+                # Divide by two since the clock_resolution is for clock pulses, which
+                # have twice the clock_resolution of waits
+                # Technically, waits also only have a resolution of `clock_resolution`
+                # but the PrawnBlaster firmware accepts them in half of that so that
+                # they are easily converted to seconds via the clock frequency.
+                # Maybe this was a mistake, but it's done now.
+                clock_resolution = self.device_properties["clock_resolution"] / 2
                 input_response_time = self.device_properties["input_response_time"]
                 timeout_length = round(
                     self.wait_table[self.current_wait]["timeout"] / clock_resolution
@@ -219,7 +225,7 @@ class PrawnBlasterWorker(Worker):
                 if self.smart_cache[pseudoclock][i] != instruction:
                     self.prawnblaster.write(
                         b"set %d %d %d %d\r\n"
-                        % (pseudoclock, i, instruction["period"], instruction["reps"])
+                        % (pseudoclock, i, instruction["half_period"], instruction["reps"])
                     )
                     response = self.prawnblaster.readline().decode()
                     assert (

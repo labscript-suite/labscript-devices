@@ -103,19 +103,19 @@ class _PrawnBlasterDummyIntermediateDevice(IntermediateDevice):
 
 class PrawnBlaster(PseudoclockDevice):
     description = "PrawnBlaster"
-    clock_limit = 1 / 50e-9
-    clock_resolution = 10e-9
+    clock_limit = 1 / 100e-9
+    clock_resolution = 20e-9
     # There appears to be ~50ns buffer on input and then we know there is 80ns between
     # trigger detection and first output pulse
     input_response_time = 50e-9
     trigger_delay = input_response_time + 80e-9
     # Overestimate that covers indefinite waits (which labscript does not yet support)
-    trigger_minimum_duration = 160e-9 
+    trigger_minimum_duration = 160e-9
     # There are 4 ASM instructions between end of pulse and being ready to detect
     # a retrigger
     wait_delay = 40e-9
     allowed_children = [_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock]
-    max_instructions = 60000
+    max_instructions = 30000
 
     @set_passed_properties(
         property_names={
@@ -160,8 +160,8 @@ class PrawnBlaster(PseudoclockDevice):
         # Update the specs based on the number of pseudoclocks
         self.max_instructions = self.max_instructions // num_pseudoclocks
         # Update the specs based on the clock frequency
-        if self.clock_resolution != 1 / clock_frequency:
-            factor = (1 / clock_frequency) / self.clock_resolution
+        if self.clock_resolution != 2 / clock_frequency:
+            factor = (2 / clock_frequency) / self.clock_resolution
             self.clock_limit *= factor
             self.clock_resolution *= factor
             self.input_response_time *= factor
@@ -258,7 +258,9 @@ class PrawnBlaster(PseudoclockDevice):
     def add_device(self, device):
         if len(self.child_devices) < (
             self.num_pseudoclocks + self.use_wait_monitor
-        ) and isinstance(device, (_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock)):
+        ) and isinstance(
+            device, (_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock)
+        ):
             PseudoclockDevice.add_device(self, device)
         elif isinstance(device, _PrawnBlasterPseudoclock):
             raise LabscriptError(
@@ -282,7 +284,7 @@ class PrawnBlaster(PseudoclockDevice):
         for i, pseudoclock in enumerate(self.pseudoclocks):
             current_wait_index = 0
 
-            # Compress clock instructions with the same period
+            # Compress clock instructions with the same half_period
             reduced_instructions = []
             for instruction in pseudoclock.clock:
                 if instruction == "WAIT":
@@ -293,10 +295,12 @@ class PrawnBlaster(PseudoclockDevice):
                             wait_table[current_wait_index]
                         ][1]
                         current_wait_index += 1
-                        # The following period and reps indicates a wait instruction
+                        # The following half_period and reps indicates a wait instruction
                         reduced_instructions.append(
                             {
-                                "period": round(wait_timeout / self.clock_resolution),
+                                "half_period": round(
+                                    wait_timeout / (self.clock_resolution / 2)
+                                ),
                                 "reps": 0,
                             }
                         )
@@ -306,28 +310,28 @@ class PrawnBlaster(PseudoclockDevice):
                         # Two waits in a row are an indefinite wait
                         reduced_instructions.append(
                             {
-                                "period": 2 ** 32 - 1,
+                                "half_period": 2 ** 32 - 1,
                                 "reps": 0,
                             }
                         )
                         reduced_instructions.append(
                             {
-                                "period": 2 ** 32 - 1,
+                                "half_period": 2 ** 32 - 1,
                                 "reps": 0,
                             }
                         )
 
                 # Normal instruction
                 reps = instruction["reps"]
-                # period is in quantised units:
-                period = int(round(instruction["step"] / self.clock_resolution))
+                # half_period is in quantised units:
+                half_period = int(round(instruction["step"] / self.clock_resolution))
                 if (
                     # If there is a previous instruction
                     reduced_instructions
                     # And it's not a wait
                     and reduced_instructions[-1]["reps"] != 0
-                    # And the periods match
-                    and reduced_instructions[-1]["period"] == period
+                    # And the half_periods match
+                    and reduced_instructions[-1]["half_period"] == half_period
                     # And the sum of the previous reps and current reps won't push it over the limit
                     and (reduced_instructions[-1]["reps"] + reps) < (2 ** 32 - 1)
                 ):
@@ -335,14 +339,14 @@ class PrawnBlaster(PseudoclockDevice):
                     reduced_instructions[-1]["reps"] += reps
                 else:
                     # New instruction
-                    reduced_instructions.append({"period": period, "reps": reps})
+                    reduced_instructions.append({"half_period": half_period, "reps": reps})
 
             # Only add this if there is room in the instruction table. The PrawnBlaster
             # firmware has extre room at the end for an instruction that is always 0
             # and cannot be set over serial!
             if len(reduced_instructions) != self.max_instructions:
-                # The following period and reps indicates a stop instruction:
-                reduced_instructions.append({"period": 0, "reps": 0})
+                # The following half_period and reps indicates a stop instruction:
+                reduced_instructions.append({"half_period": 0, "reps": 0})
 
             # Check we have not exceeded the maximum number of supported instructions
             # for this number of speudoclocks
@@ -352,10 +356,10 @@ class PrawnBlaster(PseudoclockDevice):
                 )
 
             # Store these instructions to the h5 file:
-            dtypes = [("period", int), ("reps", int)]
+            dtypes = [("half_period", int), ("reps", int)]
             pulse_program = np.zeros(len(reduced_instructions), dtype=dtypes)
             for j, instruction in enumerate(reduced_instructions):
-                pulse_program[j]["period"] = instruction["period"]
+                pulse_program[j]["half_period"] = instruction["half_period"]
                 pulse_program[j]["reps"] = instruction["reps"]
             group.create_dataset(
                 f"PULSE_PROGRAM_{i}", compression=config.compression, data=pulse_program
