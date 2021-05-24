@@ -259,6 +259,8 @@ def AI_start_delay(device_name):
         input_type = c.DAQmx_Val_RSE
     elif supp_types & c.DAQmx_Val_Bit_TermCfg_Diff:
         input_type = c.DAQmx_Val_Diff
+    elif supp_types & c.DAQmx_Val_Bit_TermCfg_PseudoDIFF:
+        input_type = c.DAQmx_Val_PseudoDiff
     task.CreateAIVoltageChan(
         chan, "", input_type, Vmin, Vmax, c.DAQmx_Val_Volts, None
     )
@@ -271,7 +273,15 @@ def AI_start_delay(device_name):
     delay_from_sample_clock = float64()
     sample_timebase_rate = float64()
 
-    task.GetStartTrigDelay(start_trig_delay)
+    try:
+        task.GetStartTrigDelay(start_trig_delay)
+    except PyDAQmx.DAQmxFunctions.AttributeNotSupportedInTaskContextError:
+        # device does not have a Start Trigger Delay property
+        # is likely a dynamic signal acquisition device with filter
+        # delays instead. 
+        print(f'\t{model} does not have the StartTrigDelay Property!')
+        print('\tDo not trust absolute analog input times on this device!!')
+        start_trig_delay.value = 0
     try:
         task.GetDelayFromSampClkDelay(delay_from_sample_clock)
     except PyDAQmx.DAQmxFunctions.AttributeNotSupportedInTaskContextError:

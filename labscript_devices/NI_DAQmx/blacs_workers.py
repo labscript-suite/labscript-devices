@@ -475,6 +475,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
             term = DAQmx_Val_RSE
         elif self.AI_term == 'Diff':
             term = DAQmx_Val_Diff
+        elif self.AI_term == 'PseudoDiff':
+            term = DAQmx_Val_PseudoDiff
 
         for chan in chans:
             self.task.CreateAIVoltageChan(
