@@ -279,8 +279,6 @@ def AI_start_delay(device_name):
         # device does not have a Start Trigger Delay property
         # is likely a dynamic signal acquisition device with filter
         # delays instead. 
-        print(f'\t{model} does not have the StartTrigDelay Property!')
-        print('\tDo not trust absolute analog input times on this device!!')
         start_trig_delay.value = 0
     try:
         task.GetDelayFromSampClkDelay(delay_from_sample_clock)
@@ -297,11 +295,44 @@ def AI_start_delay(device_name):
     return total_delay_in_seconds
 
 
+def AI_filter_delay(device_name):
+    """Determine the filter delay for dynamic signal acquistion devices.
+
+    Returns the delay in clock cycles. Absolute delay will vary with sample rate."""
+    if 'PFI0' not in DAQmxGetDevTerminals(device_name):
+        return None
+    task = Task()
+    clock_terminal = '/' + device_name + '/PFI0'
+    rate = DAQmxGetDevAIMaxSingleChanRate(device_name)
+    Vmin, Vmax = DAQmxGetDevAIVoltageRngs(device_name)[0:2]
+    num_samples = 1000
+    chan = device_name + '/ai0'
+    task.CreateAIVoltageChan(
+        chan, "", c.DAQmx_Val_PseudoDiff, Vmin, Vmax, c.DAQmx_Val_Volts, None
+    )
+    task.CfgSampClkTiming(
+        "", rate, c.DAQmx_Val_Rising, c.DAQmx_Val_ContSamps, num_samples
+    )
+    task.CfgDigEdgeStartTrig(clock_terminal, c.DAQmx_Val_Rising)
+
+    start_filter_delay = float64()
+    sample_timebase_rate = float64()
+
+    # get delay in number of clock samples
+    task.SetAIFilterDelayUnits("", c.DAQmx_Val_SampleClkPeriods)
+
+    task.GetAIFilterDelay("", start_filter_delay)
+    task.GetSampClkTimebaseRate(sample_timebase_rate)
+
+    task.ClearTask()
+
+    return int(start_filter_delay.value)
+
+
 def supported_AI_terminal_configurations(device_name):
     """Determine which analong input configurations are supported for each AI.
 
     Valid options are RSE, NRSE, Diff, and PseudoDiff.
-    The labscript driver only supports RSE, NRSE, and Diff.
     """
     supp_types = {}
     poss_types = {'RSE': c.DAQmx_Val_Bit_TermCfg_RSE,
@@ -655,10 +686,14 @@ for name in DAQmxGetSysDevNames().split(', '):
         capabilities[model]["AI_range"] = None
         capabilities[model]["AI_range_Diff"] = None
 
-        if capabilities[model]["num_AI"] > 0:
-            capabilities[model]["AI_start_delay"] = AI_start_delay(name)
-        else:
+    if capabilities[model]["num_AI"] > 0:
+        if capabilities[model]["AI_term"] == 'PseudoDiff':
+            capabilities[model]["AI_start_delay_ticks"] = AI_filter_delay(name)
             capabilities[model]["AI_start_delay"] = None
+        else:
+            capabilities[model]["AI_start_delay"] = AI_start_delay(name)
+    else:
+        capabilities[model]["AI_start_delay"] = None
 
 
     with open(CAPABILITIES_FILE, 'w', newline='\n') as f:
