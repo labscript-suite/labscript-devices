@@ -585,6 +585,8 @@ for name in DAQmxGetSysDevNames().split(', '):
             capabilities[model]["AI_term"] = 'RSE'
         elif cfgs.count('Diff'):
             capabilities[model]["AI_term"] = 'Diff'
+        elif cfgs.count('PseudoDiff'):
+            capabilities[model]["AI_term"] = 'PseudoDiff'
         capabilities[model]["supports_simultaneous_AI_sampling"] = DAQmxGetDevAISimultaneousSamplingSupported(name)
 
     capabilities[model]["ports"] = {}
