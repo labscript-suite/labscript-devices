@@ -80,7 +80,7 @@ class NI_DAQmx(IntermediateDevice):
                 "wait_monitor_minimum_pulse_width",
                 "wait_monitor_supports_wait_completed_events",
             ],
-            "device_properties": ["acquisition_rate"],
+            "device_properties": ["acquisition_rate","start_delay_ticks"],
         }
     )
     def __init__(
@@ -207,7 +207,9 @@ class NI_DAQmx(IntermediateDevice):
             msg = """AI termination {0} not supported by this device."""
             raise LabscriptError(dedent(msg.format(AI_term))) 
         if AI_term == 'Diff':
-            self.AI_range = AI_range_Diff  
+            self.AI_range = AI_range_Diff
+        # define AI_start_delay in ticks, assumes AI_start_delay_ticks is defined
+        self.start_delay_ticks = (AI_start_delay != None)  
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}

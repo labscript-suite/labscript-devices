@@ -192,6 +192,7 @@ class NI_DAQmxTab(DeviceTab):
                     'AI_term': properties['AI_term'],
                     'AI_range': properties['AI_range'],
                     'AI_start_delay': properties['AI_start_delay'],
+                    'AI_start_delay_ticks': properties['AI_start_delay_ticks'],
                     'clock_terminal': clock_terminal,
                 },
             )

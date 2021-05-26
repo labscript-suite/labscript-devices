@@ -534,9 +534,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
             self.buffered_chans = sorted(set(chans), key=split_conn_AI)
         self.h5_file = h5file
         self.buffered_rate = device_properties['acquisition_rate']
-        if device_properties['AI_start_delay'] == None:
+        if device_properties['start_delay_ticks']:
             # delay is defined in sample clock ticks
-            self.AI_start_delay = device_properties['AI_start_delay_ticks']*self.buffered_rate
+            self.AI_start_delay = self.AI_start_delay_ticks*self.buffered_rate
         self.acquired_data = []
         # Stop the manual mode task and start the buffered mode task:
         self.stop_task()
