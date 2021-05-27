@@ -227,15 +227,23 @@ def setup(app):
         )
 
     # hook to run apidoc before building
-    app.connect('builder-inited',run_apidoc)
+    app.connect('builder-inited', run_apidoc)
+
 
 def run_apidoc(_):
     """Runs apidoc with our desired parameters to generate the NI_DAQmx models docs.
     """
     from sphinx.ext.apidoc import main
-    daq_models_path = os.path.join(os.path.abspath('..'),'labscript_devices')
-    out_path = os.path.join(os.path.dirname(Path(__file__)),'devices','_apidoc','models')
-    templates_path = os.path.join(os.path.dirname(Path(__file__)),'_templates','models')
-    main(['-TMf','-s','inc',
+    if os.environ.get('READTHEDOCS'):
+        rel_path = '../..'
+    else:
+        rel_path = '..'
+    daq_models_path = os.path.join(os.path.abspath(rel_path), 
+                                   'labscript_devices')
+    out_path = os.path.join(os.path.dirname(Path(__file__)), 
+                            'devices', '_apidoc', 'models')
+    templates_path = os.path.join(os.path.dirname(Path(__file__)), 
+                                  '_templates', 'models')
+    main(['-TMf', '-s', 'inc',
           '-t', templates_path,
-          '-o',out_path,daq_models_path])
+          '-o', out_path, daq_models_path])
