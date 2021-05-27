@@ -229,7 +229,12 @@ class PrawnBlasterWorker(Worker):
                 if self.smart_cache[pseudoclock][i] != instruction:
                     self.prawnblaster.write(
                         b"set %d %d %d %d\r\n"
-                        % (pseudoclock, i, instruction["half_period"], instruction["reps"])
+                        % (
+                            pseudoclock,
+                            i,
+                            instruction["half_period"],
+                            instruction["reps"],
+                        )
                     )
                     response = self.prawnblaster.readline().decode()
                     assert (
@@ -273,7 +278,9 @@ class PrawnBlasterWorker(Worker):
             # if we are not in TRANSITION_TO_RUNNING, then something has gone wrong
             # and we should raise an exception
             elif run_status != 1:
-                raise RuntimeError(f"Prawnblaster did not return an expected status. Status was {run_status}")
+                raise RuntimeError(
+                    f"Prawnblaster did not return an expected status. Status was {run_status}"
+                )
             time.sleep(0.01)
 
         # set started = True
@@ -302,6 +309,22 @@ class PrawnBlasterWorker(Worker):
                 hdf5_file.create_dataset("/data/waits", data=data)
 
             self.wait_durations_analysed.post(self.h5_file)
+
+        # If PrawnBlaster is master pseudoclock, then it will have it's status checked
+        # in the BLACS tab status check before any transition to manual is called.
+        # However, if it's not the master pseudoclock, we need to check here instead!
+        if not self.is_master_pseudoclock:
+            # Wait until shot completes
+            while True:
+                run_status, clock_status = self.read_status()
+                if run_status == 0:
+                    break
+                if run_status in [3, 4, 5]:
+                    raise RuntimeError(
+                        f"Prawnblaster status returned run-status={run_status} during transition to manual"
+                    )
+                time.sleep(0.01)
+
         return True
 
     def shutdown(self):

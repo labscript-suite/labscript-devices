@@ -339,7 +339,9 @@ class PrawnBlaster(PseudoclockDevice):
                     reduced_instructions[-1]["reps"] += reps
                 else:
                     # New instruction
-                    reduced_instructions.append({"half_period": half_period, "reps": reps})
+                    reduced_instructions.append(
+                        {"half_period": half_period, "reps": reps}
+                    )
 
             # Only add this if there is room in the instruction table. The PrawnBlaster
             # firmware has extre room at the end for an instruction that is always 0

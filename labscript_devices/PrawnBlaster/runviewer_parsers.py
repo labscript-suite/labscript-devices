@@ -37,10 +37,10 @@ class PrawnBlasterParser(object):
 
         # get the pulse program
         pulse_programs = []
-        with h5py.File(self.path, 'r') as f:
+        with h5py.File(self.path, "r") as f:
             # Get the device properties
-            device_props = properties.get(f, self.name, 'device_properties')
-            conn_props = properties.get(f, self.name, 'connection_table_properties')
+            device_props = properties.get(f, self.name, "device_properties")
+            conn_props = properties.get(f, self.name, "connection_table_properties")
 
             self.clock_resolution = device_props["clock_resolution"]
             self.trigger_delay = device_props["trigger_delay"]
@@ -49,8 +49,8 @@ class PrawnBlasterParser(object):
             # Extract the pulse programs
             num_pseudoclocks = conn_props["num_pseudoclocks"]
             for i in range(num_pseudoclocks):
-                pulse_programs.append(f[f'devices/{self.name}/PULSE_PROGRAM_{i}'][:])
-        
+                pulse_programs.append(f[f"devices/{self.name}/PULSE_PROGRAM_{i}"][:])
+
         # Generate clocklines and triggers
         clocklines_and_triggers = {}
         for pulse_program in pulse_programs:
@@ -64,7 +64,7 @@ class PrawnBlasterParser(object):
 
             last_instruction_was_wait = False
             for row in pulse_program:
-                if row['reps'] == 0 and not last_instruction_was_wait: # WAIT
+                if row["reps"] == 0 and not last_instruction_was_wait:  # WAIT
                     last_instruction_was_wait = True
                     if clock is not None:
                         t = clock_ticks[trigger_index] + self.trigger_delay
@@ -78,11 +78,11 @@ class PrawnBlasterParser(object):
                     continue
                 else:
                     last_instruction_was_wait = False
-                    for i in range(row['reps']):
+                    for i in range(row["reps"]):
                         for j in range(1, -1, -1):
                             time.append(t)
                             states.append(j)
-                            t += row['half_period'] * clock_factor
+                            t += row["half_period"] * clock_factor
 
             clock = (np.array(time), np.array(states))
 
@@ -91,6 +91,8 @@ class PrawnBlasterParser(object):
                     # Ignore the dummy internal wait monitor clockline
                     if clock_line.parent_port.startswith("GPIO"):
                         clocklines_and_triggers[clock_line_name] = clock
-                        add_trace(clock_line_name, clock, self.name, clock_line.parent_port)
+                        add_trace(
+                            clock_line_name, clock, self.name, clock_line.parent_port
+                        )
 
         return clocklines_and_triggers
