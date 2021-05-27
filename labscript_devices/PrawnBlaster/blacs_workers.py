@@ -126,11 +126,15 @@ class PrawnBlasterWorker(Worker):
             else:
                 waits_pending = True
 
+        run_status, clock_status = self.read_status()
+        return run_status, clock_status, waits_pending
+
+    def read_status(self):
         self.prawnblaster.write(b"status\r\n")
         response = self.prawnblaster.readline().decode()
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
-            return int(match.group(1)), int(match.group(2)), waits_pending
+            return int(match.group(1)), int(match.group(2))
         elif response:
             raise Exception(
                 f"PrawnBlaster is confused: saying '{response}' instead of 'run-status:<int> clock-status:<int>'"
@@ -233,6 +237,10 @@ class PrawnBlasterWorker(Worker):
                     ), f"PrawnBlaster said '{response}', expected 'ok'"
                     self.smart_cache[pseudoclock][i] = instruction
 
+        if not self.is_master_pseudoclock:
+            # Start the Prawnblaster and have it wait for a hardware trigger
+            self.wait_for_trigger()
+
         # All outputs end on 0
         final = {}
         for pin in self.out_pins:
@@ -245,6 +253,28 @@ class PrawnBlasterWorker(Worker):
         self.prawnblaster.write(b"start\r\n")
         response = self.prawnblaster.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+
+        # set started = True
+        self.started = True
+
+    def wait_for_trigger(self):
+        # Set to wait for trigger:
+        self.logger.info("sending hwstart")
+        self.prawnblaster.write(b"hwstart\r\n")
+        response = self.prawnblaster.readline().decode()
+        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+
+        running = False
+        while not running:
+            run_status, clock_status = self.read_status()
+            # If we are running, great, the PrawnBlaster is waiting for a trigger
+            if run_status == 2:
+                running = True
+            # if we are not in TRANSITION_TO_RUNNING, then something has gone wrong
+            # and we should raise an exception
+            elif run_status != 1:
+                raise RuntimeError(f"Prawnblaster did not return an expected status. Status was {run_status}")
+            time.sleep(0.01)
 
         # set started = True
         self.started = True
@@ -278,11 +308,15 @@ class PrawnBlasterWorker(Worker):
         self.prawnblaster.close()
 
     def abort_buffered(self):
-        self.prawnblaster.write(b"abort\r\n")
-        assert self.prawnblaster.readline().decode() == "ok\r\n"
-        # loop until abort complete
-        while self.check_status()[0] != 5:
-            time.sleep(0.5)
+        if not self.is_master_pseudoclock:
+            # Only need to send abort signal if we have told the PrawnBlaster to wait
+            # for a hardware trigger. Otherwise it's just been programmed with
+            # instructions and there is nothing we need to do to abort.
+            self.prawnblaster.write(b"abort\r\n")
+            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            # loop until abort complete
+            while self.read_status()[0] != 5:
+                time.sleep(0.5)
         return True
 
     def abort_transition_to_buffered(self):
