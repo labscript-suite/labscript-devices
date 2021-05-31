@@ -13,9 +13,9 @@ The PrawnBlaster takes advantage of the specs of the Pico to provide the followi
   - Each clock has its own independent instruction set and synchronization between clocks is not required.
   - Assuming the default internal clock of 100 MHz, each clock has:
   
-     - Minimum pulse half-period of 50 ns
-     - Maximum pulse half-period of 42.9 s
-     - Half-period resolution of 10 ns
+    - Minimum pulse half-period of 50 ns
+    - Maximum pulse half-period of 42.9 s
+    - Half-period resolution of 10 ns
 
 * 30,000 instructions (each with up to 2^32 repetitions) distributed evenly among the configured pseudoclocks; 30,000, 15,000, 10,000, and 7,500 for 1, 2, 3, 4 pseudoclocks respectively.
 * Support for external hardware triggers (external trigger common to all pseudoclocks)
