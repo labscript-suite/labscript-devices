@@ -85,3 +85,27 @@ Detailed Documentation
    :undoc-members:
    :show-inheritance:
    :private-members:
+
+.. automodule:: labscript_devices.PrawnBlaster.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PrawnBlaster.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PrawnBlaster.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PrawnBlaster.runviewer_parsers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
