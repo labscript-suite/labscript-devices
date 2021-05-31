@@ -16,6 +16,7 @@ Pseudoclocks provide the timing backbone of the labscript_suite. These devices p
    devices/pulseblaster_no_dds
    devices/opalkellyXEM3001
    devices/pineblaster
+   devices/prawnblaster
    devices/rfblaster
 
 NI DAQS
