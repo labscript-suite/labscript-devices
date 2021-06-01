@@ -8,7 +8,7 @@ Specifications
 
 The PrawnBlaster takes advantage of the specs of the Pico to provide the following:
 
-* Configurable as 1, 2, 3, or 4 trulty independent pseudoclocks. 
+* Configurable as 1, 2, 3, or 4 truly independent pseudoclocks. 
 
   - Each clock has its own independent instruction set and synchronization between clocks is not required.
   - Assuming the default internal clock of 100 MHz, each clock has:
@@ -44,7 +44,7 @@ The default pinout for the PrawnBlaster is as follows:
 * Pseudoclock 2 output: GPIO 13
 * Pseudoclock 3 output: GPIO 15
 * External Triggeer input: GPIO 0
-* External Clocl input: GPIO 20
+* External Clock input: GPIO 20
 
 Note that signal cable grounds should be connected to the digital grounds of the Pico for proper operation.
 
@@ -52,7 +52,7 @@ The PrawnBlaster provides up to four independent clocklines.
 They can be accessed either by `name.clocklines[int]`
 or directly by their auto-generated labscript names `name_clock_line_int`.
 
-An example connection table that use the PrawnBlaster:
+An example connection table that uses the PrawnBlaster:
 
 .. code-block:: python
 

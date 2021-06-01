@@ -19,12 +19,30 @@ import labscript_utils.properties as properties
 
 
 class PrawnBlasterParser(object):
+    """Runviewer parser for the PrawnBlaster Pseudoclocks."""
     def __init__(self, path, device):
+        """
+        Args:
+            path (str): path to h5 shot file
+            device (str): labscript name of PrawnBlaster device
+        """
         self.path = path
         self.name = device.name
         self.device = device
 
     def get_traces(self, add_trace, clock=None):
+        """Reads the shot file and extracts hardware instructions to produce
+        runviewer traces.
+
+        Args:
+            add_trace (func): function handle that adds traces to runviewer
+            clock (tuple, optional): clock times from timing device, if not
+                the primary pseudoclock
+
+        Returns:
+            dict: Dictionary of clocklines and triggers derived from instructions
+        """
+
         if clock is not None:
             times, clock_value = clock[0], clock[1]
             clock_indices = np.where((clock_value[1:] - clock_value[:-1]) == 1)[0] + 1

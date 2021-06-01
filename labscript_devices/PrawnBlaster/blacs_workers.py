@@ -19,7 +19,19 @@ import labscript_utils.properties as properties
 
 
 class PrawnBlasterWorker(Worker):
+    """The primary worker for the PrawnBlaster.
+
+    This worker handles configuration and communication
+    with the hardware.
+    """
+
     def init(self):
+        """Initialises the hardware communication.
+
+        This function is automatically called by BLACS
+        and configures hardware communication with the device.
+        """
+
         # fmt: off
         global h5py; import labscript_utils.h5_lock, h5py
         global serial; import serial
@@ -58,6 +70,34 @@ class PrawnBlasterWorker(Worker):
             assert self.prawnblaster.readline().decode() == "ok\r\n"
 
     def check_status(self):
+        """Checks the operational status of the PrawnBlaster.
+
+        This is automatically called by BLACS to update the status
+        of the PrawnBlaster. It also reads the lengths of any 
+        accumulated waits during a shot.
+
+        Returns:
+            (int, int, bool): Tuple containing:
+
+            - **run_status** (int): Possible values are: 
+
+                * 0 : manual-mode
+                * 1 : transitioning to buffered execution
+                * 2 : buffered execution
+                * 3 : abort requested
+                * 4 : currently aborting buffered execution
+                * 5 : last buffered execution aborted
+                * 6 : transitioning to manual mode
+
+            - **clock_status** (int): Possible values are:
+
+                * 0 : internal clock
+                * 1 : external clock
+
+            - **waits_pending** (bool): Indicates if all expected waits have
+              not been read out yet.
+        """
+
         if (
             self.started
             and self.wait_table is not None
@@ -130,6 +170,15 @@ class PrawnBlasterWorker(Worker):
         return run_status, clock_status, waits_pending
 
     def read_status(self):
+        """Reads the status of the PrawnBlaster.
+
+        Returns:
+            (int, int): Tuple containing
+
+                - **run-status** (int): Run status code
+                - **clock-status** (int): Clock status code
+        """
+
         self.prawnblaster.write(b"status\r\n")
         response = self.prawnblaster.readline().decode()
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
@@ -145,6 +194,16 @@ class PrawnBlasterWorker(Worker):
             )
 
     def program_manual(self, values):
+        """Manually sets the state of output pins for the pseudoclocks.
+
+        Args:
+            values (dict): Dictionary of pseudoclock: value pairs to set.
+
+        Returns:
+            dict: `values` from arguments on successful programming
+            reflecting current output state.
+        """
+
         for channel, value in values.items():
             pin = int(channel.split()[1])
             pseudoclock = self.out_pins.index(pin)
@@ -158,6 +217,19 @@ class PrawnBlasterWorker(Worker):
         return values
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+        """Configures the PrawnBlaster for buffered execution.
+
+        Args:
+            device_name (str): labscript name of PrawnBlaster
+            h5file (str): path to shot file to be run
+            initial_values (dict): Dictionary of output states at start of shot
+            fresh (bool): When `True`, clear the local :py:attr:`smart_cache`, forcing
+                a complete reprogramming of the output table.
+
+        Returns:
+            dict: Dictionary of the expected final output states.
+        """
+
         if fresh:
             self.smart_cache = {}
 
@@ -253,6 +325,9 @@ class PrawnBlasterWorker(Worker):
         return final
 
     def start_run(self):
+        """When used as the primary pseudoclock, starts execution
+        in software time to engage the shot."""
+
         # Start in software:
         self.logger.info("sending start")
         self.prawnblaster.write(b"start\r\n")
@@ -263,6 +338,9 @@ class PrawnBlasterWorker(Worker):
         self.started = True
 
     def wait_for_trigger(self):
+        """When used as a secondary pseudoclock, sets the PrawnBlaster
+        to wait for an initial hardware trigger to begin execution."""
+
         # Set to wait for trigger:
         self.logger.info("sending hwstart")
         self.prawnblaster.write(b"hwstart\r\n")
@@ -287,6 +365,13 @@ class PrawnBlasterWorker(Worker):
         self.started = True
 
     def transition_to_manual(self):
+        """Transition the PrawnBlaster back to manual mode from buffered execution at
+        the end of a shot.
+
+        Returns:
+            bool: `True` if transition to manual is successful.
+        """
+
         if self.wait_table is not None:
             with h5py.File(self.h5_file, "a") as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so
@@ -328,9 +413,16 @@ class PrawnBlasterWorker(Worker):
         return True
 
     def shutdown(self):
+        """Cleanly shuts down the connection to the PrawnBlaster hardware."""
+
         self.prawnblaster.close()
 
     def abort_buffered(self):
+        """Aborts a currently running buffered execution.
+
+        Returns:
+            bool: `True` is abort is successful.
+        """
         if not self.is_master_pseudoclock:
             # Only need to send abort signal if we have told the PrawnBlaster to wait
             # for a hardware trigger. Otherwise it's just been programmed with
@@ -343,4 +435,9 @@ class PrawnBlasterWorker(Worker):
         return True
 
     def abort_transition_to_buffered(self):
+        """Aborts a transition to buffered.
+
+        Calls :py:meth:`abort_buffered`.
+        """
+
         return self.abort_buffered()

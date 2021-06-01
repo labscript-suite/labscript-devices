@@ -24,7 +24,14 @@ from qtutils.qt import QtWidgets
 
 
 class PrawnBlasterTab(DeviceTab):
+    """BLACS Tab for the PrawnBlaster Device."""
+
     def initialise_GUI(self):
+        """Initialises the Tab GUI.
+
+        This method is called automatically by BLACS.
+        """
+
         self.connection_table_properties = (
             self.settings["connection_table"].find_by_name(self.device_name).properties
         )
@@ -53,6 +60,16 @@ class PrawnBlasterTab(DeviceTab):
         self.statemachine_timeout_add(2000, self.status_monitor)
 
     def get_child_from_connection_table(self, parent_device_name, port):
+        """Finds the attached ClockLines.
+
+        Args:
+            parent_device_name (str): name of parent_device
+            port (str): port of parent_device
+
+        Returns:
+            :class:`~labscript.ClockLine`: PrawnBlaster interal Clocklines
+        """
+
         # Pass down channel name search to the pseudoclocks (so we can find the
         # clocklines)
         if parent_device_name == self.device_name:
@@ -69,6 +86,11 @@ class PrawnBlasterTab(DeviceTab):
         return None
 
     def initialise_workers(self):
+        """Initialises the PrawnBlaster Workers.
+
+        This method is called automatically by BLACS.
+        """
+
         # Find the COM port to be used
         com_port = str(
             self.settings["connection_table"]
@@ -97,9 +119,18 @@ class PrawnBlasterTab(DeviceTab):
         True,
     )
     def status_monitor(self, notify_queue=None):
-        # When called with a queue, this function writes to the queue
-        # when the pulseblaster is waiting. This indicates the end of
-        # an experimental run.
+        """Gets the status of the PrawnBlaster from the worker.
+
+        When called with a queue, this function writes to the queue
+        when the PrawnBlaster is waiting. This indicates the end of
+        an experimental run.
+
+        Args:
+            notify_queue (:class:`~queue.Queue`): Queue to notify when
+                the experiment is done.
+
+        """
+
         status, clock_status, waits_pending = yield (
             self.queue_work(self.primary_worker, "check_status")
         )
@@ -121,6 +152,8 @@ class PrawnBlasterTab(DeviceTab):
 
     @define_state(MODE_BUFFERED, True)
     def start_run(self, notify_queue):
+        """When used as the primary Pseudoclock, this starts the run."""
+
         self.statemachine_timeout_remove(self.status_monitor)
         yield (self.queue_work(self.primary_worker, "start_run"))
         self.status_monitor()
