@@ -627,10 +627,16 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 # We want np.floor(x) to yield the largest integer < x (not <=):
                 if t_end - t0 - i_end / self.buffered_rate < 2e-16:
                     i_end -= 1
+                # IBS: we sometimes find that t_end (with waits) gives a time
+                # after the end of acquisition.  The following line
+                # will produce return a shorter than expected array if i_end
+                # is larger than the length of the array.
+                values = raw_data[connection][i_start : i_end + 1]
+                i_end = i_start + len(values) - 1 # re-measure i_end
+
                 t_i = t0 + i_start / self.buffered_rate
                 t_f = t0 + i_end / self.buffered_rate
-                times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
-                values = raw_data[connection][i_start : i_end + 1]
+                times = np.linspace(t_i, t_f, len(values), endpoint=True)
                 dtypes = [('t', np.float64), ('values', np.float32)]
                 data = np.empty(len(values), dtype=dtypes)
                 data['t'] = times
