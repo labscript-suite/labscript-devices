@@ -37,12 +37,12 @@ class _PrawnBlasterPseudoclock(Pseudoclock):
             # only allow one child
             if self.child_devices:
                 raise LabscriptError(
-                    f"Each pseudoclock of the PrawnBlaster {self.parent_device.name} only supports 1 clockline, which is automatically created. Please use the clockline located at {self.parent_device.name}.clockline[{self.i}]"
+                    f"Each pseudoclock of the PrawnBlaster {self.parent_device.name} only supports 1 clockline, which is automatically created. Please use the clockline located at {self.parent_device.name}.clocklines[{self.i}]"
                 )
             Pseudoclock.add_device(self, device)
         else:
             raise LabscriptError(
-                f"You have connected {device.name} to {self.name} (a Pseudoclock of {self.parent_device.name}), but {self.name} only supports children that are ClockLines. Please connect your device to {self.parent_device.name}.clockline[{self.i}] instead."
+                f"You have connected {device.name} to {self.name} (a Pseudoclock of {self.parent_device.name}), but {self.name} only supports children that are ClockLines. Please connect your device to {self.parent_device.name}.clocklines[{self.i}] instead."
             )
 
 
