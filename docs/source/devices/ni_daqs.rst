@@ -17,16 +17,19 @@ The python bindings are provided by the PyDAQmx package, available through pip.
 Adding a Device
 ~~~~~~~~~~~~~~~
 
-While the `NI_DAQmx` device can be used directly by manually specifying the many necessary parameters, it is preferable to add the device via an appropriate subclass. This process is greatly simplified by using the `get_capabilities.py` script.
+While the `NI_DAQmx` device can be used directly by manually specifying the many necessary parameters, 
+it is preferable to add the device via an appropriate subclass. 
+This process is greatly simplified by using the :mod:`get_capabilities.py <labscript_devices.NI_DAQmx.models.get_capabilities>` script
+followed by the :mod:`generate_subclasses.py <labscript_devices.NI_DAQmx.models.generate_subclasses>` script.
 
 To add support for a DAQmx device that is not yet supported, run `get_capabilities.py` on
 a computer with the device in question connected (or with a simulated device of the
 correct model configured in NI-MAX). This will introspect the capabilities of the device
-and add those details to capabilities.json. To generate labscript device classes for all
-devices whose capabilities are known, run `generate_classes.py`. Subclasses of NI_DAQmx
+and add those details to `capabilities.json`. To generate labscript device classes for all
+devices whose capabilities are known, run `generate_subclasses.py`. Subclasses of NI_DAQmx
 will be made in the `models` subfolder, and they can then be imported into labscript code with:
 
-..code-block:: python
+.. code-block:: python
 
 	from labscript_devices.NI_DAQmx.labscript_devices import NI_PCIe_6363
 

@@ -10,6 +10,20 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+"""This is a script to update `model_capabilities.json` with the capabilities of all
+NI-DAQmx devices currently connected to this computer. 
+
+Run this script to add support for a new model of NI-DAQmx device. 
+Note that this will work with a simulated device configured through NI-MAX as well, 
+so support can be added without actually having the physical device.
+
+Called from the command line via
+
+.. code-block:: shell
+
+    python get_capabilities.py
+
+"""
 
 import numpy as np
 import os
@@ -24,14 +38,15 @@ THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 CAPABILITIES_FILE = os.path.join(THIS_FOLDER, 'capabilities.json')
 
 
-"""This is a script to update model_capabilities.json with the capabilities of all
-NI-DAQmx devices currently connected to this computer. Run this script to add support
-for a new model of NI-DAQmx device. Note that this will work with a simulated device
-configured through NI-MAX as well, so support can be added without actually having the
-physical device"""
-
-
 def string_prop(func):
+    """String property wrapper.
+
+    Args:
+        func (function): PyDAQmx library function that returns a string.
+
+    Returns:
+        function: The wrapped function. 
+    """
     def wrapped(name=None):
         BUFSIZE = 4096
         result = ctypes.create_string_buffer(BUFSIZE)
@@ -45,6 +60,14 @@ def string_prop(func):
 
 
 def bool_prop(func):
+    """Bool property wrapper.
+
+    Args:
+        func (function): PyDAQmx library function that returns a boolean.
+
+    Returns:
+        function: The wrapped function. 
+    """
     def wrapped(name):
         result = bool32()
         func(name, byref(result))
@@ -54,6 +77,14 @@ def bool_prop(func):
 
 
 def int32_prop(func):
+    """Int32 property wrapper.
+
+    Args:
+        func (function): PyDAQmx library function that returns a int32.
+
+    Returns:
+        function: The wrapped function. 
+    """
     def wrapped(name):
         result = int32()
         func(name, byref(result))
@@ -63,6 +94,14 @@ def int32_prop(func):
 
 
 def float64_prop(func):
+    """Float property wrapper.
+
+    Args:
+        func (function): PyDAQmx library function that returns a float64.
+
+    Returns:
+        function: The wrapped function. 
+    """
     def wrapped(name):
         result = float64()
         func(name, byref(result))
@@ -72,6 +111,15 @@ def float64_prop(func):
 
 
 def float64_array_prop(func):
+    """Array of floats property wrapper.
+
+    Args:
+        func (function): PyDAQmx library function that returns an array of
+            float64s.
+
+    Returns:
+        function: The wrapped function. 
+    """
     def wrapped(name):
         import warnings
 
@@ -91,8 +139,15 @@ def float64_array_prop(func):
 
 
 def chans(func):
-    """string_prop but splitting the return value into separate channels and stripping
-    the device name from them"""
+    """string_prop but splitting the return value into separate channels 
+    and stripping the device name from them
+
+    Args:
+        func (function): PyDAQmx library function that returns channel string.
+
+    Returns:
+        function: The wrapped function.
+    """
     wrapped1 = string_prop(func)
 
     def wrapped2(name):
@@ -126,6 +181,16 @@ DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
 
 
 def port_supports_buffered(device_name, port, clock_terminal=None):
+    """Empirically determines if the digital port supports buffered output.
+
+    Args:
+        device_name (str): NI-MAX device name
+        port (int): Which port to intro-spect
+        clock_terminal (str, optional): String that specifies the clock terminal.
+
+    Returns:
+        bool: True if `port` supports buffered output.
+    """
     all_terminals = DAQmxGetDevTerminals(device_name)
     if clock_terminal is None:
         clock_terminal = all_terminals[0]
@@ -170,6 +235,15 @@ def port_supports_buffered(device_name, port, clock_terminal=None):
 
 
 def AI_start_delay(device_name):
+    """Empirically determines the analog inputs' start delay.
+
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        float: Analog input start delay in seconds. `None` if
+        analog inputs not supported.
+    """
     if 'PFI0' not in DAQmxGetDevTerminals(device_name):
         return None
     task = Task()
@@ -202,9 +276,19 @@ def AI_start_delay(device_name):
 
 
 def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
-    """Try AI ranges to see which are actually allowed for non-differential input, since
+    """Empirically determine the analog input voltage ranges for non-differential inputs.
+
+    Tries AI ranges to see which are actually allowed for non-differential input, since
     the largest range may only be available for differential input, which we don't
-    attempt to support (though we could with a little effort)"""
+    attempt to support (though we could with a little effort).
+
+    Args:
+        device_name (str): NI-MAX device name
+        AI_ranges (list): list of `[Vmin, Vmax]` pairs to check compatibility.
+
+    Returns:
+        list: List of lists with the supported voltage ranges.        
+    """
     chan = device_name + '/ai0'
     supported_ranges = []
     for Vmin, Vmax in AI_ranges:
@@ -227,6 +311,14 @@ def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
 
 
 def supports_semiperiod_measurement(device_name):
+    """Empirically determines if the DAQ supports semiperiod measurement.
+
+    Args:
+        device_name (str): NI-MAX device name.
+
+    Returns:
+        bool: True if semi-period measurements are supported by the device.
+    """
     import warnings
 
     with warnings.catch_warnings():
@@ -242,7 +334,9 @@ def supports_semiperiod_measurement(device_name):
 
 
 def get_min_semiperiod_measurement(device_name):
-    """Depending on the timebase used, counter inputs can measure time intervals of
+    """Determines the minimum semi-period measurement time supported by the device.
+
+    Depending on the timebase used, counter inputs can measure time intervals of
     various ranges. As a default, we pick a largish range - the one with the fastest
     timebase still capable of measuring 100 seconds, or the largest time interval if it
     is less than 100 seconds, and we save the smallest interval measurable with this
@@ -258,7 +352,14 @@ def get_min_semiperiod_measurement(device_name):
     possibility of timing out. For now (in the wait monitor worker class) we
     pessimistically add one second to the expected longest measurement to account for
     software delays. These decisions can be revisited if there is a need, do not
-    hesitate to file an issue on bitbucket regarding this if it affects you."""
+    hesitate to file an issue on bitbucket regarding this if it affects you.
+
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        float: Minimum measurement time.
+    """
     CI_chans = DAQmxGetDevCIPhysicalChans(device_name)
     CI_chan = device_name + '/' + CI_chans[0]
     # Make a task with a semiperiod measurement

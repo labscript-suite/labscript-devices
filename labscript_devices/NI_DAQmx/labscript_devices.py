@@ -106,7 +106,52 @@ class NI_DAQmx(IntermediateDevice):
         supports_semiperiod_measurement=False,
         **kwargs
     ):
-        """Generic class for NI_DAQmx devices."""
+        """Generic class for NI_DAQmx devices.
+
+        Generally over-ridden by device-specific subclasses that contain
+        the introspected default values.
+
+        Args:
+            name (str): name to assign to the created labscript device
+            parent_device (clockline): Parent clockline device that will
+                clock the outputs of this device
+            clock_terminal (str): What input on the DAQ is used for the clockline
+            MAX_name (str): NI-MAX device name
+            static_AO (int, optional): Number of static analog output channels.
+            static_DO (int, optional): Number of static digital output channels.
+            clock_mirror_terminal (str, optional): Channel string of digital output
+                that mirrors the input clock. Useful for daisy-chaning DAQs on the same
+                clockline.
+            acquisiton_rate (float, optional): Default sample rate of inputs.
+            AI_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
+                input voltage range for all analog inputs.
+            AI_start_delay (float, optional): Time in seconds between start of an
+                analog input task starting and the first sample.
+            AO_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
+                output voltage range for all analog outputs.
+            max_AI_multi_chan_rate (float, optional): Max supported analog input 
+                sampling rate when using multiple channels.
+            max_AI_single_chan_rate (float, optional): Max supported analog input
+                sampling rate when only using a single channel.
+            max_AO_sample_rate (float, optional): Max supported analog output
+                sample rate.
+            max_DO_sample_rate (float, optional): Max supported digital output
+                sample rate.
+            min_sermiperiod_measurement (float, optional): Minimum measurable time
+                for a semiperiod measurement.
+            num_AI (int, optional): Number of analog inputs channels.
+            num_AO (int, optional): Number of analog output channels.
+            num_CI (int, optional): Number of counter input channels.
+            ports (dict, optional): Dictionarly of DIO ports, which number of lines
+                and whether port supports buffered output.
+            supports_buffered_AO (bool, optional): True if analog outputs support
+                buffered output
+            supports_buffered_DO (bool, optional): True if digital outputs support
+                buffered output
+            supports_semiperiod_measurement (bool, optional): True if deviec supports
+                semi-period measurements
+
+        """
 
         # Default static output setting based on whether the device supports buffered
         # output:
@@ -169,8 +214,8 @@ class NI_DAQmx(IntermediateDevice):
 
         self.wait_monitor_minimum_pulse_width = self.min_semiperiod_measurement
 
-        # Set allowed children based on capabilities:
         self.allowed_children = []
+        '''Sets the allowed children types based on the capabilites.'''
         if self.num_AI > 0:
             self.allowed_children += [AnalogIn]
         if self.num_AO > 0 and static_AO:
@@ -198,7 +243,13 @@ class NI_DAQmx(IntermediateDevice):
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
 
     def add_device(self, device):
-        """Error checking for adding a child device"""
+        """Error checking for adding a child device.
+
+        Args:
+            device (labscript device): Child labscript device to
+                attach to this device. Only types of devices in :obj:`allowed_children`
+                can be attached.
+        """
         # Verify static/dynamic outputs compatible with configuration:
         if isinstance(device, StaticAnalogOut) and not self.static_AO:
             msg = """Cannot add StaticAnalogOut to NI_DAQmx device configured for
@@ -293,6 +344,7 @@ class NI_DAQmx(IntermediateDevice):
             np.clip(output.raw_output, vmin, vmax, out=output.raw_output)
 
     def _check_AI_not_too_fast(self, AI_table):
+        """Check that analog input acquisition rates do not exceed maximums."""
         if AI_table is None:
             return
         n = len(set(AI_table['connection']))
@@ -442,6 +494,14 @@ class NI_DAQmx(IntermediateDevice):
             raise RuntimeError(dedent(msg))
 
     def generate_code(self, hdf5_file):
+        """Generates the hardware code from the script and saves it to the
+        shot h5 file.
+
+        This is called automatically when a shot is compiled.
+
+        Args:
+            hdf5_file (str): Path to shot's hdf5 file to save the instructions to.
+        """
         IntermediateDevice.generate_code(self, hdf5_file)
         analogs = {}
         digitals = {}
