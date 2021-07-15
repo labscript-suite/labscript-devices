@@ -229,6 +229,9 @@ def setup(app):
 
     # hook to run apidoc before building
     app.connect('builder-inited', run_apidoc)
+    # hooks to test docstring coverage
+    app.connect('autodoc-process-docstring', doc_coverage)
+    app.connect('build-finished', doc_report)
 
 
 def run_apidoc(_):
@@ -248,3 +251,39 @@ def run_apidoc(_):
     main(['-TMf', '-s', 'inc',
           '-t', templates_path,
           '-o', out_path, daq_models_path])
+
+
+members_to_watch = ['module', 'class', 'function', 'exception', 'method', 'attribute']
+doc_count = 0
+undoc_count = 0
+undoc_objects = []
+undoc_print_objects = False
+
+
+def doc_coverage(app, what, name, obj, options, lines):
+    global doc_count
+    global undoc_count
+    global undoc_objects
+
+    if (what in members_to_watch and len(lines) == 0):
+        # blank docstring detected
+        undoc_count += 1
+        undoc_objects.append(name)
+    else:
+        doc_count += 1
+
+
+def doc_report(app, exception):
+    global doc_count
+    global undoc_count
+    global undoc_objects
+    # print out report of documentation coverage
+    total_docs = undoc_count + doc_count
+    if total_docs != 0:
+        print(f'\nAPI Doc coverage of {doc_count/total_docs:.1%}')
+        if undoc_print_objects or os.environ.get('READTHEDOCS'):
+            print('\nItems lacking documentation')
+            print('===========================')
+            print(*undoc_objects, sep='\n')
+    else:
+        print('No docs counted, run \'make clean\' then rebuild to get the count.')
