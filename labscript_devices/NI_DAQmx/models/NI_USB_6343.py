@@ -22,6 +22,7 @@
 
 from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 
+#:
 CAPABILITIES = {
     'AI_range': [-10.0, 10.0],
     'AI_start_delay': 7e-08,
@@ -49,6 +50,7 @@ class NI_USB_6343(NI_DAQmx):
     description = 'NI-USB-6343'
 
     def __init__(self, *args, **kwargs):
+        """Class for NI-USB-6343"""
         # Any provided kwargs take precedent over capabilities
         combined_kwargs = CAPABILITIES.copy()
         combined_kwargs.update(kwargs)

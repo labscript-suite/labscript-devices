@@ -18,7 +18,6 @@
 import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
-import PySpin
 from time import sleep, perf_counter
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
@@ -28,6 +27,9 @@ class Spinnaker_Camera(object):
         """Initialize Spinnaker API camera.
 
         Serial number should be of string(?) type."""
+        global PySpin
+        import PySpin
+
         self.system = PySpin.System.GetInstance()
 
         ver = self.system.GetLibraryVersion()
