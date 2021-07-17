@@ -37,7 +37,7 @@ There are currently two supported file organization styles for a labscript-devic
 
 The old style has the `labscript_device`, `BLACS_tab`, `BLACS_worker`, and `runviewer_parser` all in the same file, which typically has the same name as the `labscript_device` class name.
 
-The new style allows for arbitrary code organization, but typically has a folder named after the `labscript_device` with each device component in a different file (ie `labscript_devices.py`, `BLACS_workers.py`, etc). With this style, the folder requires an `__init__.py` file (which can be empty) as well as a `register_classes.py` file. This file imports :ref:`<labscript-utils/device_registry>` via
+The new style allows for arbitrary code organization, but typically has a folder named after the `labscript_device` with each device component in a different file (ie `labscript_devices.py`, `BLACS_workers.py`, etc). With this style, the folder requires an `__init__.py` file (which can be empty) as well as a `register_classes.py` file. This file imports :obj:`<labscript-utils:labscript_utils.device_registry>` via
 
 .. code-block:: python
 

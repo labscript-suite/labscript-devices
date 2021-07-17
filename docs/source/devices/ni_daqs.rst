@@ -51,7 +51,12 @@ The current list of pre-subclassed devices is:
 Usage
 ~~~~~
 
-NI Multifunction DAQs generally provide hardware channels for the :ref:`StaticAnalogOut <labscript/StaticAnalogOut>`, :ref:`StaticDigitalOut <labscript/StaticDigitalOut>`, :ref:`AnalogOut <labscript/AnalogOut>`, :ref:`DigitalOut <labscript/DigitalOut>`, and :ref:`AnalogIn <labscript/AnalogIn>` labscript quantities for use in experiments. Exact numbers of channels, performance, and configuration depend on the model of DAQ used.
+NI Multifunction DAQs generally provide hardware channels for 
+:class:`StaticAnalogOut <labscript:labscript.labscript.StaticAnalogOut>`,
+:class:`StaticDigitalOut <labscript:labscript.labscript.StaticDigitalOut>`,
+:class:`AnalogOut <labscript:labscript.labscript.AnalogOut>`,
+:class:`DigitalOut <labscript:labscript.labscript.DigitalOut>`,
+and :class:`AnalogIn <labscript:labscript.labscript.AnalogIn>` labscript quantities for use in experiments. Exact numbers of channels, performance, and configuration depend on the model of DAQ used.
 
 .. code-block:: python
 
@@ -73,7 +78,7 @@ NI Multifunction DAQs generally provide hardware channels for the :ref:`StaticAn
 	AnalogOut('daq_ao0',daq,'ao0')
 	AnalogIn('daq_ai1',daq,'ai1')
 
-NI DAQs are also used within labscript to provide a :ref:`WaitMonitor <labscript/waitmonitor>`. When configured, the `WaitMonitor` allows for arbitrary-length pauses in experiment execution, waiting for some trigger to restart. The monitor provides a measurement of the duration of the wait for use in interpreting the resulting data from the experiment.
+NI DAQs are also used within labscript to provide a :class:`WaitMonitor <labscript:labscript.labscript.waitmonitor>`. When configured, the `WaitMonitor` allows for arbitrary-length pauses in experiment execution, waiting for some trigger to restart. The monitor provides a measurement of the duration of the wait for use in interpreting the resulting data from the experiment.
 
 Configuration uses three digital I/O connections on the DAQ:
 
