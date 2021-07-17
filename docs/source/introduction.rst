@@ -5,15 +5,15 @@ The **labscript_devices** module contains the low-level hardware interfacing cod
 
 Each "device" is made up of four classes that handle the various tasks.
 
-* `labscript_device` (derives from :doc:`labscript.Device <labscript:api/device>`)
+* `labscript_device` (derives from :obj:`Device <labscript:labscript.labscript.Device>`)
 
    - Defines the interface between the **labscript** API and generates hardware instructions that can be saved to the shot h5 file.
 
-* `BLACS_tab` (derives from :doc:`blacs.device_base_class.DeviceTab <blacs:index>`)
+* `BLACS_tab` (derives from :obj:`DeviceTab <blacs:blacs.device_base_class.DeviceTab>`)
 
    - Defines the graphical tab that is present in the **BLACS** GUI. This tab provides graphical widgets for controlling hardware outputs and visualizing hardware inputs.
 
-* `BLACS_worker` (derives from :doc:`blacs.tab_base_classes.Worker <blacs:index>`)
+* `BLACS_worker` (derives from :class:`Worker <blacs:blacs.tab_base_classes.Worker>`)
 
    - Defines the software control interface to the hardware. The `BLACS_tab` spawns a process that uses this class to send and receive commands with the hardware.
 
