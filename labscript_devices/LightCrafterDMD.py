@@ -61,6 +61,12 @@ class ImageSet(Output):
     height = HEIGHT
     # Set default value to be a black image. Here's a raw BMP!
     default_value = BLANK_BMP
+    """bytes: A black image.
+
+    Raw bitmap data hidden from docs.
+
+    :meta hide-value:
+    """
     
     def __init__(self, name, parent_device, connection = 'Mirror'):
         Output.__init__(self, name, parent_device, connection)
