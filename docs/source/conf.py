@@ -172,6 +172,13 @@ if os.environ.get('READTHEDOCS') and (
 else:
     todo_include_todos = True
 
+# -- Options for PDF output --------------------------------------------------
+
+latex_elements = {
+    # make entire document landscape
+    'geometry': '\\usepackage[landscape]{geometry}',
+}
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
