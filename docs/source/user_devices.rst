@@ -14,3 +14,11 @@ This import statement assumes your custom device follows the new device structur
 Note that both the `userlib` path and the `user_devices` folder name can be custom configured in the `labconfig.ini` file. The `user_devices` folder must be in the `userlib` path. If a different `user_devices` folder name is used, the import uses that folder name in place of `user_devices` in the above import statement.
 
 Note that we highly encourage everyone that adds support for new hardware to consider making a pull request to **labscript-devices** so that it may be added to the mainline and more easily used by other groups.
+
+3rd Party Devices
+-----------------
+
+Below is a list of 3rd party devices developed by users of **labscript** that can be used via the `user_devices` mechanism described above. If you would like to add your repository to this list, :doc:`please contact us or make a pull request<labscript-suite:contributing>`.
+
+* `NAQS Lab <https://github.com/naqslab/naqslab_devices>`__
+* `https://github.com/zakv/RbLab_user_devices <https://github.com/zakv/RbLab_user_devices>`__
