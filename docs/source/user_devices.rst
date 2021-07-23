@@ -18,7 +18,9 @@ Note that we highly encourage everyone that adds support for new hardware to con
 3rd Party Devices
 -----------------
 
-Below is a list of 3rd party devices developed by users of **labscript** that can be used via the `user_devices` mechanism described above. If you would like to add your repository to this list, :doc:`please contact us or make a pull request<labscript-suite:contributing>`.
+Below is a list of 3rd party devices developed by users of **labscript** that can be used via the `user_devices` mechanism described above. These repositories are not tested or maintained by the **labscript** development team. As such, there is no guarantee they will work as **labscript** is developed. They are also not guaranteed to be free of lab-specific implementation details that may prevent direct use in your apparatus. They are provided by users to benefit the community in supporting new and/or unusual devices, and can often serve as a good reference when developing your own devices. Please direct any questions regarding these repositories to their respective owners.
 
 * `NAQS Lab <https://github.com/naqslab/naqslab_devices>`__
-* `https://github.com/zakv/RbLab_user_devices <https://github.com/zakv/RbLab_user_devices>`__
+* `Vladan Vuletic Group Rb Lab, MIT <https://github.com/zakv/RbLab_user_devices>`__
+
+If you would like to add your repository to this list, :doc:`please contact us or make a pull request<labscript-suite:contributing>`.
