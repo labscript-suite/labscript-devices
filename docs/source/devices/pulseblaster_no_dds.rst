@@ -4,7 +4,10 @@ Pulseblaster (-DDS)
 Overview
 ~~~~~~~~
 
-This labscript device controls the Spincore Pulseblasers that do not have DDS outputs. The Pulseblaster is a programmable pulse generator that is the typical timing backbone of an experiment (ie it generates the pseudoclock timing pulses that control execution of other devices in the experiment). This labscript device inherits from the :doc:`Pulseblaster <pulseblaster>` device. The primary difference is the removal of code handling DDS outputs.
+This labscript device controls the Spincore Pulseblasers that do not have DDS outputs.
+The Pulseblaster is a programmable pulse generator that is the typical timing backbone of an experiment (ie it generates the pseudoclock timing pulses that control execution of other devices in the experiment).
+This labscript device inherits from the :doc:`Pulseblaster <pulseblaster>` device.
+The primary difference is the removal of code handling DDS outputs.
 
 The labscript-suite currently supports a number of no-dds variants of the Pulseblaster device, each with different numbers of outputs and clock frequencies:
 
@@ -33,13 +36,15 @@ The ESR-Pro series of PulseBlasters have the Short Pulse Feature, which allows f
 	"FIVE_PERIOD", 101, 5, 10
 	"ON", 111, \- , "Short Pulse Disabled"
 
-Currently, the PulseBlaster labscript device does not use this functionality. However, in order to get any output at all, bits 21-23 must be set high manually.
+Currently, the PulseBlaster labscript device does not use this functionality.
+However, in order to get any output at all, bits 21-23 must be set high manually.
 
 
 Installation
 ~~~~~~~~~~~~
 
-Use of the Pulseblaster requires driver installation available from the manufacturer `here <https://www.spincore.com/support/>`_. The corresponding python wrapper, `spinapi <https://github.com/chrisjbillington/spinapi/>`_ is available via pip.
+Use of the Pulseblaster requires driver installation available from the manufacturer `here <https://www.spincore.com/support/>`_.
+The corresponding python wrapper, `spinapi <https://github.com/chrisjbillington/spinapi/>`_ is available via pip.
 
 .. code-block:: bash
 

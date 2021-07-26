@@ -30,9 +30,12 @@ The PrawnBlaster takes advantage of the specs of the Pico to provide the followi
 Installation
 ~~~~~~~~~~~~
 
-In order to turn the standard Pico into a PrawnBlaster, you need to load the custom firmware available in the `Github repo <https://github.com/labscript-suite/PrawnBlaster/tree/master/build/prawnblaster>`_ onto the board. The simplest way to do this is by holding the reset button on the board while plugging the USB into a computer. This will bring up a mounted folder that you copy-paste the firmware to. Once copied, the board will reset and be ready to go.
+In order to turn the standard Pico into a PrawnBlaster, you need to load the custom firmware available in the `Github repo <https://github.com/labscript-suite/PrawnBlaster/tree/master/build/prawnblaster>`_ onto the board.
+The simplest way to do this is by holding the reset button on the board while plugging the USB into a computer.
+This will bring up a mounted folder that you copy-paste the firmware to. Once copied, the board will reset and be ready to go.
 
-Note that this device communicates using a virtual COM port. The number is assigned by the controlling computer and will need to be determined in order for BLACS to connect to the PrawnBlaster.
+Note that this device communicates using a virtual COM port.
+The number is assigned by the controlling computer and will need to be determined in order for BLACS to connect to the PrawnBlaster.
 
 Usage
 ~~~~~
