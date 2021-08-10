@@ -21,4 +21,5 @@ Each "device" is made up of four classes that handle the various tasks.
 
    - Defines a software interface that interprets hardware instructions in a shot h5 file and displays them in the :doc:`runviewer <runviewer:index>` GUI.
 
-The **labscript_suite** provides an extensive :doc:`list of device classes <devices>` for commercially available hardware. Furthermore, it is simple to add local :doc:`user devices <user_devices>` to control instruments not already within the labscript-suite.
+The **labscript_suite** provides an extensive :doc:`list of device classes <devices>` for commercially available hardware.
+Furthermore, it is simple to add local :doc:`user devices <user_devices>` to control instruments not already within the labscript-suite.

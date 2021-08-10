@@ -1,7 +1,8 @@
 Spinnaker Cameras
 =================
 
-This device allows control of FLIR scientific cameras via the `Spinnaker SDK <https://www.flir.com/products/spinnaker-sdk/>`_ with the PySpin wrapper. In order to use this device, both the SDK and the python wrapper must be installed.
+This device allows control of FLIR scientific cameras via the `Spinnaker SDK <https://www.flir.com/products/spinnaker-sdk/>`_ with the PySpin wrapper.
+In order to use this device, both the SDK and the python wrapper must be installed.
 
 .. autosummary::
    labscript_devices.SpinnakerCamera.labscript_devices
@@ -13,14 +14,18 @@ Installation
 
 First ensure that the Spinnaker SDK is installed. 
 
-The python wrapper is available via FLIR. It must be installed separately and pointed to the correct conda environment during install.
+The python wrapper is available via FLIR.
+It must be installed separately and pointed to the correct conda environment during install.
 
-For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames. The maximum allowed value (typically 9000) is preferable to avoid dropped frames.
+For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames.
+The maximum allowed value (typically 9000) is preferable to avoid dropped frames.
 
 Usage
 ~~~~~
 
-Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Spinnaker SDK interface. Which parameters can/need to be set depend on the communication interface. Discovery of what parameters are available can be done in three ways:
+Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Spinnaker SDK interface.
+Which parameters can/need to be set depend on the communication interface.
+Discovery of what parameters are available can be done in three ways:
 
 1. Careful reading of the Spinnaker SDK docs.
 2. Mirroring the SpinView parameter names and values.

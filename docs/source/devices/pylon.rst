@@ -4,7 +4,8 @@ Pylon Cameras
 Overview
 ~~~~~~~~
 
-This device allows control of Basler scientific cameras via the `Pylon API <https://docs.baslerweb.com/pylon-camera-software-suite>`_ with the `PyPylon python wrapper <https://pypi.org/project/pypylon/>`_. In order to use this device, both the Basler Pylon API and the PyPylon wrapper must be installed.
+This device allows control of Basler scientific cameras via the `Pylon API <https://docs.baslerweb.com/pylon-camera-software-suite>`_ with the `PyPylon python wrapper <https://pypi.org/project/pypylon/>`_.
+In order to use this device, both the Basler Pylon API and the PyPylon wrapper must be installed.
 
 .. autosummary::
    labscript_devices.PylonCamera.labscript_devices
@@ -14,7 +15,9 @@ This device allows control of Basler scientific cameras via the `Pylon API <http
 Installation
 ~~~~~~~~~~~~
 
-First ensure that the Basler Pylon SDK is installed. It is available for free `here <https://docs.baslerweb.com/pylon-camera-software-suite>`_ (after signing up for a free account with Basler). It is advisable to use the Pylon Viewer program that comes with the SDK to test communications with the camera.
+First ensure that the Basler Pylon SDK is installed.
+It is available for free `here <https://docs.baslerweb.com/pylon-camera-software-suite>`_ (after signing up for a free account with Basler).
+It is advisable to use the Pylon Viewer program that comes with the SDK to test communications with the camera.
 
 The python wrapper is installed via pip:
 
@@ -24,14 +27,19 @@ The python wrapper is installed via pip:
 
 At present, the wrapper is tested and confirmed compatible with Pylon 5 for USB3 and GigE interface cameras.
 
-For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames. That maximum allowed value (typically 9000) is preferable to avoid dropped frames.
+For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames.
+That maximum allowed value (typically 9000) is preferable to avoid dropped frames.
 
-For USB3 cameras, care should be taken to use a USB3 host that is compatible with the Basler cameras. Basler maintains a list of compatible host controllers. The cameras will work on any USB3 port, but non-compatible hosts will not allow for the faster performance.
+For USB3 cameras, care should be taken to use a USB3 host that is compatible with the Basler cameras.
+Basler maintains a list of compatible host controllers.
+The cameras will work on any USB3 port, but non-compatible hosts will not allow for the faster performance.
 
 Usage
 ~~~~~
 
-Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Pylon SDK interface. Which parameters can/need to be set depend on the communication interface. Discovery of what parameters are available can be done in three ways:
+Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Pylon SDK interface.
+Which parameters can/need to be set depend on the communication interface.
+Discovery of what parameters are available can be done in three ways:
 
 1. Careful reading of the Pylon SDK docs.
 2. Mirroring the Pylon Viewer parameter names and values.
@@ -95,7 +103,10 @@ Below are generic configurations for GigE and USB3 based cameras.
 Utilities
 ~~~~~~~~~
 
-The Pylon labscript device includes a script in the `testing` subfolder that can automatically determine the full-frame sensor readout time and maximum possible framerate. This tool helps in correctly determining the appropriate `minimum_recovery_time` to set for each device. The minimum recovery time is a function of the model used, the communication bus used, and minor details of the setup (such as host controller firmwares, cable lengths, host computer workload, etc). As a result, live testing of the device is often needed to accurately determine the actual recovery time needed between shots.
+The Pylon labscript device includes a script in the `testing` subfolder that can automatically determine the full-frame sensor readout time and maximum possible framerate.
+This tool helps in correctly determining the appropriate `minimum_recovery_time` to set for each device.
+The minimum recovery time is a function of the model used, the communication bus used, and minor details of the setup (such as host controller firmwares, cable lengths, host computer workload, etc).
+As a result, live testing of the device is often needed to accurately determine the actual recovery time needed between shots.
 
 The script is run from within the testing folder using
 
@@ -105,9 +116,15 @@ The script is run from within the testing folder using
    
 with `[camera_sn]` being the serial number of the camera to connect to and test.
 
-The script reports the minimum recovery time between two shots of 1 ms exposure each, without the use of overlapped exposure mode. Editing the script to include your typical experiment parameters will help in more accurately determining your minimum recovery time. Typically, the minimum recovery time should be slightly longer than the reported sensor readout time.
+The script reports the minimum recovery time between two shots of 1 ms exposure each, without the use of overlapped exposure mode.
+Editing the script to include your typical experiment parameters will help in more accurately determining your minimum recovery time.
+Typically, the minimum recovery time should be slightly longer than the reported sensor readout time.
 
-Note that in overlapped exposure mode, a second exposure is begun before the first exposure has finished reading out and *must* end after the readout of the first exposure frame is complete. This allows for a series of two exposures with shorter delay between them, at the expense of limitations on the length of the second exposure. The script will also report the minimum time between the end of one exposure and the beginning of the second (nominally `readout_time - exposure_time`). Note that this feature is automatically handled at the Pylon API level; this labscript device is not actively aware of it. As a result, incorrect uses of overlapped mode will not be caught at compile time, but rather during the shot as hardware errors.
+Note that in overlapped exposure mode, a second exposure is begun before the first exposure has finished reading out and *must* end after the readout of the first exposure frame is complete.
+This allows for a series of two exposures with shorter delay between them, at the expense of limitations on the length of the second exposure.
+The script will also report the minimum time between the end of one exposure and the beginning of the second (nominally `readout_time - exposure_time`).
+Note that this feature is automatically handled at the Pylon API level; this labscript device is not actively aware of it.
+As a result, incorrect uses of overlapped mode will not be caught at compile time, but rather during the shot as hardware errors.
 
 
 Detailed Documentation
