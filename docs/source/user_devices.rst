@@ -1,7 +1,7 @@
 User Devices
 ============
 
-Adding custom devices for use in the labscript-suite can be done using the `user_devices` mechanism. 
+Adding custom devices for use in the **labscript-suite** can be done using the `user_devices` mechanism. 
 This mechanism provides a simple way to add support for a new device without directly interacting with the **labscript-devices** repository. 
 This is particularly useful when using standard installations of labscript, using code that is proprietary in nature, or code that, while functional, is not mature enough for widespread dissemination.
 
@@ -22,7 +22,7 @@ Note that we highly encourage everyone that adds support for new hardware to con
 3rd Party Devices
 -----------------
 
-Below is a list of 3rd party devices developed by users of **labscript-suite** that can be used via the `user_devices` mechanism described above. 
+Below is a list of 3rd party devices developed by users of the **labscript-suite** that can be used via the `user_devices` mechanism described above. 
 These repositories are not tested or maintained by the **labscript-suite** development team. 
 As such, there is no guarantee they will work with current or future versions of the **labscript-suite**. 
 They are also not guaranteed to be free of lab-specific implementation details that may prevent direct use in your apparatus. 
