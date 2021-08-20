@@ -52,6 +52,8 @@ def deserialise_function(
     """Deserialise a function that was serialised by serialise_function. Optional
     __name__ and __file__ arguments set those attributes in the namespace that the
     function will be defined."""
+    if isinstance(name, bytes):
+        name = name.decode('utf8')
     args = deserialise(args)
     kwargs = deserialise(kwargs)
     code = compile(source, '<string>', 'exec', dont_inherit=True,)
