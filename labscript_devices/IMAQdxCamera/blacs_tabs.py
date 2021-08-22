@@ -226,8 +226,8 @@ class IMAQdxCameraTab(DeviceTab):
             dummy_image = np.zeros(image_shape, dtype=image_dtype)
             # Make one pixel nonzero to avoid a histogram binning error. This is
             # fixed by in pyqtgraph 0.11 by
-            # https://github.com/pyqtgraph/pyqtgraph/pull/767 but is retained
-            # for compatability with older versions.
+            # https://github.com/pyqtgraph/pyqtgraph/pull/767 but this
+            # workaround is retained for compatibility with older versions.
             if dummy_image.ndim == 2:
                 dummy_image[0, 0] = 1
             if dummy_image.ndim == 3:
