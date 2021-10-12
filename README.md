@@ -47,6 +47,7 @@ The following devices have been implemented in the _labscript suite_:<sup>†</s
 * [NovaTech DDS9m](http://www.novatechsales.com/PDF_files/dds9mds_lr.pdf) 170MHz Four Channel Direct Digital Synthesized Signal Generator (see [blog post](http://labscriptsuite.org/blog/tag/novatech-dds9m/))
 * [OpalKelly XEM3001](https://opalkelly.com/products/xem3001/) FPGA Boards used by the Cicero control system (PR [#50](https://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/50))
 * [PineBlaster](http://labscriptsuite.org/hardware/pineblaster) Open-source Digital Pattern Generator
+* [PrawnBlaster](https://github.com/labscript-suite/prawnblaster/) Open-source pseudoclock based on the $4 Raspberry Pi Pico
 * [SpinCore](https://www.spincore.com/products/#pulsegeneration) Programmable Pulse Generators and Direct Digital Synthesis
   * [PulseBlasterDDS-II-300-AWG](http://www.spincore.com/products/PulseBlasterDDS-II-300/)
   * [PulseBlasterESR-PRO](https://www.spincore.com/products/PulseBlasterESR-PRO/)

@@ -10,6 +10,16 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
+"""Reads the capabilities file and generates labscript devices
+for each known model of DAQ.
+
+Called from the command line via
+
+.. code-block:: shell
+
+    python generate_subclasses.py
+
+"""
 import os
 import warnings
 import json
@@ -23,7 +33,12 @@ TEMPLATE_FILE = os.path.join(THIS_FOLDER, '_subclass_template.py')
 
 
 def reformat_files(filepaths):
-    """Apply black formatter to a list of source files"""
+    """Apply `black <https://black.readthedocs.io/en/stable/>`_ 
+    formatter to a list of source files.
+    
+    Args:
+        filepaths (list): List of python source files to format.
+    """
     try:
         import black
     except ImportError:
@@ -42,6 +57,11 @@ def reformat_files(filepaths):
 
 
 def main():
+    """Called when the script is run.
+
+    Will attempt to reformat the generated files using
+    :func:`reformat_files`.
+    """
     capabilities = {}
     if os.path.exists(CAPABILITIES_FILE):
         with open(CAPABILITIES_FILE) as f:

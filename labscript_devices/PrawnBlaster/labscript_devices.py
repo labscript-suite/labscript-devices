@@ -28,21 +28,37 @@ import numpy as np
 
 
 class _PrawnBlasterPseudoclock(Pseudoclock):
+    """Customized Clockline for use with the PrawnBlaster.
+
+    This Pseudoclock retains information about which hardware clock
+    it is associated with, and ensures only one clockline per
+    pseudoclock.
+    """
     def __init__(self, i, *args, **kwargs):
+        """
+        Args:
+            i (int): Specifies which hardware pseudoclock this device
+                is associated with.
+        """
         super().__init__(*args, **kwargs)
         self.i = i
 
     def add_device(self, device):
+        """
+        Args:
+            device (:class:`~labscript.ClockLine`): Clockline to attach to the
+                pseudoclock.
+        """
         if isinstance(device, ClockLine):
             # only allow one child
             if self.child_devices:
                 raise LabscriptError(
-                    f"Each pseudoclock of the PrawnBlaster {self.parent_device.name} only supports 1 clockline, which is automatically created. Please use the clockline located at {self.parent_device.name}.clockline[{self.i}]"
+                    f"Each pseudoclock of the PrawnBlaster {self.parent_device.name} only supports 1 clockline, which is automatically created. Please use the clockline located at {self.parent_device.name}.clocklines[{self.i}]"
                 )
             Pseudoclock.add_device(self, device)
         else:
             raise LabscriptError(
-                f"You have connected {device.name} to {self.name} (a Pseudoclock of {self.parent_device.name}), but {self.name} only supports children that are ClockLines. Please connect your device to {self.parent_device.name}.clockline[{self.i}] instead."
+                f"You have connected {device.name} to {self.name} (a Pseudoclock of {self.parent_device.name}), but {self.name} only supports children that are ClockLines. Please connect your device to {self.parent_device.name}.clocklines[{self.i}] instead."
             )
 
 
@@ -51,6 +67,8 @@ class _PrawnBlasterPseudoclock(Pseudoclock):
 # since everything is handled internally in this device
 #
 class _PrawnBlasterDummyPseudoclock(Pseudoclock):
+    """Dummy Pseudoclock labscript device used internally to allow 
+    :class:`~labscript.WaitMonitor` to work internally to the PrawnBlaster."""
     def add_device(self, device):
         if isinstance(device, _PrawnBlasterDummyClockLine):
             if self.child_devices:
@@ -69,6 +87,8 @@ class _PrawnBlasterDummyPseudoclock(Pseudoclock):
 
 
 class _PrawnBlasterDummyClockLine(ClockLine):
+    """Dummy Clockline labscript device used internally to allow 
+    :class:`~labscript.WaitMonitor` to work internally to the PrawnBlaster."""
     def add_device(self, device):
         if isinstance(device, _PrawnBlasterDummyIntermediateDevice):
             if self.child_devices:
@@ -87,6 +107,9 @@ class _PrawnBlasterDummyClockLine(ClockLine):
 
 
 class _PrawnBlasterDummyIntermediateDevice(IntermediateDevice):
+    """Dummy intermediate labscript device used internally to attach 
+    :class:`~labscript.WaitMonitor` objects to the PrawnBlaster."""
+
     def add_device(self, device):
         if isinstance(device, WaitMonitor):
             IntermediateDevice.add_device(self, device)
@@ -104,18 +127,26 @@ class _PrawnBlasterDummyIntermediateDevice(IntermediateDevice):
 class PrawnBlaster(PseudoclockDevice):
     description = "PrawnBlaster"
     clock_limit = 1 / 100e-9
+    """Maximum allowable clock rate."""
     clock_resolution = 20e-9
-    # There appears to be ~50ns buffer on input and then we know there is 80ns between
-    # trigger detection and first output pulse
+    """Minimum resolvable time for a clock tick."""
     input_response_time = 50e-9
+    """Time necessary for hardware to respond to a hardware trigger. 
+    Empirically determined to be a ~50 ns buffer on the input.
+    """
     trigger_delay = input_response_time + 80e-9
-    # Overestimate that covers indefinite waits (which labscript does not yet support)
+    """Processing time delay after trigger is detected. Due to firmware, there is an
+    80 ns delay between trigger detection and first output pulse."""
     trigger_minimum_duration = 160e-9
-    # There are 4 ASM instructions between end of pulse and being ready to detect
-    # a retrigger
+    """Minimum required width of hardware trigger. An overestimate that covers
+    currently unsupported indefinite waits."""
     wait_delay = 40e-9
+    """Minimum required length of a wait before retrigger can be detected.
+    Corresponds to 4 instructions."""
     allowed_children = [_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock]
     max_instructions = 30000
+    """Maximum numaber of instructions per pseudoclock. Max is 30,000 for a single
+    pseudoclock."""
 
     @set_passed_properties(
         property_names={
@@ -151,6 +182,38 @@ class PrawnBlaster(PseudoclockDevice):
         external_clock_pin=None,
         use_wait_monitor=True,
     ):
+        """PrawnBlaster Pseudoclock labscript device.
+
+        This labscript device creates Pseudoclocks based on the PrawnBlaster,
+        a Raspberry Pi Pico with custom firmware.
+
+        Args:
+            name (str): python variable name to assign to the PrawnBlaster
+            com_port (str): COM port assigned to the PrawnBlaster by the OS. Takes 
+                the form of `'COMd'`, where `d` is an integer.
+            num_pseudoclocks (int): Number of pseudoclocks to create. Ranges from 1-4.
+            trigger_device (:class:`~labscript.IntermediateDevice`, optional): Device
+                that will send the hardware start trigger when using the PrawnBlaster
+                as a secondary Pseudoclock.
+            trigger_connection (str, optional): Which output of the `trigger_device`
+                is connected to the PrawnBlaster hardware trigger input.
+            out_pins (list, optional): What outpins to use for the pseudoclock outputs.
+                Must have length of at least `num_pseudoclocks`. Defaults to `[9,11,13,15]`
+            in_pins (list, optional): What inpins to use for the pseudoclock hardware
+                triggering. Must have length of at least `num_pseudoclocks`. 
+                Defaults to `[0,0,0,0]`
+            clock_frequency (float, optional): Frequency of clock. Standard range
+                accepts up to 133 MHz. An experimental overclocked firmware is 
+                available that allows higher frequencies.
+            external_clock_pin (int, optional): If not `None` (the default), 
+                the PrawnBlaster uses an external clock on the provided pin. Valid
+                options are `20` and `22`. The external frequency must be defined
+                using `clock_frequency`.
+            use_wait_monitor (bool, optional): Configure the PrawnBlaster to
+                perform its own wait monitoring.
+
+        """
+
         # Check number of pseudoclocks is within range
         if num_pseudoclocks < 1 or num_pseudoclocks > 4:
             raise LabscriptError(
@@ -249,13 +312,28 @@ class PrawnBlaster(PseudoclockDevice):
 
     @property
     def pseudoclocks(self):
+        """Returns a list of the automatically generated
+        :class:`_PrawnBlasterPseudoclock` objects."""
+
         return copy.copy(self._pseudoclocks)
 
     @property
     def clocklines(self):
+        """Returns a list of the automatically generated 
+        :class:`~labscript.ClockLine` objects."""
+
         return copy.copy(self._clocklines)
 
     def add_device(self, device):
+        """Adds child devices.
+
+        This is automatically called by the labscript compiler.
+
+        Args:
+            device (:class:`_PrawnBlasterPseudoclock` or :class:`_PrawnBlasterDummyPseudoclock`):
+                Instance to attach to the device. Only the allowed children can be attached.
+        """
+
         if len(self.child_devices) < (
             self.num_pseudoclocks + self.use_wait_monitor
         ) and isinstance(
@@ -274,6 +352,14 @@ class PrawnBlaster(PseudoclockDevice):
             )
 
     def generate_code(self, hdf5_file):
+        """Generates the hardware instructions for the pseudoclocks.
+
+        This is automatically called by the labscript compiler.
+
+        Args:
+            hdf5_file (:class:`h5py.File`): h5py file object for shot 
+        """
+
         PseudoclockDevice.generate_code(self, hdf5_file)
         group = self.init_device_group(hdf5_file)
 

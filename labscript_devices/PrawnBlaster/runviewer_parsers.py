@@ -19,12 +19,30 @@ import labscript_utils.properties as properties
 
 
 class PrawnBlasterParser(object):
+    """Runviewer parser for the PrawnBlaster Pseudoclocks."""
     def __init__(self, path, device):
+        """
+        Args:
+            path (str): path to h5 shot file
+            device (str): labscript name of PrawnBlaster device
+        """
         self.path = path
         self.name = device.name
         self.device = device
 
     def get_traces(self, add_trace, clock=None):
+        """Reads the shot file and extracts hardware instructions to produce
+        runviewer traces.
+
+        Args:
+            add_trace (func): function handle that adds traces to runviewer
+            clock (tuple, optional): clock times from timing device, if not
+                the primary pseudoclock
+
+        Returns:
+            dict: Dictionary of clocklines and triggers derived from instructions
+        """
+
         if clock is not None:
             times, clock_value = clock[0], clock[1]
             clock_indices = np.where((clock_value[1:] - clock_value[:-1]) == 1)[0] + 1
@@ -53,7 +71,19 @@ class PrawnBlasterParser(object):
 
         # Generate clocklines and triggers
         clocklines_and_triggers = {}
-        for pulse_program in pulse_programs:
+        
+        for pseudoclock_name, pseudoclock in self.device.child_list.items():
+            # Get pseudoclock index
+            connection_parts = pseudoclock.parent_port.split()
+            # Skip if not one of the 4 possible pseudoclock outputs (there is one for
+            # the wait monitor too potentially)
+            if connection_parts[0] != "pseudoclock":
+                continue
+
+            # Get the pulse program
+            index = int(connection_parts[1])
+            pulse_program = pulse_programs[index]
+
             time = []
             states = []
             trigger_index = 0
@@ -84,15 +114,14 @@ class PrawnBlasterParser(object):
                             states.append(j)
                             t += row["half_period"] * clock_factor
 
-            clock = (np.array(time), np.array(states))
+            pseudoclock_clock = (np.array(time), np.array(states))
 
-            for pseudoclock_name, pseudoclock in self.device.child_list.items():
-                for clock_line_name, clock_line in pseudoclock.child_list.items():
-                    # Ignore the dummy internal wait monitor clockline
-                    if clock_line.parent_port.startswith("GPIO"):
-                        clocklines_and_triggers[clock_line_name] = clock
-                        add_trace(
-                            clock_line_name, clock, self.name, clock_line.parent_port
-                        )
+            for clock_line_name, clock_line in pseudoclock.child_list.items():
+                # Ignore the dummy internal wait monitor clockline
+                if clock_line.parent_port.startswith("GPIO"):
+                    clocklines_and_triggers[clock_line_name] = pseudoclock_clock
+                    add_trace(
+                        clock_line_name, pseudoclock_clock, self.name, clock_line.parent_port
+                    )
 
         return clocklines_and_triggers

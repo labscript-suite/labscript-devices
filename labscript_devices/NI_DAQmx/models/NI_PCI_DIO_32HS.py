@@ -22,6 +22,7 @@
 
 from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 
+#:
 CAPABILITIES = {
     'AI_range': None,
     'AI_start_delay': None,
@@ -52,6 +53,7 @@ class NI_PCI_DIO_32HS(NI_DAQmx):
     description = 'NI-PCI-DIO-32HS'
 
     def __init__(self, *args, **kwargs):
+        """Class for NI-PCI-DIO-32HS"""
         # Any provided kwargs take precedent over capabilities
         combined_kwargs = CAPABILITIES.copy()
         combined_kwargs.update(kwargs)
