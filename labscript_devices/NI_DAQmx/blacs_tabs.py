@@ -41,7 +41,11 @@ class NI_DAQmxTab(DeviceTab):
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']
-        AI_chans = properties['AI_chans']
+        try:
+            AI_chans = properties['AI_chans']
+        except KeyError:
+            # assume legacy behavior
+            AI_chans = [f'ai{i:d}' for i in range(num_AI)]
         ports = properties['ports']
         num_CI = properties['num_CI']
 

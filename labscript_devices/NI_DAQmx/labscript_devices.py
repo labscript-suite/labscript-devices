@@ -214,6 +214,9 @@ class NI_DAQmx(IntermediateDevice):
         self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
         self.AI_term = AI_term
+        if AI_term_cfg == None:
+            # assume legacy configuration if none provided
+            AI_term_cfg = {f'ai{i:d}': ['RSE'] for i in range(num_AI)}
         self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
         if not len(self.AI_chans):
             msg = """AI termination {0} not supported by this device."""
