@@ -134,8 +134,20 @@ class NI_DAQmx(IntermediateDevice):
             acquisiton_rate (float, optional): Default sample rate of inputs.
             AI_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 input voltage range for all analog inputs.
+            AI_range_Diff (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
+                input voltage range for all analog inputs when using Differential termination.
             AI_start_delay (float, optional): Time in seconds between start of an
                 analog input task starting and the first sample.
+            AI_start_delay_ticks (int, optional): Time in sample clock periods between
+                start of an analog input task starting and the first sample. To use
+                this method, `AI_start_delay` must be set to `None`. This is necessary
+                for DAQs that employ delta ADCs.
+            AI_term (str, optional): Configures the analog input termination for all
+                analog inputs. Must be supported by the device. Supported options are
+                `'RSE'`, `'Diff'`, and '`PseudoDiff'`.
+            AI_term_cfg (dict, optional): Dictionary of analog input channels and their
+                supported terminations. Best to use `get_capabilities.py` to introspect
+                these.
             AO_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 output voltage range for all analog outputs.
             max_AI_multi_chan_rate (float, optional): Max supported analog input 
