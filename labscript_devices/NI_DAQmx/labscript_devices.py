@@ -213,6 +213,7 @@ class NI_DAQmx(IntermediateDevice):
         self.max_DO_sample_rate = max_DO_sample_rate
         self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
+        # special handling for AI termination configurations
         self.AI_term = AI_term
         if AI_term_cfg == None:
             # assume legacy configuration if none provided
@@ -220,11 +221,11 @@ class NI_DAQmx(IntermediateDevice):
         self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
         if not len(self.AI_chans):
             msg = """AI termination {0} not supported by this device."""
-            raise LabscriptError(dedent(msg.format(AI_term))) 
+            raise LabscriptError(dedent(msg.format(AI_term)))
         if AI_term == 'Diff':
             self.AI_range = AI_range_Diff
         # define AI_start_delay in ticks, assumes AI_start_delay_ticks is defined
-        self.start_delay_ticks = (AI_start_delay != None)  
+        self.start_delay_ticks = (AI_start_delay != None)
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
