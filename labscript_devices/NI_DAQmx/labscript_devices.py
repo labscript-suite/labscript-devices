@@ -236,9 +236,10 @@ class NI_DAQmx(IntermediateDevice):
                 # Tell blacs_worker to use AI_start_delay_ticks to define delay
                 self.start_delay_ticks = True
             else:
-                self.start_delay_ticks = False
+                raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
         else:
-            raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
+            # Tells blacs_worker to use AI_start_delay to define delay
+            self.start_delay_ticks = False
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
