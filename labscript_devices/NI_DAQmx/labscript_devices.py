@@ -232,7 +232,7 @@ class NI_DAQmx(IntermediateDevice):
         if AI_term == 'Diff':
             self.AI_range = AI_range_Diff
         if AI_start_delay is None:
-             if AI_start_delay_ticks is not None:
+            if AI_start_delay_ticks is not None:
                 # Tell blacs_worker to use AI_start_delay_ticks to define delay
                 self.start_delay_ticks = True
             else:
