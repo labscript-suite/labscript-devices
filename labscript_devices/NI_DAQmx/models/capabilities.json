@@ -259,6 +259,83 @@
         "supports_buffered_DO": true,
         "supports_semiperiod_measurement": true
     },
+    "PXIe-4499": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_range_Diff": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": null,
+        "AI_start_delay_ticks": 64,
+        "AI_term": "PseudoDiff",
+        "AI_term_cfg": {
+            "ai0": [
+                "PseudoDiff"
+            ],
+            "ai1": [
+                "PseudoDiff"
+            ],
+            "ai10": [
+                "PseudoDiff"
+            ],
+            "ai11": [
+                "PseudoDiff"
+            ],
+            "ai12": [
+                "PseudoDiff"
+            ],
+            "ai13": [
+                "PseudoDiff"
+            ],
+            "ai14": [
+                "PseudoDiff"
+            ],
+            "ai15": [
+                "PseudoDiff"
+            ],
+            "ai2": [
+                "PseudoDiff"
+            ],
+            "ai3": [
+                "PseudoDiff"
+            ],
+            "ai4": [
+                "PseudoDiff"
+            ],
+            "ai5": [
+                "PseudoDiff"
+            ],
+            "ai6": [
+                "PseudoDiff"
+            ],
+            "ai7": [
+                "PseudoDiff"
+            ],
+            "ai8": [
+                "PseudoDiff"
+            ],
+            "ai9": [
+                "PseudoDiff"
+            ]
+        },
+        "AO_range": null,
+        "max_AI_multi_chan_rate": 204800.0,
+        "max_AI_single_chan_rate": 204800.0,
+        "max_AO_sample_rate": null,
+        "max_DO_sample_rate": null,
+        "min_semiperiod_measurement": null,
+        "num_AI": 16,
+        "num_AO": 0,
+        "num_CI": 0,
+        "ports": {},
+        "supports_buffered_AO": false,
+        "supports_buffered_DO": false,
+        "supports_semiperiod_measurement": false,
+        "supports_simultaneous_AI_sampling": true
+    },
     "PXIe-6361": {
         "AI_range": [
             -10.0,
@@ -465,6 +542,194 @@
         "supports_buffered_AO": true,
         "supports_buffered_DO": true,
         "supports_semiperiod_measurement": true
+    },
+    "USB-6363": {
+        "AI_range": [
+            -10.0,
+            10.0
+        ],
+        "AI_range_Diff": [
+            -10.0,
+            10.0
+        ],
+        "AI_start_delay": 7e-08,
+        "AI_term": "RSE",
+        "AI_term_cfg": {
+            "ai0": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai1": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai10": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai11": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai12": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai13": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai14": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai15": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai16": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai17": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai18": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai19": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai2": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai20": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai21": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai22": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai23": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai24": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai25": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai26": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai27": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai28": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai29": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai3": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai30": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai31": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai4": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai5": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai6": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai7": [
+                "RSE",
+                "NRSE",
+                "Diff"
+            ],
+            "ai8": [
+                "RSE",
+                "NRSE"
+            ],
+            "ai9": [
+                "RSE",
+                "NRSE"
+            ]
+        },
+        "AO_range": [
+            -10.0,
+            10.0
+        ],
+        "max_AI_multi_chan_rate": 1000000.0,
+        "max_AI_single_chan_rate": 2000000.0,
+        "max_AO_sample_rate": 2857142.8571428573,
+        "max_DO_sample_rate": 10000000.0,
+        "min_semiperiod_measurement": 1e-07,
+        "num_AI": 32,
+        "num_AO": 4,
+        "num_CI": 4,
+        "ports": {
+            "port0": {
+                "num_lines": 32,
+                "supports_buffered": true
+            },
+            "port1": {
+                "num_lines": 8,
+                "supports_buffered": false
+            },
+            "port2": {
+                "num_lines": 8,
+                "supports_buffered": false
+            }
+        },
+        "supports_buffered_AO": true,
+        "supports_buffered_DO": true,
+        "supports_semiperiod_measurement": true,
+        "supports_simultaneous_AI_sampling": false
     },
     "USB-6366": {
         "AI_range": [
