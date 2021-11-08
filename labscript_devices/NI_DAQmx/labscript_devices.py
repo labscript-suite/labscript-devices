@@ -97,7 +97,7 @@ class NI_DAQmx(IntermediateDevice):
         AI_range=None,
         AI_range_Diff=None,
         AI_start_delay=0,
-        AI_start_delay_ticks=0,
+        AI_start_delay_ticks=None,
         AI_term='RSE',
         AI_term_cfg=None,
         AO_range=None,
@@ -231,8 +231,14 @@ class NI_DAQmx(IntermediateDevice):
             raise LabscriptError(dedent(msg.format(AI_term)))
         if AI_term == 'Diff':
             self.AI_range = AI_range_Diff
-        # define AI_start_delay in ticks, assumes AI_start_delay_ticks is defined
-        self.start_delay_ticks = (AI_start_delay != None)
+        if AI_start_delay is None:
+             if AI_start_delay_ticks is not None:
+                # Tell blacs_worker to use AI_start_delay_ticks to define delay
+                self.start_delay_ticks = True
+            else:
+                self.start_delay_ticks = False
+        else:
+            raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
