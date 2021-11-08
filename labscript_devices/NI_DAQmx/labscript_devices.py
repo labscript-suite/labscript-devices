@@ -30,6 +30,7 @@ from labscript import (
 from labscript_utils import dedent
 from .utils import split_conn_DO, split_conn_AO, split_conn_AI
 import numpy as np
+import warnings
 
 _ints = {8: np.uint8, 16: np.uint16, 32: np.uint32, 64: np.uint64}
 
@@ -218,6 +219,12 @@ class NI_DAQmx(IntermediateDevice):
         if AI_term_cfg == None:
             # assume legacy configuration if none provided
             AI_term_cfg = {f'ai{i:d}': ['RSE'] for i in range(num_AI)}
+            # warn user to update their local model specs
+            msg = """Model specifications for {} needs to be updated.
+                  Please run the `get_capabilites.py` and `generate_subclasses.py`
+                  scripts or define the `AI_Term_Cfg` kwarg for your device.
+                  """
+            warnings.warn(dedent(msg.format(self.description)), FutureWarning)
         self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
         if not len(self.AI_chans):
             msg = """AI termination {0} not supported by this device."""
