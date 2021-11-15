@@ -90,7 +90,7 @@ class FunctionRunner(Device):
     def generate_code(self, hdf5_file):
         # Python's sorting is stable, so items with equal times will remain in the order
         # they were added
-        self.functions.sort()
+        self.functions.sort(key=lambda item: item[0])
         vlenstr = h5py.special_dtype(vlen=str)
         table_dtypes = [
             ('t', float),
