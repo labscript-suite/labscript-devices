@@ -345,7 +345,8 @@ def supported_AI_terminal_configurations(device_name):
         device_name (str): NI-MAX device name
 
     Returns:
-        dict: Dictionary of analog input channels where each value is a list of
+        dict:
+            Dictionary of analog input channels where each value is a list of
             the supported input terminations.
     """
     supp_types = {}
