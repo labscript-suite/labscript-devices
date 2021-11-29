@@ -24,36 +24,51 @@ from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 
 #:
 CAPABILITIES = {
-    'AI_range': None,
-    'AI_range_Diff': None,
+    'AI_range': [-10.0, 10.0],
+    'AI_range_Diff': [-10.0, 10.0],
     'AI_start_delay': None,
+    'AI_start_delay_ticks': 64,
+    'AI_term': 'PseudoDiff',
+    'AI_term_cfg': {
+        'ai0': ['PseudoDiff'],
+        'ai1': ['PseudoDiff'],
+        'ai10': ['PseudoDiff'],
+        'ai11': ['PseudoDiff'],
+        'ai12': ['PseudoDiff'],
+        'ai13': ['PseudoDiff'],
+        'ai14': ['PseudoDiff'],
+        'ai15': ['PseudoDiff'],
+        'ai2': ['PseudoDiff'],
+        'ai3': ['PseudoDiff'],
+        'ai4': ['PseudoDiff'],
+        'ai5': ['PseudoDiff'],
+        'ai6': ['PseudoDiff'],
+        'ai7': ['PseudoDiff'],
+        'ai8': ['PseudoDiff'],
+        'ai9': ['PseudoDiff'],
+    },
     'AO_range': None,
-    'max_AI_multi_chan_rate': None,
-    'max_AI_single_chan_rate': None,
+    'max_AI_multi_chan_rate': 204800.0,
+    'max_AI_single_chan_rate': 204800.0,
     'max_AO_sample_rate': None,
-    'max_DO_sample_rate': 10000000.0,
+    'max_DO_sample_rate': None,
     'min_semiperiod_measurement': None,
-    'num_AI': 0,
+    'num_AI': 16,
     'num_AO': 0,
     'num_CI': 0,
-    'ports': {
-        'port0': {'num_lines': 8, 'supports_buffered': True},
-        'port1': {'num_lines': 8, 'supports_buffered': True},
-        'port2': {'num_lines': 8, 'supports_buffered': True},
-        'port3': {'num_lines': 8, 'supports_buffered': True},
-        'port4': {'num_lines': 6, 'supports_buffered': False},
-    },
+    'ports': {},
     'supports_buffered_AO': False,
-    'supports_buffered_DO': True,
+    'supports_buffered_DO': False,
     'supports_semiperiod_measurement': False,
+    'supports_simultaneous_AI_sampling': True,
 }
 
 
-class NI_PXIe_6535(NI_DAQmx):
-    description = 'NI-PXIe-6535'
+class NI_PXIe_4499(NI_DAQmx):
+    description = 'NI-PXIe-4499'
 
     def __init__(self, *args, **kwargs):
-        """Class for NI-PXIe-6535"""
+        """Class for NI-PXIe-4499"""
         # Any provided kwargs take precedent over capabilities
         combined_kwargs = CAPABILITIES.copy()
         combined_kwargs.update(kwargs)

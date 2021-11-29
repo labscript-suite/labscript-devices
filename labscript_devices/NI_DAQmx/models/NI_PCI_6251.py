@@ -25,7 +25,27 @@ from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 #:
 CAPABILITIES = {
     'AI_range': [-10.0, 10.0],
+    'AI_range_Diff': [-10.0, 10.0],
     'AI_start_delay': 2.5e-07,
+    'AI_term': 'RSE',
+    'AI_term_cfg': {
+        'ai0': ['RSE', 'NRSE', 'Diff'],
+        'ai1': ['RSE', 'NRSE', 'Diff'],
+        'ai10': ['RSE', 'NRSE'],
+        'ai11': ['RSE', 'NRSE'],
+        'ai12': ['RSE', 'NRSE'],
+        'ai13': ['RSE', 'NRSE'],
+        'ai14': ['RSE', 'NRSE'],
+        'ai15': ['RSE', 'NRSE'],
+        'ai2': ['RSE', 'NRSE', 'Diff'],
+        'ai3': ['RSE', 'NRSE', 'Diff'],
+        'ai4': ['RSE', 'NRSE', 'Diff'],
+        'ai5': ['RSE', 'NRSE', 'Diff'],
+        'ai6': ['RSE', 'NRSE', 'Diff'],
+        'ai7': ['RSE', 'NRSE', 'Diff'],
+        'ai8': ['RSE', 'NRSE'],
+        'ai9': ['RSE', 'NRSE'],
+    },
     'AO_range': [-10.0, 10.0],
     'max_AI_multi_chan_rate': 1000000.0,
     'max_AI_single_chan_rate': 1250000.0,
@@ -43,6 +63,7 @@ CAPABILITIES = {
     'supports_buffered_AO': True,
     'supports_buffered_DO': True,
     'supports_semiperiod_measurement': True,
+    'supports_simultaneous_AI_sampling': False,
 }
 
 

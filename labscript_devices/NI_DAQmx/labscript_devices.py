@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 
 from labscript import (
@@ -30,6 +30,7 @@ from labscript import (
 from labscript_utils import dedent
 from .utils import split_conn_DO, split_conn_AO, split_conn_AI
 import numpy as np
+import warnings
 
 _ints = {8: np.uint8, 16: np.uint16, 32: np.uint32, 64: np.uint64}
 
@@ -59,6 +60,9 @@ class NI_DAQmx(IntermediateDevice):
                 "clock_mirror_terminal",
                 "AI_range",
                 "AI_start_delay",
+                "AI_start_delay_ticks",
+                "AI_term",
+                "AI_chans",
                 "AO_range",
                 "max_AI_multi_chan_rate",
                 "max_AI_single_chan_rate",
@@ -72,11 +76,12 @@ class NI_DAQmx(IntermediateDevice):
                 "supports_buffered_AO",
                 "supports_buffered_DO",
                 "supports_semiperiod_measurement",
+                "supports_simultaneous_AI_sampling",
                 "clock_limit",
                 "wait_monitor_minimum_pulse_width",
                 "wait_monitor_supports_wait_completed_events",
             ],
-            "device_properties": ["acquisition_rate"],
+            "device_properties": ["acquisition_rate","start_delay_ticks"],
         }
     )
     def __init__(
@@ -90,7 +95,11 @@ class NI_DAQmx(IntermediateDevice):
         clock_mirror_terminal=None,
         acquisition_rate=None,
         AI_range=None,
+        AI_range_Diff=None,
         AI_start_delay=0,
+        AI_start_delay_ticks=None,
+        AI_term='RSE',
+        AI_term_cfg=None,
         AO_range=None,
         max_AI_multi_chan_rate=None,
         max_AI_single_chan_rate=None,
@@ -104,6 +113,7 @@ class NI_DAQmx(IntermediateDevice):
         supports_buffered_AO=False,
         supports_buffered_DO=False,
         supports_semiperiod_measurement=False,
+        supports_simultaneous_AI_sampling=False,
         **kwargs
     ):
         """Generic class for NI_DAQmx devices.
@@ -125,8 +135,20 @@ class NI_DAQmx(IntermediateDevice):
             acquisiton_rate (float, optional): Default sample rate of inputs.
             AI_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 input voltage range for all analog inputs.
+            AI_range_Diff (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
+                input voltage range for all analog inputs when using Differential termination.
             AI_start_delay (float, optional): Time in seconds between start of an
                 analog input task starting and the first sample.
+            AI_start_delay_ticks (int, optional): Time in sample clock periods between
+                start of an analog input task starting and the first sample. To use
+                this method, `AI_start_delay` must be set to `None`. This is necessary
+                for DAQs that employ delta ADCs.
+            AI_term (str, optional): Configures the analog input termination for all
+                analog inputs. Must be supported by the device. Supported options are
+                `'RSE'`, `'NRSE'` `'Diff'`, and '`PseudoDiff'`.
+            AI_term_cfg (dict, optional): Dictionary of analog input channels and their
+                supported terminations. Best to use `get_capabilities.py` to introspect
+                these.
             AO_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 output voltage range for all analog outputs.
             max_AI_multi_chan_rate (float, optional): Max supported analog input 
@@ -148,7 +170,7 @@ class NI_DAQmx(IntermediateDevice):
                 buffered output
             supports_buffered_DO (bool, optional): True if digital outputs support
                 buffered output
-            supports_semiperiod_measurement (bool, optional): True if deviec supports
+            supports_semiperiod_measurement (bool, optional): True if device supports
                 semi-period measurements
 
         """
@@ -192,12 +214,39 @@ class NI_DAQmx(IntermediateDevice):
         self.max_DO_sample_rate = max_DO_sample_rate
         self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
+        # special handling for AI termination configurations
+        self.AI_term = AI_term
+        if AI_term_cfg == None:
+            # assume legacy configuration if none provided
+            AI_term_cfg = {f'ai{i:d}': ['RSE'] for i in range(num_AI)}
+            # warn user to update their local model specs
+            msg = """Model specifications for {} needs to be updated.
+                  Please run the `get_capabilites.py` and `generate_subclasses.py`
+                  scripts or define the `AI_Term_Cfg` kwarg for your device.
+                  """
+            warnings.warn(dedent(msg.format(self.description)), FutureWarning)
+        self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
+        if not len(self.AI_chans):
+            msg = """AI termination {0} not supported by this device."""
+            raise LabscriptError(dedent(msg.format(AI_term)))
+        if AI_term == 'Diff':
+            self.AI_range = AI_range_Diff
+        if AI_start_delay is None:
+            if AI_start_delay_ticks is not None:
+                # Tell blacs_worker to use AI_start_delay_ticks to define delay
+                self.start_delay_ticks = True
+            else:
+                raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
+        else:
+            # Tells blacs_worker to use AI_start_delay to define delay
+            self.start_delay_ticks = False
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
         self.supports_buffered_AO = supports_buffered_AO
         self.supports_buffered_DO = supports_buffered_DO
         self.supports_semiperiod_measurement = supports_semiperiod_measurement
+        self.supports_simultaneous_AI_sampling = supports_simultaneous_AI_sampling
 
         if self.supports_buffered_DO and self.supports_buffered_AO:
             self.clock_limit = min(self.max_DO_sample_rate, self.max_AO_sample_rate)
@@ -291,8 +340,7 @@ class NI_DAQmx(IntermediateDevice):
                     buffered output"""
                 raise ValueError(dedent(msg) % port_str)
         elif isinstance(device, AnalogIn):
-            ai_num = split_conn_AI(device.connection)
-            if ai_num >= self.num_AI:
+            if device.connection not in self.AI_chans:
                 msg = """Cannot add analog input with connection string '%s' to device
                 with num_AI=%d"""
                 raise ValueError(dedent(msg) % (device.connection, self.num_AI))
@@ -352,7 +400,9 @@ class NI_DAQmx(IntermediateDevice):
             # Either no AI in use, or already checked against single channel rate in
             # __init__.
             return
-        if self.acquisition_rate <= self.max_AI_multi_chan_rate / n:
+        if self.supports_simultaneous_AI_sampling and self.acquisition_rate <= self.max_AI_multi_chan_rate:
+            return
+        elif self.acquisition_rate <= self.max_AI_multi_chan_rate / n:
             return
         msg = """Requested acqusition_rate %f for device %s with %d analog input
             channels in use is too fast. Device supports a rate of %f per channel when

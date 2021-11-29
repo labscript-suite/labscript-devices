@@ -37,8 +37,24 @@ CAPABILITIES = {
         'ai13': ['RSE', 'NRSE'],
         'ai14': ['RSE', 'NRSE'],
         'ai15': ['RSE', 'NRSE'],
+        'ai16': ['RSE', 'NRSE', 'Diff'],
+        'ai17': ['RSE', 'NRSE', 'Diff'],
+        'ai18': ['RSE', 'NRSE', 'Diff'],
+        'ai19': ['RSE', 'NRSE', 'Diff'],
         'ai2': ['RSE', 'NRSE', 'Diff'],
+        'ai20': ['RSE', 'NRSE', 'Diff'],
+        'ai21': ['RSE', 'NRSE', 'Diff'],
+        'ai22': ['RSE', 'NRSE', 'Diff'],
+        'ai23': ['RSE', 'NRSE', 'Diff'],
+        'ai24': ['RSE', 'NRSE'],
+        'ai25': ['RSE', 'NRSE'],
+        'ai26': ['RSE', 'NRSE'],
+        'ai27': ['RSE', 'NRSE'],
+        'ai28': ['RSE', 'NRSE'],
+        'ai29': ['RSE', 'NRSE'],
         'ai3': ['RSE', 'NRSE', 'Diff'],
+        'ai30': ['RSE', 'NRSE'],
+        'ai31': ['RSE', 'NRSE'],
         'ai4': ['RSE', 'NRSE', 'Diff'],
         'ai5': ['RSE', 'NRSE', 'Diff'],
         'ai6': ['RSE', 'NRSE', 'Diff'],
@@ -52,11 +68,11 @@ CAPABILITIES = {
     'max_AO_sample_rate': 2857142.8571428573,
     'max_DO_sample_rate': 10000000.0,
     'min_semiperiod_measurement': 1e-07,
-    'num_AI': 16,
-    'num_AO': 2,
+    'num_AI': 32,
+    'num_AO': 4,
     'num_CI': 4,
     'ports': {
-        'port0': {'num_lines': 8, 'supports_buffered': True},
+        'port0': {'num_lines': 32, 'supports_buffered': True},
         'port1': {'num_lines': 8, 'supports_buffered': False},
         'port2': {'num_lines': 8, 'supports_buffered': False},
     },
@@ -67,11 +83,11 @@ CAPABILITIES = {
 }
 
 
-class NI_PXIe_6361(NI_DAQmx):
-    description = 'NI-PXIe-6361'
+class NI_PXIe_6363(NI_DAQmx):
+    description = 'NI-PXIe-6363'
 
     def __init__(self, *args, **kwargs):
-        """Class for NI-PXIe-6361"""
+        """Class for NI-PXIe-6363"""
         # Any provided kwargs take precedent over capabilities
         combined_kwargs = CAPABILITIES.copy()
         combined_kwargs.update(kwargs)

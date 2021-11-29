@@ -408,7 +408,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         # Hard coded for now. Perhaps we will add functionality to enable
         # and disable inputs in manual mode, and adjust the rate:
-        self.manual_mode_chans = ['ai%d' % i for i in range(self.num_AI)]
+        self.manual_mode_chans = self.AI_chans
         self.manual_mode_rate = 1000
 
         # An event for knowing when the wait durations are known, so that we may use
@@ -471,11 +471,20 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.read_array = np.zeros((num_samples, len(chans)), dtype=np.float64)
         self.task = Task()
 
+        if self.AI_term == 'RSE':
+            term = DAQmx_Val_RSE
+        elif self.AI_term == 'NRSE':
+            term = DAQmx_Val_NRSE
+        elif self.AI_term == 'Diff':
+            term = DAQmx_Val_Diff
+        elif self.AI_term == 'PseudoDiff':
+            term = DAQmx_Val_PseudoDiff
+
         for chan in chans:
             self.task.CreateAIVoltageChan(
                 self.MAX_name + '/' + chan,
                 "",
-                DAQmx_Val_RSE,
+                term,
                 self.AI_range[0],
                 self.AI_range[1],
                 DAQmx_Val_Volts,
@@ -527,6 +536,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
             self.buffered_chans = sorted(set(chans), key=split_conn_AI)
         self.h5_file = h5file
         self.buffered_rate = device_properties['acquisition_rate']
+        if device_properties['start_delay_ticks']:
+            # delay is defined in sample clock ticks, calculate in sec and save for later
+            self.AI_start_delay = self.AI_start_delay_ticks*self.buffered_rate
         self.acquired_data = []
         # Stop the manual mode task and start the buffered mode task:
         self.stop_task()

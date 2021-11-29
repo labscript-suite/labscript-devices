@@ -178,6 +178,8 @@ DAQmxGetDevAIMaxSingleChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxSingleChan
 DAQmxGetDevAIMaxMultiChanRate = float64_prop(PyDAQmx.DAQmxGetDevAIMaxMultiChanRate)
 DAQmxGetDevAOVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAOVoltageRngs)
 DAQmxGetDevAIVoltageRngs = float64_array_prop(PyDAQmx.DAQmxGetDevAIVoltageRngs)
+DAQmxGetPhysicalChanAITermCfgs = int32_prop(PyDAQmx.DAQmxGetPhysicalChanAITermCfgs)
+DAQmxGetDevAISimultaneousSamplingSupported = bool_prop(PyDAQmx.DAQmxGetDevAISimultaneousSamplingSupported)
 
 
 def port_supports_buffered(device_name, port, clock_terminal=None):
@@ -252,8 +254,15 @@ def AI_start_delay(device_name):
     Vmin, Vmax = DAQmxGetDevAIVoltageRngs(device_name)[0:2]
     num_samples = 1000
     chan = device_name + '/ai0'
+    supp_types = DAQmxGetPhysicalChanAITermCfgs(chan)
+    if supp_types & c.DAQmx_Val_Bit_TermCfg_RSE:
+        input_type = c.DAQmx_Val_RSE
+    elif supp_types & c.DAQmx_Val_Bit_TermCfg_Diff:
+        input_type = c.DAQmx_Val_Diff
+    elif supp_types & c.DAQmx_Val_Bit_TermCfg_PseudoDIFF:
+        input_type = c.DAQmx_Val_PseudoDiff
     task.CreateAIVoltageChan(
-        chan, "", c.DAQmx_Val_RSE, Vmin, Vmax, c.DAQmx_Val_Volts, None
+        chan, "", input_type, Vmin, Vmax, c.DAQmx_Val_Volts, None
     )
     task.CfgSampClkTiming(
         "", rate, c.DAQmx_Val_Rising, c.DAQmx_Val_ContSamps, num_samples
@@ -264,8 +273,19 @@ def AI_start_delay(device_name):
     delay_from_sample_clock = float64()
     sample_timebase_rate = float64()
 
-    task.GetStartTrigDelay(start_trig_delay)
-    task.GetDelayFromSampClkDelay(delay_from_sample_clock)
+    try:
+        task.GetStartTrigDelay(start_trig_delay)
+    except PyDAQmx.DAQmxFunctions.AttributeNotSupportedInTaskContextError:
+        # device does not have a Start Trigger Delay property
+        # is likely a dynamic signal acquisition device with filter
+        # delays instead. 
+        start_trig_delay.value = 0
+    try:
+        task.GetDelayFromSampClkDelay(delay_from_sample_clock)
+    except PyDAQmx.DAQmxFunctions.AttributeNotSupportedInTaskContextError:
+        # seems simultaneous sampling devices do not have this property, 
+        # so assume it is zero
+        delay_from_sample_clock.value = 0
     task.GetSampClkTimebaseRate(sample_timebase_rate)
 
     task.ClearTask()
@@ -275,12 +295,79 @@ def AI_start_delay(device_name):
     return total_delay_in_seconds
 
 
+def AI_filter_delay(device_name):
+    """Determine the filter delay for dynamic signal acquistion devices.
+
+    Returns the delay in clock cycles. Absolute delay will vary with sample rate.
+    
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        int: Number of analog input delays ticks between task start and acquisition start.
+    """
+    if 'PFI0' not in DAQmxGetDevTerminals(device_name):
+        return None
+    task = Task()
+    clock_terminal = '/' + device_name + '/PFI0'
+    rate = DAQmxGetDevAIMaxSingleChanRate(device_name)
+    Vmin, Vmax = DAQmxGetDevAIVoltageRngs(device_name)[0:2]
+    num_samples = 1000
+    chan = device_name + '/ai0'
+    task.CreateAIVoltageChan(
+        chan, "", c.DAQmx_Val_PseudoDiff, Vmin, Vmax, c.DAQmx_Val_Volts, None
+    )
+    task.CfgSampClkTiming(
+        "", rate, c.DAQmx_Val_Rising, c.DAQmx_Val_ContSamps, num_samples
+    )
+    task.CfgDigEdgeStartTrig(clock_terminal, c.DAQmx_Val_Rising)
+
+    start_filter_delay = float64()
+    sample_timebase_rate = float64()
+
+    # get delay in number of clock samples
+    task.SetAIFilterDelayUnits("", c.DAQmx_Val_SampleClkPeriods)
+
+    task.GetAIFilterDelay("", start_filter_delay)
+    task.GetSampClkTimebaseRate(sample_timebase_rate)
+
+    task.ClearTask()
+
+    return int(start_filter_delay.value)
+
+
+def supported_AI_terminal_configurations(device_name):
+    """Determine which analong input configurations are supported for each AI.
+
+    Valid options are RSE, NRSE, Diff, and PseudoDiff.
+
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        dict:
+            Dictionary of analog input channels where each value is a list of
+            the supported input terminations.
+    """
+    supp_types = {}
+    poss_types = {'RSE': c.DAQmx_Val_Bit_TermCfg_RSE,
+                  'NRSE': c.DAQmx_Val_Bit_TermCfg_NRSE,
+                  'Diff': c.DAQmx_Val_Bit_TermCfg_Diff,
+                  'PseudoDiff': c.DAQmx_Val_Bit_TermCfg_PseudoDIFF}
+    chans = DAQmxGetDevAIPhysicalChans(device_name)
+    for chan in chans:
+        byte = DAQmxGetPhysicalChanAITermCfgs(device_name+'/'+chan)
+        chan_types = [key for key, val in poss_types.items() if val & byte]
+        supp_types[chan] = chan_types
+
+    return supp_types
+
+
 def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
     """Empirically determine the analog input voltage ranges for non-differential inputs.
 
     Tries AI ranges to see which are actually allowed for non-differential input, since
-    the largest range may only be available for differential input, which we don't
-    attempt to support (though we could with a little effort).
+    the largest range may only be available for differential input.
 
     Args:
         device_name (str): NI-MAX device name
@@ -403,7 +490,8 @@ if __name__ == '__main__':
 
     models = []
     for name in DAQmxGetSysDevNames().split(', '):
-        model = DAQmxGetDevProductType(name)
+        # ignore extra details in model names
+        model = DAQmxGetDevProductType(name).split(' ')[0]
         print("found device:", name, model)
         if model not in models:
             models.append(model)
@@ -435,6 +523,16 @@ if __name__ == '__main__':
             multi_rate = None
         capabilities[model]["max_AI_single_chan_rate"] = single_rate
         capabilities[model]["max_AI_multi_chan_rate"] = multi_rate
+        if capabilities[model]["num_AI"] > 0:
+            capabilities[model]["AI_term_cfg"] = supported_AI_terminal_configurations(name)
+            cfgs = [item for sublist in capabilities[model]["AI_term_cfg"].values() for item in sublist]
+            if cfgs.count('RSE'):
+                capabilities[model]["AI_term"] = 'RSE'
+            elif cfgs.count('Diff'):
+                capabilities[model]["AI_term"] = 'Diff'
+            elif cfgs.count('PseudoDiff'):
+                capabilities[model]["AI_term"] = 'PseudoDiff'
+            capabilities[model]["supports_simultaneous_AI_sampling"] = DAQmxGetDevAISimultaneousSamplingSupported(name)
 
         capabilities[model]["ports"] = {}
         ports = DAQmxGetDevDOPorts(name)
@@ -484,20 +582,30 @@ if __name__ == '__main__':
             for i in range(0, len(raw_limits), 2):
                 Vmin, Vmax = raw_limits[i], raw_limits[i + 1]
                 AI_ranges.append([Vmin, Vmax])
-            # Restrict to the ranges allowed for non-differential input:
-            AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
             # Find range with the largest maximum voltage and use that:
-            Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
+            Vmin_raw, Vmax_raw = max(AI_ranges, key=lambda range: range[1])
             # Confirm that no other range has a voltage lower than Vmin,
             # since if it does, this violates our assumptions and things might not
             # be as simple as having a single range:
+            assert min(AI_ranges)[0] >= Vmin_raw
+            capabilities[model]["AI_range_Diff"] = [Vmin_raw, Vmax_raw]
+            if 'RSE' in capabilities[model]["AI_term_cfg"]['ai0']:
+                # Now limit to non-differential inputs (if available), which may have lower ranges
+                AI_ranges = supported_AI_ranges_for_non_differential_input(name, AI_ranges)
+            # Find RSE range with the largest maximum voltage and use that:
+            Vmin, Vmax = max(AI_ranges, key=lambda range: range[1])
             assert min(AI_ranges)[0] >= Vmin
             capabilities[model]["AI_range"] = [Vmin, Vmax]
         else:
             capabilities[model]["AI_range"] = None
+            capabilities[model]["AI_range_Diff"] = None
 
         if capabilities[model]["num_AI"] > 0:
-            capabilities[model]["AI_start_delay"] = AI_start_delay(name)
+            if capabilities[model]["AI_term"] == 'PseudoDiff':
+                capabilities[model]["AI_start_delay_ticks"] = AI_filter_delay(name)
+                capabilities[model]["AI_start_delay"] = None
+            else:
+                capabilities[model]["AI_start_delay"] = AI_start_delay(name)
         else:
             capabilities[model]["AI_start_delay"] = None
 
