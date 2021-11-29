@@ -298,7 +298,14 @@ def AI_start_delay(device_name):
 def AI_filter_delay(device_name):
     """Determine the filter delay for dynamic signal acquistion devices.
 
-    Returns the delay in clock cycles. Absolute delay will vary with sample rate."""
+    Returns the delay in clock cycles. Absolute delay will vary with sample rate.
+    
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        int: Number of analog input delays ticks between task start and acquisition start.
+    """
     if 'PFI0' not in DAQmxGetDevTerminals(device_name):
         return None
     task = Task()
@@ -333,6 +340,13 @@ def supported_AI_terminal_configurations(device_name):
     """Determine which analong input configurations are supported for each AI.
 
     Valid options are RSE, NRSE, Diff, and PseudoDiff.
+
+    Args:
+        device_name (str): NI-MAX device name
+
+    Returns:
+        dict: Dictionary of analog input channels where each value is a list of
+            the supported input terminations.
     """
     supp_types = {}
     poss_types = {'RSE': c.DAQmx_Val_Bit_TermCfg_RSE,
@@ -352,8 +366,7 @@ def supported_AI_ranges_for_non_differential_input(device_name, AI_ranges):
     """Empirically determine the analog input voltage ranges for non-differential inputs.
 
     Tries AI ranges to see which are actually allowed for non-differential input, since
-    the largest range may only be available for differential input, which we don't
-    attempt to support (though we could with a little effort).
+    the largest range may only be available for differential input.
 
     Args:
         device_name (str): NI-MAX device name

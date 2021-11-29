@@ -145,7 +145,7 @@ class NI_DAQmx(IntermediateDevice):
                 for DAQs that employ delta ADCs.
             AI_term (str, optional): Configures the analog input termination for all
                 analog inputs. Must be supported by the device. Supported options are
-                `'RSE'`, `'Diff'`, and '`PseudoDiff'`.
+                `'RSE'`, `'NRSE'` `'Diff'`, and '`PseudoDiff'`.
             AI_term_cfg (dict, optional): Dictionary of analog input channels and their
                 supported terminations. Best to use `get_capabilities.py` to introspect
                 these.
@@ -170,7 +170,7 @@ class NI_DAQmx(IntermediateDevice):
                 buffered output
             supports_buffered_DO (bool, optional): True if digital outputs support
                 buffered output
-            supports_semiperiod_measurement (bool, optional): True if deviec supports
+            supports_semiperiod_measurement (bool, optional): True if device supports
                 semi-period measurements
 
         """
