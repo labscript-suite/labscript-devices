@@ -22,8 +22,10 @@
 
 from labscript_devices.NI_DAQmx.labscript_devices import NI_DAQmx
 
+#:
 CAPABILITIES = {
     'AI_range': None,
+    'AI_range_Diff': None,
     'AI_start_delay': None,
     'AO_range': [-10.0, 10.0],
     'max_AI_multi_chan_rate': None,
@@ -45,6 +47,7 @@ class NI_PXI_6733(NI_DAQmx):
     description = 'NI-PXI-6733'
 
     def __init__(self, *args, **kwargs):
+        """Class for NI-PXI-6733"""
         # Any provided kwargs take precedent over capabilities
         combined_kwargs = CAPABILITIES.copy()
         combined_kwargs.update(kwargs)

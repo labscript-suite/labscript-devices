@@ -39,6 +39,7 @@ html_favicon = img_path + "/labscript.ico"
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
@@ -49,6 +50,8 @@ extensions = [
 ]
 
 autodoc_typehints = 'description'
+autoclass_content = 'both'  # options: 'both', 'class', 'init'
+autodoc_mock_imports = ['PyDAQmx']
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
 autosectionlabel_prefix_document = True
@@ -169,6 +172,13 @@ if os.environ.get('READTHEDOCS') and (
 else:
     todo_include_todos = True
 
+# -- Options for PDF output --------------------------------------------------
+
+latex_elements = {
+    # make entire document landscape
+    'geometry': '\\usepackage[landscape]{geometry}',
+}
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -223,3 +233,64 @@ def setup(app):
                 img_path=img_path
             )
         )
+
+    # hook to run apidoc before building
+    app.connect('builder-inited', run_apidoc)
+    # hooks to test docstring coverage
+    app.connect('autodoc-process-docstring', doc_coverage)
+    app.connect('build-finished', doc_report)
+
+
+def run_apidoc(_):
+    """Runs apidoc with our desired parameters to generate the NI_DAQmx models docs.
+    """
+    from sphinx.ext.apidoc import main
+    if os.environ.get('READTHEDOCS'):
+        rel_path = '../..'
+    else:
+        rel_path = '..'
+    daq_models_path = os.path.join(os.path.abspath(rel_path), 
+                                   'labscript_devices')
+    out_path = os.path.join(os.path.dirname(Path(__file__)), 
+                            'devices', '_apidoc', 'models')
+    templates_path = os.path.join(os.path.dirname(Path(__file__)), 
+                                  '_templates', 'models')
+    main(['-TMf', '-s', 'inc',
+          '-t', templates_path,
+          '-o', out_path, daq_models_path])
+
+
+members_to_watch = ['module', 'class', 'function', 'exception', 'method', 'attribute']
+doc_count = 0
+undoc_count = 0
+undoc_objects = []
+undoc_print_objects = False
+
+
+def doc_coverage(app, what, name, obj, options, lines):
+    global doc_count
+    global undoc_count
+    global undoc_objects
+
+    if (what in members_to_watch and len(lines) == 0):
+        # blank docstring detected
+        undoc_count += 1
+        undoc_objects.append(name)
+    else:
+        doc_count += 1
+
+
+def doc_report(app, exception):
+    global doc_count
+    global undoc_count
+    global undoc_objects
+    # print out report of documentation coverage
+    total_docs = undoc_count + doc_count
+    if total_docs != 0:
+        print(f'\nAPI Doc coverage of {doc_count/total_docs:.1%}')
+        if undoc_print_objects or os.environ.get('READTHEDOCS'):
+            print('\nItems lacking documentation')
+            print('===========================')
+            print(*undoc_objects, sep='\n')
+    else:
+        print('No docs counted, run \'make clean\' then rebuild to get the count.')

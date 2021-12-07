@@ -18,7 +18,6 @@
 import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
-import PySpin
 from time import sleep, perf_counter
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
@@ -28,6 +27,9 @@ class Spinnaker_Camera(object):
         """Initialize Spinnaker API camera.
 
         Serial number should be of string(?) type."""
+        global PySpin
+        import PySpin
+
         self.system = PySpin.System.GetInstance()
 
         ver = self.system.GetLibraryVersion()
@@ -232,8 +234,8 @@ class Spinnaker_Camera(object):
         num_frames=self.get_attribute('StreamTotalBufferCount', stream_map=True)
         failed_frames=self.get_attribute('StreamFailedBufferCount', stream_map=True)
         underrun_frames=self.get_attribute('StreamBufferUnderrunCount', stream_map=True)
-        print('Stream info: %d frames acquired, %d failed, %d underrun' %
-              (num_frames, failed_frames, underrun_frames))
+        print('Stream info: %s frames acquired, %s failed, %s underrun' %
+              (str(num_frames), str(failed_frames), str(underrun_frames)))
 
     def abort_acquisition(self):
         print('Stopping acquisition...')

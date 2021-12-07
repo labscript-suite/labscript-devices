@@ -336,16 +336,12 @@ class PulseblasterNoDDSWorker(Worker):
             #Let's get the final state of the pulseblaster. z's are the args we don't need:
             flags,z,z,z = pulse_program[-1]
             
-            # Always call start_programming regardless of whether we are going to do any
-            # programming or not. This is so that is the programming_scheme is 'pb_stop_programming/STOP'
-            # we are ready to be triggered by a call to pb_stop_programming() even if no programming
-            # occurred due to smart programming:
-            pb_start_programming(PULSE_PROGRAM)
-            
             if fresh or (self.smart_cache['initial_values'] != initial_values) or \
                 (len(self.smart_cache['pulse_program']) != len(pulse_program)) or \
                 (self.smart_cache['pulse_program'] != pulse_program).any() or \
                 not self.smart_cache['ready_to_go']:
+                # Enter programming mode
+                pb_start_programming(PULSE_PROGRAM)
             
                 self.smart_cache['ready_to_go'] = True
                 self.smart_cache['initial_values'] = initial_values
@@ -384,17 +380,23 @@ class PulseblasterNoDDSWorker(Worker):
                     for args in pulse_program:
                         pb_inst_pbonly(*args)
                         
-            if self.programming_scheme == 'pb_start/BRANCH':
-                # We will be triggered by pb_start() if we are are the master pseudoclock or a single hardware trigger
-                # from the master if we are not:
-                pb_stop_programming()
+                if self.programming_scheme == 'pb_start/BRANCH':
+                    # We will be triggered by pb_start() if we are are the master pseudoclock or a single hardware trigger
+                    # from the master if we are not:
+                    pb_stop_programming()
+                elif self.programming_scheme == 'pb_stop_programming/STOP':
+                    # Don't call pb_stop_programming(). We don't want to pulseblaster to respond to hardware
+                    # triggers (such as 50/60Hz line triggers) until we are ready to run.
+                    # Our start_method will call pb_stop_programming() when we are ready
+                    pass
+                else:
+                    raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
+                    
             elif self.programming_scheme == 'pb_stop_programming/STOP':
-                # Don't call pb_stop_programming(). We don't want to pulseblaster to respond to hardware
-                # triggers (such as 50/60Hz line triggers) until we are ready to run.
-                # Our start_method will call pb_stop_programming() when we are ready
-                pass
-            else:
-                raise ValueError('invalid programming_scheme %s'%str(self.programming_scheme))
+                # Ensure start_programming called if the programming_scheme is 'pb_stop_programming/STOP'
+                # so we are ready to be triggered by a call to pb_stop_programming() 
+                # even if no programming occurred due to smart programming:
+                pb_start_programming(PULSE_PROGRAM)
             
             # Are there waits in use in this experiment? The monitor waiting for the end
             # of the experiment will need to know:

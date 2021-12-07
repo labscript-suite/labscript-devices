@@ -17,6 +17,7 @@ from labscript_utils import dedent
 from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
 from . import models
+import warnings
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -41,6 +42,17 @@ class NI_DAQmxTab(DeviceTab):
 
         num_AO = properties['num_AO']
         num_AI = properties['num_AI']
+        try:
+            AI_chans = properties['AI_chans']
+        except KeyError:
+            # new code being run on older model specification file
+            # assume legacy behavior, warn user to update
+            AI_chans = [f'ai{i:d}' for i in range(num_AI)]
+            msg = """Connection table was compiled with old model specifications for {0}.
+                     Please recompile the connection table.
+                  """
+            warnings.warn(dedent(msg.format(properties['MAX_name'])), FutureWarning)
+
         ports = properties['ports']
         num_CI = properties['num_CI']
 
@@ -187,8 +199,11 @@ class NI_DAQmxTab(DeviceTab):
                 {
                     'MAX_name': self.MAX_name,
                     'num_AI': num_AI,
+                    'AI_chans': AI_chans,
+                    'AI_term': properties['AI_term'],
                     'AI_range': properties['AI_range'],
                     'AI_start_delay': properties['AI_start_delay'],
+                    'AI_start_delay_ticks': properties['AI_start_delay_ticks'],
                     'clock_terminal': clock_terminal,
                 },
             )

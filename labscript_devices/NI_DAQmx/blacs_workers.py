@@ -408,7 +408,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         # Hard coded for now. Perhaps we will add functionality to enable
         # and disable inputs in manual mode, and adjust the rate:
-        self.manual_mode_chans = ['ai%d' % i for i in range(self.num_AI)]
+        self.manual_mode_chans = self.AI_chans
         self.manual_mode_rate = 1000
 
         # An event for knowing when the wait durations are known, so that we may use
@@ -471,11 +471,20 @@ class NI_DAQmxAcquisitionWorker(Worker):
         self.read_array = np.zeros((num_samples, len(chans)), dtype=np.float64)
         self.task = Task()
 
+        if self.AI_term == 'RSE':
+            term = DAQmx_Val_RSE
+        elif self.AI_term == 'NRSE':
+            term = DAQmx_Val_NRSE
+        elif self.AI_term == 'Diff':
+            term = DAQmx_Val_Diff
+        elif self.AI_term == 'PseudoDiff':
+            term = DAQmx_Val_PseudoDiff
+
         for chan in chans:
             self.task.CreateAIVoltageChan(
                 self.MAX_name + '/' + chan,
                 "",
-                DAQmx_Val_RSE,
+                term,
                 self.AI_range[0],
                 self.AI_range[1],
                 DAQmx_Val_Volts,
@@ -527,6 +536,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
             self.buffered_chans = sorted(set(chans), key=split_conn_AI)
         self.h5_file = h5file
         self.buffered_rate = device_properties['acquisition_rate']
+        if device_properties['start_delay_ticks']:
+            # delay is defined in sample clock ticks, calculate in sec and save for later
+            self.AI_start_delay = self.AI_start_delay_ticks*self.buffered_rate
         self.acquired_data = []
         # Stop the manual mode task and start the buffered mode task:
         self.stop_task()
@@ -627,10 +639,16 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 # We want np.floor(x) to yield the largest integer < x (not <=):
                 if t_end - t0 - i_end / self.buffered_rate < 2e-16:
                     i_end -= 1
+                # IBS: we sometimes find that t_end (with waits) gives a time
+                # after the end of acquisition.  The following line
+                # will produce return a shorter than expected array if i_end
+                # is larger than the length of the array.
+                values = raw_data[connection][i_start : i_end + 1]
+                i_end = i_start + len(values) - 1 # re-measure i_end
+
                 t_i = t0 + i_start / self.buffered_rate
                 t_f = t0 + i_end / self.buffered_rate
-                times = np.linspace(t_i, t_f, i_end - i_start + 1, endpoint=True)
-                values = raw_data[connection][i_start : i_end + 1]
+                times = np.linspace(t_i, t_f, len(values), endpoint=True)
                 dtypes = [('t', np.float64), ('values', np.float32)]
                 data = np.empty(len(values), dtype=dtypes)
                 data['t'] = times
