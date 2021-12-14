@@ -216,30 +216,35 @@ class NI_DAQmx(IntermediateDevice):
         self.num_AI = num_AI
         # special handling for AI termination configurations
         self.AI_term = AI_term
-        if AI_term_cfg == None:
-            # assume legacy configuration if none provided
-            AI_term_cfg = {f'ai{i:d}': ['RSE'] for i in range(num_AI)}
-            # warn user to update their local model specs
-            msg = """Model specifications for {} needs to be updated.
-                  Please run the `get_capabilites.py` and `generate_subclasses.py`
-                  scripts or define the `AI_Term_Cfg` kwarg for your device.
-                  """
-            warnings.warn(dedent(msg.format(self.description)), FutureWarning)
-        self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
-        if not len(self.AI_chans):
-            msg = """AI termination {0} not supported by this device."""
-            raise LabscriptError(dedent(msg.format(AI_term)))
-        if AI_term == 'Diff':
-            self.AI_range = AI_range_Diff
-        if AI_start_delay is None:
-            if AI_start_delay_ticks is not None:
-                # Tell blacs_worker to use AI_start_delay_ticks to define delay
-                self.start_delay_ticks = True
+        if num_AI > 0:
+            if AI_term_cfg == None:
+                # assume legacy configuration if none provided
+                AI_term_cfg = {f'ai{i:d}': ['RSE'] for i in range(num_AI)}
+                # warn user to update their local model specs
+                msg = """Model specifications for {} needs to be updated.
+                    Please run the `get_capabilites.py` and `generate_subclasses.py`
+                    scripts or define the `AI_Term_Cfg` kwarg for your device.
+                    """
+                warnings.warn(dedent(msg.format(self.description)), FutureWarning)
+            self.AI_chans = [key for key,val in AI_term_cfg.items() if self.AI_term in val]
+            if not len(self.AI_chans):
+                msg = """AI termination {0} not supported for {1}."""
+                raise LabscriptError(dedent(msg.format(AI_term,self.description)))
+            if AI_term == 'Diff':
+                self.AI_range = AI_range_Diff
+            if AI_start_delay is None:
+                if AI_start_delay_ticks is not None:
+                    # Tell blacs_worker to use AI_start_delay_ticks to define delay
+                    self.start_delay_ticks = True
+                else:
+                    raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
             else:
-                raise LabscriptError("You have specified `AI_start_delay = None` but have not provided `AI_start_delay_ticks`.")
+                # Tells blacs_worker to use AI_start_delay to define delay
+                self.start_delay_ticks = False
         else:
-            # Tells blacs_worker to use AI_start_delay to define delay
-            self.start_delay_ticks = False
+            # no analog inputs
+            self.AI_chans = []
+            self.start_delay_ticks = None
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}
