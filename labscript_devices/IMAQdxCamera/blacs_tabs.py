@@ -142,7 +142,7 @@ class IMAQdxCameraTab(DeviceTab):
         layout.addWidget(self.ui)
         self.image = pg.ImageView()
         self.image.setSizePolicy(
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
         )
         self.ui.horizontalLayout.addWidget(self.image)
         self.ui.pushButton_stop.hide()
