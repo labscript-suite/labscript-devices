@@ -37,6 +37,13 @@ class NovaTechDDS9M(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
     clock_limit = 9990 # This is a realistic estimate of the max clock rate (100us for TS/pin10 processing to load next value into buffer and 100ns pipeline delay on pin 14 edge to update output values)
 
+    # This is longer than the technical requirement on the NovaTech. However, I
+    # suspect the tri-state buffer or similar electronics that some groups have
+    # in front of their NovaTech clock inputs might limit how fast this can be.
+    # 1us should be a good compromise, but can always be overridden by a
+    # subclass of monkey-patched if needed.
+    minimum_clock_high_time = 1e-6
+
     @set_passed_properties(
         property_names={
             'connection_table_properties': [
