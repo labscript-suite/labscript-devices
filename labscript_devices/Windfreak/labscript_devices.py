@@ -17,7 +17,7 @@ from labscript_utils.unitconversions.UnitConversionBase import UnitConversion
 
 class FreqConversion(UnitConversion):
     """
-    A Generic frequency conversion class that covers standard SI prefixes from a base Hz.
+    A Generic frequency conversion class that covers standard SI prefixes from a base of Hz.
     """
 
     base_unit = 'Hz' # must be defined here and match default hardware unit in BLACS tab
@@ -84,6 +84,20 @@ class WindfreakSynth(Device):
         ]
     })
     def __init__(self, name, com_port="", trigger_mode='disabled', **kwargs):
+        """Creates a Windfreak HDPro Synthesizer
+        
+        Args:
+            name (str): python variable name to assign the device to.
+            com_port (str): COM port connection string.
+                Must take the form of 'COM d', where d is an integer.
+            trigger_mode (str): Trigger mode for the device to use.
+                Currently, labscript only directly programs 'rf enable',
+                via setting DDS gates.
+                labscript could correctly program other modes with some effort.
+                Other modes can be correctly programmed externally,
+                with the settings saved to EEPROM.
+                **kwargs: Keyword arguments passed to :obj:`labscript:labscript.Device.__init__`.
+        """
 
         Device.__init__(self, name, None, com_port, **kwargs)
         self.BLACS_connection = com_port
@@ -103,6 +117,17 @@ class WindfreakSynth(Device):
         return FreqConversion, None, None
 
     def validate_data(self, data, limits, device):
+        """Tests that requested data is within limits.
+        
+        Args:
+            data (iterable or numeric): Data to be checked.
+                Input is cast to a numpy array of type float64.
+            limits (tuple): 2-element tuple of (min, max) range
+            device (:obj:`labscript:labscript.Device`): labscript device we are performing check on.
+
+        Returns:
+            numpy.ndarray: Input data, cast to a numpy array.
+        """
         if not isinstance(data, np.ndarray):
             data = np.array(data,dtype=np.float64)
         if np.any(data < limits[0]) or np.any(data > limits[1]):
