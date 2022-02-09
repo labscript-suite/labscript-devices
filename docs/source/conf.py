@@ -51,7 +51,7 @@ extensions = [
 
 autodoc_typehints = 'description'
 autoclass_content = 'both'  # options: 'both', 'class', 'init'
-autodoc_mock_imports = ['PyDAQmx']
+autodoc_mock_imports = ['PyDAQmx','labscript_utils']
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
 autosectionlabel_prefix_document = True
