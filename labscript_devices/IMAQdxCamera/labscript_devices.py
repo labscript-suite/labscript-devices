@@ -34,6 +34,8 @@ class IMAQdxCamera(TriggerableDevice):
                 "stop_acquisition_timeout",
                 "exception_on_failed_shot",
                 "saved_attribute_visibility_level"
+                "pixel_size",
+                "magnification",
             ],
         }
     )
@@ -44,6 +46,8 @@ class IMAQdxCamera(TriggerableDevice):
         connection,
         serial_number,
         orientation=None,
+        pixel_size=[1.0,1.0],
+        magnification=1.0,
         trigger_edge_type='rising',
         trigger_duration=None,
         minimum_recovery_time=0.0,
@@ -75,6 +79,14 @@ class IMAQdxCamera(TriggerableDevice):
                 Description of the camera's location or orientation. This will be used
                 to determine the location in the shot file where the images will be
                 saved. If not given, the device name will be used instead.
+
+            pixel_size ([float,float], optional), default: `[1.0, 1.0]`
+                The x and y size of the pixels in micrometers.  This can be used 
+                in setting the scale in the blacs image display as well as 
+                extracted in lyse for analysis
+
+            magnification (float, optional), default: `1.0`
+                Imaging system magnification.
 
             trigger_edge_type (str), default: `'rising'`
                 The direction of the desired edges to be generated on the parent
@@ -145,6 +157,8 @@ class IMAQdxCamera(TriggerableDevice):
         self.minimum_recovery_time = minimum_recovery_time
         self.trigger_duration = trigger_duration
         self.orientation = orientation
+        self.pixel_size = pixel_size
+        self.magnification = magnification
         if isinstance(serial_number, (str, bytes)):
             serial_number = int(serial_number, 16)
         self.serial_number = serial_number
