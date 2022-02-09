@@ -13,6 +13,46 @@
 
 from labscript import LabscriptError, set_passed_properties, config, StaticDDS, IntermediateDevice, Device
 from labscript_utils import dedent
+from labscript_utils.unitconversions.UnitConversionBase import UnitConversion
+
+class FreqConversion(UnitConversion):
+    """
+    A Generic frequency conversion class that covers standard SI prefixes from a base Hz.
+    """
+
+    base_unit = 'Hz' # must be defined here and match default hardware unit in BLACS tab
+
+    def __init__(self, calibration_parameters = None):
+        self.parameters = calibration_parameters
+        if hasattr(self, 'derived_units'):
+            self.derived_units += ['kHz', 'MHz', 'GHz']
+        else:
+            self.derived_units = ['kHz', 'MHz', 'GHz']
+        UnitConversion.__init__(self,self.parameters)
+    
+    def kHz_to_base(self,kHz):
+        Hz = kHz*1e3
+        return Hz
+
+    def kHz_from_base(self,Hz):
+        kHz = Hz*1e-3
+        return kHz
+
+    def MHz_to_base(self,MHz):
+        Hz = MHz*1e6
+        return Hz
+
+    def MHz_from_base(self,Hz):
+        MHz = Hz*1e-6
+        return MHz
+
+    def GHz_to_base(self,GHz):
+        Hz = GHz*1e9
+        return Hz
+
+    def GHz_from_base(self,Hz):
+        GHz = Hz*1e-9
+        return GHz    
 
 import numpy as np
 
@@ -51,6 +91,14 @@ class WindfreakSynth(Device):
         Device.add_device(self, device)
         # ensure a valid default value
         device.frequency.default_value = 10e6
+
+    def get_default_unit_conversion_classes(self, device):
+        """Child devices call this during their `__init__` to get default unit conversions.
+        
+        If user has not overridden, will use generic FreqConversion class.        
+        """
+
+        return FreqConversion, None, None
 
     def validate_data(self, data, limits, device):
         if not isinstance(data, np.ndarray):
