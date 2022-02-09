@@ -17,24 +17,24 @@ If the functionality is similar enough, it may even be possible to simply sub-cl
 
 Barring the above simple solution, one must work from scratch.
 It is best to begin by determining the **labscript** device class to inherit from: `Psuedoclock`, `Device`, `IntermediateDevice`.
-The first is for implementing Psuedoclock devices, the second is for generic devices that are not hardware timed by a pseudoclock, and the last is for hardware timed device that are connected to another device controlled via labscript.
+The first is for implementing Psuedoclock devices, the second is for generic devices that are not hardware timed by a pseudoclock, and the last is for hardware timed devices that are connected to another device controlled via labscript.
 
 The `labscript_device` implements general configuration parameters, many of which are passed to the `BLACS_worker`.
 It also implements the `generate_code` method which converts **labscript** high-level instructions and saves them to the h5 file.
 
 The `BLACS_tab` defines the GUI widgets that control the device.
-This typically takes the form of using standard widgets provided by **labscript** for controlling **labscript** output primitives (ie `AnalogOut`, `DigitalOut`,`DDS`, etc).
+This typically takes the form of using standard widgets provided by **labscript** for controlling **labscript** output primitives (ie `AnalogOut`, `DigitalOut`, `DDS`, etc).
 This configuration is done in the `initialiseGUI` method.
-This also links directly to the appropriate BLACS workers.
+This also specifies which BLACS workers to use and provides necessary instantiation arguments.
 
 The `BLACS_worker` handles communication with the hardware itself and often represents the bulk of the work required to implement a new labscript device.
 In general, it should provide five different methods:
 
-* `init`: This method initialised communications with the device. Not to be confused with the standard python class `__init__` method.
+* `init`: This method initialises communications with the device. Not to be confused with the standard python class `__init__` method.
 * `program_manual`: This method allows for user control of the device via the `BLACS_tab`, setting outputs to the values set in the `BLACS_tab` widgets.
 * `check_remote_values`: This method reads the current settings of the device, updating the `BLACS_tab` widgets to reflect these values.
 * `transition_to_buffered`: This method transitions the device to buffered shot mode, reading the shot h5 file and taking the saved instructions from `labscript_device.generate_code` and sending the appropriate commands to the hardware.
-* `transition_to_manual`: This method transitions the device from buffered to manual mode. It does any necessary configuration to take the device out of buffered mode and is used to read an measurements and save them to the shot h5 file as results.
+* `transition_to_manual`: This method transitions the device from buffered to manual mode. It does any necessary configuration to take the device out of buffered mode and is used to read any measurements and save them to the shot h5 file as results.
 
 The `runviewer_parser` takes shot h5 files, reads the saved instructions, and allows you to view them in **runviewer** in order to visualise experiment timing.
 
@@ -47,7 +47,7 @@ The old style has the `labscript_device`, `BLACS_tab`, `BLACS_worker`, and `runv
 
 The new style allows for arbitrary code organization, but typically has a folder named after the `labscript_device` with each device component in a different file (ie `labscript_devices.py`, `BLACS_workers.py`, etc).
 With this style, the folder requires an `__init__.py` file (which can be empty) as well as a `register_classes.py` file.
-This file imports :obj:`<labscript-utils:labscript_utils.device_registry>` via
+This file imports :mod:`labscript-utils:labscript_utils.device_registry` via
 
 .. code-block:: python
 
