@@ -69,8 +69,10 @@ class WindfreakSynthTab(DeviceTab):
 
         conn_obj = self.settings['connection_table'].find_by_name(self.device_name).properties
         self.com_port = conn_obj.get('com_port',None)
+        self.trigger_mode = conn_obj.get('trigger_mode','disabled')
 
         self.create_worker('main_worker',self.device_worker_class,{'com_port':self.com_port,
-                                                                   'allowed_chans':self.allowed_chans})
+                                                                   'allowed_chans':self.allowed_chans,
+                                                                   'trigger_mode':self.trigger_mode})
 
         self.primary_worker = 'main_worker'

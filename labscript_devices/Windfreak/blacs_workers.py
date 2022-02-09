@@ -24,13 +24,33 @@ class WindfreakSynthWorker(Worker):
         self.smart_cache = {'STATIC_DATA':None}
         self.subchnls = ['freq','amp','phase']
 
+        Worker.init(self)
+
         # connect to synth
         self.synth = windfreak.SynthHD(self.com_port)
-
-        Worker.init(self)
+        self.valid_modes = self.synth.trigger_modes
+        # set trigger mode from connection_table_properties
+        self.set_trigger_mode(self.trigger_mode)
 
         # populate smart chache
         self.smart_cache['STATIC_DATA'] = self.check_remote_values()
+
+    def set_trigger_mode(self,mode):
+        """Sets the synth trigger mode.
+        
+        Provides basic error checking to confirm setting is valid.
+
+        Args:
+            mode (str): Trigger mode to set.
+
+        Raises:
+            ValueError: If `mode` is not a valid setting for the device.
+        """
+
+        if mode in self.valid_modes:
+            self.synth.trigger_mode = mode
+        else:
+            raise ValueError(f'{mode} not in {self.valid_modes}')
 
     def check_remote_values(self):
 

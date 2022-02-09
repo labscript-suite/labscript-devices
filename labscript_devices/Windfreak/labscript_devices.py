@@ -80,12 +80,14 @@ class WindfreakSynth(Device):
             'amp_res',
             'phase_limits',
             'phase_res',
+            'trigger_mode',
         ]
     })
-    def __init__(self, name, com_port="", **kwargs):
+    def __init__(self, name, com_port="", trigger_mode='disabled', **kwargs):
 
         Device.__init__(self, name, None, com_port, **kwargs)
         self.BLACS_connection = com_port
+        self.trigger_mode = trigger_mode
 
     def add_device(self, device):
         Device.add_device(self, device)
