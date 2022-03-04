@@ -133,7 +133,7 @@ class WindfreakSynth(Device):
             static_table[f'freq{connection}'] = dds.frequency.raw_output
             static_table[f'amp{connection}'] = dds.amplitude.raw_output
             static_table[f'phase{connection}'] = dds.phase.raw_output
-            static_table[f'gate{connection}'] = self.enabled_chans[connection]
+            static_table[f'gate{connection}'] = connection in self.enabled_chans
 
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table)
