@@ -14,6 +14,7 @@
 from blacs.tab_base_classes import Worker
 import labscript_utils.h5_lock, h5py
 
+
 class WindfreakSynthWorker(Worker):
 
     def init(self):
@@ -22,7 +23,8 @@ class WindfreakSynthWorker(Worker):
 
         # init smart cache to a known point
         self.smart_cache = {'STATIC_DATA':None}
-        self.subchnls = ['freq','amp','phase']
+        self.subchnls = ['freq','amp','phase','gate']
+        # this will be the order in which each channel is programmed
 
         Worker.init(self)
 
@@ -37,7 +39,7 @@ class WindfreakSynthWorker(Worker):
 
     def set_trigger_mode(self,mode):
         """Sets the synth trigger mode.
-        
+
         Provides basic error checking to confirm setting is valid.
 
         Args:
@@ -85,6 +87,8 @@ class WindfreakSynthWorker(Worker):
             return self.synth[channel].power
         elif type == 'phase':
             return self.synth[channel].phase
+        elif type == 'gate':
+            return self.synth[channel].rf_enable and self.synth[channel].pll_enable
         else:
             raise ValueError(type)
 
@@ -96,6 +100,9 @@ class WindfreakSynthWorker(Worker):
             self.synth[channel].power = value
         elif type == 'phase':
             self.synth[channel].phase = value
+        elif type == 'gate':
+            self.synth[channel].rf_enable = value
+            self.synth[channel].pll_enable = value
         else:
             raise ValueError(type)
 

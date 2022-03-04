@@ -23,6 +23,7 @@ class WindfreakSynth(Device):
     allowed_children = [StaticDDS]
     # note, box labels 'A', 'B' map to programming channels 0, 1
     allowed_chans = [0, 1]
+    enabled_chans = []
 
     # define output limitations for the SynthHDPro
     freq_limits = (10e6, 24e9)  # set in Hz
@@ -124,14 +125,30 @@ class WindfreakSynth(Device):
 
         static_dtypes = [(f'freq{i:d}',np.float64) for i in self.allowed_chans] +\
                         [(f'amp{i:d}',np.float64) for i in self.allowed_chans] +\
-                        [(f'phase{i:d}',np.float64) for i in self.allowed_chans]
+                        [(f'phase{i:d}',np.float64) for i in self.allowed_chans] +\
+                        [(f'gate{i:d}',bool) for i in self.allowed_chans]
         static_table = np.zeros(1,dtype=static_dtypes)
 
         for connection in DDSs:
             static_table[f'freq{connection}'] = dds.frequency.raw_output
             static_table[f'amp{connection}'] = dds.amplitude.raw_output
             static_table[f'phase{connection}'] = dds.phase.raw_output
+            static_table[f'gate{connection}'] = self.enabled_chans[connection]
 
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table)
 
+    def enable_output(self, channel):
+        """Enable an output channel at the device level.
+
+        This is a software enable only, it cannot be hardware timed.
+
+        Args:
+            channel (int): Channel to enable.
+        """
+
+        if channel in self.allowed_chans:
+            if channel not in self.enabled_chans:
+                self.enabled_chans.append(channel)
+        else:
+            raise LabscriptError(f'Channel {channel} is not a valid option for {self.device.name}.')

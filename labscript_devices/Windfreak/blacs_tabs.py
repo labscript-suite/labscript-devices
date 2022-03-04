@@ -13,7 +13,6 @@
 
 from blacs.device_base_class import DeviceTab
 
-import labscript_utils.properties
 
 class WindfreakSynthTab(DeviceTab):
 
@@ -28,9 +27,9 @@ class WindfreakSynthTab(DeviceTab):
         conn_obj = self.settings['connection_table'].find_by_name(self.device_name).properties
 
         self.allowed_chans = conn_obj.get('allowed_chans',None)
-        
+
         # finish populating these from device properties
-        chan_prop = {'freq':{},'amp':{},'phase':{}}
+        chan_prop = {'freq':{},'amp':{},'phase':{},'gate':{}}
         freq_limits = conn_obj.get('freq_limits',None)
         chan_prop['freq']['min'] = freq_limits[0]
         chan_prop['freq']['max'] = freq_limits[1]
