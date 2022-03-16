@@ -13,6 +13,7 @@
 
 from blacs.tab_base_classes import Worker
 import labscript_utils.h5_lock, h5py
+import numpy as np
 
 
 class WindfreakSynthWorker(Worker):
@@ -79,28 +80,31 @@ class WindfreakSynthWorker(Worker):
 
         return self.check_remote_values()
 
-    def check_remote_value(self,channel,type):
+    def check_remote_value(self,channel,typ):
 
-        if type == 'freq':
+        if typ == 'freq':
             return self.synth[channel].frequency
-        elif type == 'amp':
+        elif typ == 'amp':
             return self.synth[channel].power
-        elif type == 'phase':
+        elif typ == 'phase':
             return self.synth[channel].phase
-        elif type == 'gate':
+        elif typ == 'gate':
             return self.synth[channel].rf_enable and self.synth[channel].pll_enable
         else:
             raise ValueError(type)
 
-    def program_static_value(self,channel,type,value):
+    def program_static_value(self,channel,typ,value):
 
-        if type == 'freq':
+        if typ == 'freq':
             self.synth[channel].frequency = value
-        elif type == 'amp':
+        elif typ == 'amp':
             self.synth[channel].power = value
-        elif type == 'phase':
+        elif typ == 'phase':
             self.synth[channel].phase = value
-        elif type == 'gate':
+        elif typ == 'gate':
+            # windfreak API does not like np.bool_
+            # convert to native python bool
+            if isinstance(value, np.bool_): value = value.item()
             self.synth[channel].rf_enable = value
             self.synth[channel].pll_enable = value
         else:
