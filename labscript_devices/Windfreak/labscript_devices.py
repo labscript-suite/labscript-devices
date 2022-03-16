@@ -107,8 +107,9 @@ class WindfreakSynth(Device):
 
             try:
                 prefix, channel = output.connection.split()
+                channel = int(channel)
                 if channel not in self.allowed_chans:
-                    LabscriptError(f"Channel {channel} must be 0 or 0")
+                    LabscriptError(f"Channel {channel} must be 0 or 1")
             except:
                 msg = f"""{output.description}:{output.name} has invalid connection string.
                 Only 'channel 0' or 'channel 1' is allowed.
@@ -117,26 +118,30 @@ class WindfreakSynth(Device):
 
             DDSs[channel] = output
 
+        # get which channels to program
+        stat_DDSs = set(DDSs)&set(range(2))
         for connection in DDSs:
             dds = DDSs[connection]
             dds.frequency.raw_output = self.validate_data(dds.frequency.static_value,self.freq_limits,dds)
             dds.amplitude.raw_output = self.validate_data(dds.amplitude.static_value,self.amp_limits,dds)
             dds.phase.raw_output = self.validate_data(dds.phase.static_value,self.phase_limits,dds)
 
-        static_dtypes = [(f'freq{i:d}',np.float64) for i in self.allowed_chans] +\
-                        [(f'amp{i:d}',np.float64) for i in self.allowed_chans] +\
-                        [(f'phase{i:d}',np.float64) for i in self.allowed_chans] +\
-                        [(f'gate{i:d}',bool) for i in self.allowed_chans]
+        static_dtypes = [(f'freq{i:d}',np.float64) for i in stat_DDSs] +\
+                        [(f'amp{i:d}',np.float64) for i in stat_DDSs] +\
+                        [(f'phase{i:d}',np.float64) for i in stat_DDSs] +\
+                        [(f'gate{i:d}',bool) for i in stat_DDSs]
         static_table = np.zeros(1,dtype=static_dtypes)
 
         for connection in DDSs:
+            dds = DDSs[connection]
             static_table[f'freq{connection}'] = dds.frequency.raw_output
             static_table[f'amp{connection}'] = dds.amplitude.raw_output
             static_table[f'phase{connection}'] = dds.phase.raw_output
             static_table[f'gate{connection}'] = connection in self.enabled_chans
 
         grp = self.init_device_group(hdf5_file)
-        grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table)
+        if stat_DDSs:
+            grp.create_dataset('STATIC_DATA',compression=config.compression,data=static_table)
 
     def enable_output(self, channel):
         """Enable an output channel at the device level.
