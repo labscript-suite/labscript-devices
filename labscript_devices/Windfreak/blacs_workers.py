@@ -132,10 +132,8 @@ class WindfreakSynthWorker(Worker):
                 for i in channels:
                     for sub in self.subchnls:
                         self.program_static_value(i,sub,data[sub+str(i)])
-
-                # update smart cache to reflect programmed values
-                self.smart_cache['STATIC_DATA'] = data
-
+                        # update smart cache to reflect programmed values
+                        self.smart_cache['STATIC_DATA'][f'channel {i:d}'][sub] = data[sub+str(i)]
 
         return self.final_values
 
@@ -143,3 +141,22 @@ class WindfreakSynthWorker(Worker):
         # save current state the memory
         self.synth.save()
         self.synth.close()
+
+    def abort_transition_to_buffered(self):
+        """Special abort shot configuration code belongs here.
+        """
+        return self.transition_to_manual(True)
+        
+    def abort_buffered(self):
+        """Special abort shot code belongs here.
+        """
+        return self.transition_to_manual(True)
+            
+    def transition_to_manual(self,abort = False):
+        """Simple transition_to_manual method where no data is saved."""         
+        if abort:
+            # If we're aborting the run, reset to original value
+            self.program_manual(self.initial_values)
+        # If we're not aborting the run, stick with buffered value. Nothing to do really!
+        # return the current values in the device
+        return True
