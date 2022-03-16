@@ -134,6 +134,8 @@ class WindfreakSynthWorker(Worker):
                         self.program_static_value(i,sub,data[sub+str(i)])
                         # update smart cache to reflect programmed values
                         self.smart_cache['STATIC_DATA'][f'channel {i:d}'][sub] = data[sub+str(i)]
+                        # update final values to reflect programmed values
+                        self.final_values[f'channel {i:d}'][sub] = data[sub+str(i)]
 
         return self.final_values
 
