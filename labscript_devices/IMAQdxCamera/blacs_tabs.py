@@ -102,7 +102,7 @@ class ImageReceiver(ZMQServer):
         # and not for the Qt event loop as a whole. In any case, this seems to fix it.
         # Manually calling this is usually a sign of bad coding, but I think it is the
         # right solution to this problem. This solves issue #36.
-        QtGui.QApplication.instance().sendPostedEvents()
+        QtWidgets.QApplication.instance().sendPostedEvents()
         return self.NO_RESPONSE
 
 
