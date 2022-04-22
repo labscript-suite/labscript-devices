@@ -26,6 +26,8 @@ class IMAQdxCamera(TriggerableDevice):
             "connection_table_properties": [
                 "serial_number",
                 "orientation",
+                "pixel_size",
+                "magnification",
                 "manual_mode_camera_attributes",
                 "mock",
             ],
@@ -34,8 +36,6 @@ class IMAQdxCamera(TriggerableDevice):
                 "stop_acquisition_timeout",
                 "exception_on_failed_shot",
                 "saved_attribute_visibility_level"
-                "pixel_size",
-                "magnification",
             ],
         }
     )
@@ -83,7 +83,7 @@ class IMAQdxCamera(TriggerableDevice):
             pixel_size ([float,float], optional), default: `[1.0, 1.0]`
                 The x and y size of the pixels in micrometers.  This can be used 
                 in setting the scale in the blacs image display as well as 
-                extracted in lyse for analysis
+                extracted in lyse for analysis.
 
             magnification (float, optional), default: `1.0`
                 Imaging system magnification.
