@@ -174,7 +174,7 @@ class IMAQdx_Camera(object):
             if not a.Readable:
                 continue
             attributes.append(a.Name.decode('utf8'))
-        return sorted(attributes)
+        return attributes
 
     def get_attribute(self, name):
         """Return current value of attribute of the given name"""
