@@ -224,7 +224,9 @@ class IMAQdx_Camera(object):
                     if self.exception_on_failed_shot:
                         raise
                     else:
+                        # stop acquisition
                         print(e, file=sys.stderr)
+                        break
                     
                     
                     
