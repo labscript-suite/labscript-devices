@@ -118,7 +118,7 @@ class MockCamera(object):
 
 
 class IMAQdx_Camera(object):
-    def __init__(self, serial_number, exception_on_failed_shot=True):
+    def __init__(self, serial_number):
         global nv
         import nivision as nv
         _monkeypatch_imaqdispose()
@@ -139,7 +139,7 @@ class IMAQdx_Camera(object):
         )
         # Keep an img attribute so we don't have to create it every time
         self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16)
-        self.exception_on_failed_shot = exception_on_failed_shot
+        self.exception_on_failed_shot = True
         self._abort_acquisition = False
 
     def set_attributes(self, attr_dict):
@@ -287,8 +287,7 @@ class IMAQdxCameraWorker(Worker):
         if self.mock:
             return MockCamera()
         else:
-            return self.interface_class(self.serial_number, 
-                                        exception_on_failed_shot=self.exception_on_failed_shot)
+            return self.interface_class(self.serial_number)
 
     def set_attributes_smart(self, attributes):
         """Call self.camera.set_attributes() to set the given attributes, only setting
@@ -396,6 +395,7 @@ class IMAQdxCameraWorker(Worker):
             self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
             self.exception_on_failed_shot = properties['exception_on_failed_shot']
             saved_attr_level = properties['saved_attribute_visibility_level']
+            self.camera.exception_on_failed_shot = self.exception_on_failed_shot
         # Only reprogram attributes that differ from those last programmed in, or all of
         # them if a fresh reprogramming was requested:
         if fresh:
