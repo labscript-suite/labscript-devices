@@ -29,12 +29,12 @@ class IMAQdxCamera(TriggerableDevice):
                 "pixel_size",
                 "magnification",
                 "manual_mode_camera_attributes",
+                "exception_on_failed_shot",
                 "mock",
             ],
             "device_properties": [
                 "camera_attributes",
                 "stop_acquisition_timeout",
-                "exception_on_failed_shot",
                 "saved_attribute_visibility_level"
             ],
         }
@@ -162,6 +162,7 @@ class IMAQdxCamera(TriggerableDevice):
         if isinstance(serial_number, (str, bytes)):
             serial_number = int(serial_number, 16)
         self.serial_number = serial_number
+        self.exception_on_failed_shot = exception_on_failed_shot
         self.BLACS_connection = hex(self.serial_number)[2:].upper()
         if camera_attributes is None:
             camera_attributes = {}
