@@ -118,7 +118,7 @@ class MockCamera(object):
 
 
 class IMAQdx_Camera(object):
-    def __init__(self, serial_number):
+    def __init__(self, serial_number, exception_on_failed_shot=True):
         global nv
         import nivision as nv
         _monkeypatch_imaqdispose()
@@ -139,6 +139,7 @@ class IMAQdx_Camera(object):
         )
         # Keep an img attribute so we don't have to create it every time
         self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16)
+        self.exception_on_failed_shot = exception_on_failed_shot
         self._abort_acquisition = False
 
     def set_attributes(self, attr_dict):
@@ -219,7 +220,14 @@ class IMAQdx_Camera(object):
                     if e.code == nv.IMAQdxErrorTimeout.value:
                         print('.', end='')
                         continue
-                    raise
+                    
+                    if self.exception_on_failed_shot:
+                        raise
+                    else:
+                        print(e, file=sys.stderr)
+                    
+                    
+                    
         print(f"Got {len(images)} of {n_images} images.")
 
     def stop_acquisition(self):
@@ -277,7 +285,8 @@ class IMAQdxCameraWorker(Worker):
         if self.mock:
             return MockCamera()
         else:
-            return self.interface_class(self.serial_number)
+            return self.interface_class(self.serial_number, 
+                                        exception_on_failed_shot=self.exception_on_failed_shot)
 
     def set_attributes_smart(self, attributes):
         """Call self.camera.set_attributes() to set the given attributes, only setting
