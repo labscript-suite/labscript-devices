@@ -91,7 +91,8 @@ class FlyCapture2_Camera(object):
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
         self._abort_acquisition = False
-        
+        self.exception_on_failed_shot = True
+
         # check if GigE camera. If so, ensure max packet size is used
         cam_info = self.camera.getCameraInfo()
         if cam_info.interfaceType == PyCapture2.INTERFACE_TYPE.GIGE:

@@ -20,6 +20,7 @@ class AndorCamera(object):
         from .andor_sdk.andor_utils import AndorCam
         self.camera = AndorCam()
         self.attributes = self.camera.default_acquisition_attrs
+        self.exception_on_failed_shot = True
 
     def set_attributes(self, attr_dict):
         self.attributes.update(attr_dict)
