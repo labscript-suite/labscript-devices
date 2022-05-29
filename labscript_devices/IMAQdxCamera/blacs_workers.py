@@ -67,6 +67,7 @@ class MockCamera(object):
     def __init__(self):
         print("Starting device worker as a mock device")
         self.attributes = {}
+        self.exception_on_failed_shot = True
 
     def set_attributes(self, attributes):
         self.attributes.update(attributes)
