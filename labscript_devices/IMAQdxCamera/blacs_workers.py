@@ -67,6 +67,7 @@ class MockCamera(object):
     def __init__(self):
         print("Starting device worker as a mock device")
         self.attributes = {}
+        self.exception_on_failed_shot = True
 
     def set_attributes(self, attributes):
         self.attributes.update(attributes)
@@ -139,6 +140,7 @@ class IMAQdx_Camera(object):
         )
         # Keep an img attribute so we don't have to create it every time
         self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16)
+        self.exception_on_failed_shot = True
         self._abort_acquisition = False
 
     def set_attributes(self, attr_dict):
@@ -173,7 +175,7 @@ class IMAQdx_Camera(object):
             if not a.Readable:
                 continue
             attributes.append(a.Name.decode('utf8'))
-        return sorted(attributes)
+        return attributes
 
     def get_attribute(self, name):
         """Return current value of attribute of the given name"""
@@ -219,7 +221,16 @@ class IMAQdx_Camera(object):
                     if e.code == nv.IMAQdxErrorTimeout.value:
                         print('.', end='')
                         continue
-                    raise
+                    
+                    if self.exception_on_failed_shot:
+                        raise
+                    else:
+                        # stop acquisition
+                        print(e, file=sys.stderr)
+                        break
+                    
+                    
+                    
         print(f"Got {len(images)} of {n_images} images.")
 
     def stop_acquisition(self):
@@ -385,6 +396,7 @@ class IMAQdxCameraWorker(Worker):
             self.stop_acquisition_timeout = properties['stop_acquisition_timeout']
             self.exception_on_failed_shot = properties['exception_on_failed_shot']
             saved_attr_level = properties['saved_attribute_visibility_level']
+            self.camera.exception_on_failed_shot = self.exception_on_failed_shot
         # Only reprogram attributes that differ from those last programmed in, or all of
         # them if a fresh reprogramming was requested:
         if fresh:

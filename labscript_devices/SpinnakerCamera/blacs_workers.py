@@ -55,6 +55,7 @@ class Spinnaker_Camera(object):
 
         # Set the abort acquisition thingy:
         self._abort_acquisition = False
+        self.exception_on_failed_shot = True
 
     def get_attribute_names(self, visibility):
         names = []
