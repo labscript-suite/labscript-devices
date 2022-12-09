@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 
 from labscript import (
@@ -64,6 +64,8 @@ class NI_DAQmx(IntermediateDevice):
                 "AI_start_delay_ticks",
                 "AI_term",
                 "AI_chans",
+                "AI_timebase_terminal",
+                "AI_timebase_rate",
                 "AO_range",
                 "max_AI_multi_chan_rate",
                 "max_AI_single_chan_rate",
@@ -102,6 +104,8 @@ class NI_DAQmx(IntermediateDevice):
         AI_start_delay_ticks=None,
         AI_term='RSE',
         AI_term_cfg=None,
+        AI_timebase_terminal=None,
+        AI_timebase_rate=None,
         AO_range=None,
         max_AI_multi_chan_rate=None,
         max_AI_single_chan_rate=None,
@@ -154,6 +158,12 @@ class NI_DAQmx(IntermediateDevice):
             AI_term_cfg (dict, optional): Dictionary of analog input channels and their
                 supported terminations. Best to use `get_capabilities.py` to introspect
                 these.
+            AI_timebase_terminal (str, optional): Channel string that specifies what
+                channel to use for the Sample Clock Timebase signal.
+                If None, use default internal clocks.
+                Must also specify the rate when not using the internal sources.
+            AI_timebase_rate (float, optional): Supplied clock frequency for the AI timebase.
+                Only specify if using an external clock source.
             AO_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 output voltage range for all analog outputs.
             max_AI_multi_chan_rate (float, optional): Max supported analog input 
@@ -250,6 +260,13 @@ class NI_DAQmx(IntermediateDevice):
             # no analog inputs
             self.AI_chans = []
             self.start_delay_ticks = None
+        # special AI timebase handling
+        if num_AI > 0:
+            if (AI_timebase_rate is None) ^ (AI_timebase_terminal is None):
+                raise LabscriptError("You must specify terminal and rate when using an external AI timebase")
+            self.AI_timebase_terminal = AI_timebase_terminal
+            self.AI_timebease_rate = AI_timebase_rate
+                
         self.num_AO = num_AO
         self.num_CI = num_CI
         self.ports = ports if ports is not None else {}

@@ -206,6 +206,8 @@ class NI_DAQmxTab(DeviceTab):
                     'AI_range': properties['AI_range'],
                     'AI_start_delay': properties['AI_start_delay'],
                     'AI_start_delay_ticks': properties['AI_start_delay_ticks'],
+                    'AI_timebase_terminal': properties.get('AI_timebase_terminal',None),
+                    'AI_timebase_rate': properties.get('AI_timebase_rate',None),
                     'clock_terminal': clock_terminal,
                 },
             )

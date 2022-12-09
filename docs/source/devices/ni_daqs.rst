@@ -79,6 +79,9 @@ Exact numbers of channels, performance, and configuration depend on the model of
 	AnalogOut('daq_ao0',daq,'ao0')
 	AnalogIn('daq_ai1',daq,'ai1')
 
+WaitMonitors
+------------
+
 NI DAQs are also used within labscript to provide a :class:`WaitMonitor <labscript:labscript.labscript.waitmonitor>`.
 When configured, the `WaitMonitor` allows for arbitrary-length pauses in experiment execution, waiting for some trigger to restart.
 The monitor provides a measurement of the duration of the wait for use in interpreting the resulting data from the experiment.
@@ -154,6 +157,23 @@ For example, to share the clock in the previous with an additional PXIe-6535 dig
 
 In addition to clocking, the `connected_terminals` argument can be used to link output terminals on an NI DAQ module to shared triggers, then link those shared triggers to input terminals of another NI DAQ module in the same chassis.
 
+AI timing skew
+--------------
+
+Given how the NI-DAQmx driver currently works,
+all of the outputs (and generally other hardware) are hardware-timed via direct outputs from the parent pseudoclocks.
+Under default usage, this is not true for the analog inputs of the DAQs,
+which are timed via the internal reference oscillator of the DAQ.
+Synchronization between the two is handled at the end by correlating start times and slicing the AI traces at the appropriate times.
+This works fine if the reference clocks for the pseudoclock and the DAQ don't drift relative to each other,
+but that is generally not the case for a longer shot (on the order of 1 second) since the standard clocks for a pulseblaster and a DAQ both have accuracy on the order of 50 ppm.
+
+With version 1.2.0 of the NI-DAQmx driver, this issue can be mitigated by suppling an external sample timebase that is phase synchronous with the DAQ's pseudoclock device.
+This is done using the DAQmx `SampleClkTimebase` synchronization method.
+Simply provide an external clocking signal that is faster than the analog input sampling rate,
+and the DAQ will use an internall PLL to derive the AI sample clock from the provided timebase.
+Specifying an externally provided sample timebase is done using the `AI_timebase_terminal` and `AI_timebase_rate` arguments,
+which specify the input terminal (generally a PFI line) and the clock frequency.
 
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
