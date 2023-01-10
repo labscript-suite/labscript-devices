@@ -172,15 +172,15 @@ class NI_DAQmxOutputWorker(Worker):
         if connected:
             for terminal_pair in self.connected_terminals:
                 DAQmxConnectTerms(
-                    self.terminal_pair[0],
-                    self.terminal_pair[1],
+                    terminal_pair[0],
+                    terminal_pair[1],
                     DAQmx_Val_DoNotInvertPolarity,
                 )
         else:
             for terminal_pair in self.connected_terminals:
                 DAQmxDisconnectTerms(
-                    self.terminal_pair[0],
-                    self.terminal_pair[1],
+                    terminal_pair[0],
+                    terminal_pair[1],
                     DAQmx_Val_DoNotInvertPolarity,
                 )
 
