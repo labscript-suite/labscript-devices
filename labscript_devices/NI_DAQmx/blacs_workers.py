@@ -178,11 +178,7 @@ class NI_DAQmxOutputWorker(Worker):
                 )
         else:
             for terminal_pair in self.connected_terminals:
-                DAQmxDisconnectTerms(
-                    terminal_pair[0],
-                    terminal_pair[1],
-                    DAQmx_Val_DoNotInvertPolarity,
-                )
+                DAQmxDisconnectTerms(terminal_pair[0], terminal_pair[1])
 
     def program_buffered_DO(self, DO_table):
         """Create the DO task and program in the DO table for a shot. Return a
