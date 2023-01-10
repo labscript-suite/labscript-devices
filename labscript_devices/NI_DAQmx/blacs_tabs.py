@@ -66,6 +66,7 @@ class NI_DAQmxTab(DeviceTab):
 
         clock_terminal = properties['clock_terminal']
         clock_mirror_terminal = properties['clock_mirror_terminal']
+        connected_terminals = properties['connected_terminals']
         static_AO = properties['static_AO']
         static_DO = properties['static_DO']
         clock_limit = properties['clock_limit']
