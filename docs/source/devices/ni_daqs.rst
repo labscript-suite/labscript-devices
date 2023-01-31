@@ -105,8 +105,10 @@ Note that the counter connection is specified using the logical label `'ctr0'`. 
 The physical wiring for this configuration would have port0/line0 wired directly to PFI9, with PFI1 being sent to the master pseudoclock retriggering system in case of timeout.
 If timeouts are not expected/represent experiment failure, this physical connection can be omitted.
 
-In addition to their external ports, some types of NI DAQ modules (PXI, PXIe, CompactDAQ) feature internal connections between modules on the same chassis.
-These connections can be used for sharing clocks or triggers between modules in the same chassis (note: if sufficient clocklines and external inputs are available, it is likely preferable to simply use a unique clockline for each card).
+In addition to their external ports, some types of NI DAQ modules (PXI, PXIe, CompactDAQ) feature internal ports, known as "terminals" in NI terminology.
+Terminals include most clocks and triggers in a module, as well as the external PFIN connections.
+The buffered and static digital IO connections are not terminals.
+Connections between terminals can be used for sharing clocks or triggers between modules in the same chassis (note: if sufficient clocklines and external inputs are available, it is likely preferable to simply use a unique clockline for each card).
 Within labscript, there are two methods for accessing this functionality.
 For sharing the clock input signal to other cards, the `clock_mirror_terminal` argument in the constructor can be specified. For example, in a system with two PXI-6733 analog cards in a PXI chassis (which supports 8 internal triggers, named `PXI_TrigN`), the connection table entries are
 
