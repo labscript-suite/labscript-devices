@@ -58,6 +58,7 @@ class NI_DAQmx(IntermediateDevice):
                 "static_AO",
                 "static_DO",
                 "clock_mirror_terminal",
+                "connected_terminals",
                 "AI_range",
                 "AI_start_delay",
                 "AI_start_delay_ticks",
@@ -93,6 +94,7 @@ class NI_DAQmx(IntermediateDevice):
         static_AO=None,
         static_DO=None,
         clock_mirror_terminal=None,
+        connected_terminals=None,
         acquisition_rate=None,
         AI_range=None,
         AI_range_Diff=None,
@@ -132,6 +134,9 @@ class NI_DAQmx(IntermediateDevice):
             clock_mirror_terminal (str, optional): Channel string of digital output
                 that mirrors the input clock. Useful for daisy-chaning DAQs on the same
                 clockline.
+            connected_terminals (list, optional): List of pairs of strings of digital inputs
+                and digital outputs that will be connected. Useful for daisy-chaining DAQs
+                on the same clockline when they do not have direct routes (see Device Routes in NI MAX).
             acquisiton_rate (float, optional): Default sample rate of inputs.
             AI_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 input voltage range for all analog inputs.

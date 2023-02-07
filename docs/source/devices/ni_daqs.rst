@@ -105,6 +105,55 @@ Note that the counter connection is specified using the logical label `'ctr0'`. 
 The physical wiring for this configuration would have port0/line0 wired directly to PFI9, with PFI1 being sent to the master pseudoclock retriggering system in case of timeout.
 If timeouts are not expected/represent experiment failure, this physical connection can be omitted.
 
+In addition to their external ports, some types of NI DAQ modules (PXI, PXIe, CompactDAQ) feature internal ports, known as "terminals" in NI terminology.
+Terminals include most clocks and triggers in a module, as well as the external PFIN connections.
+The buffered and static digital IO connections are not terminals.
+Connections between terminals can be used for sharing clocks or triggers between modules in the same chassis (note: if sufficient clocklines and external inputs are available, it is likely preferable to simply use a unique clockline for each card).
+Within labscript, there are two methods for accessing this functionality.
+For sharing the clock input signal to other cards, the `clock_mirror_terminal` argument in the constructor can be specified. For example, in a system with two PXI-6733 analog cards in a PXI chassis (which supports 8 internal triggers, named `PXI_TrigN`), the connection table entries are
+
+.. code-block:: python
+
+	NI_PXI_6733(name='dev_1',
+				...,
+				clock_terminal='/Dev1/PFI0',
+				clock_mirror_terminal='/Dev1/PXI_Trig0',
+				MAX_name='Dev1')
+
+	NI_PXI_6733(name='dev_2',
+				...,
+				clock_terminal='/Dev2/PXI_Trig0',
+				MAX_name='Dev2')
+
+However, some NI DAQ modules can not be clocked from certain terminal.
+To determine this, consult the `Device Routes` tab in NI MAX.
+If there is not a `Direct Route` or `Indirect Route` between the clock source and clock destination, the best option is to choose a different `clock_mirror_terminal` if possible.
+For some combinations of modules, there will be no pair of triggers linked to all the cards.
+To handle this situation, two triggers can be linked using the `connected_terminals` argument.
+This argument takes a list of tuples of terminal names, and connects the first terminal to the second terminal.
+For example, to share the clock in the previous with an additional PXIe-6535 digital card (which can not use `PXI_Trig0` as a clock), the connection table entries are
+
+.. code-block:: python
+
+	NI_PXI_6733(name='dev_1',
+				...,
+				clock_terminal='/Dev1/PFI0',
+				clock_mirror_terminal='/Dev1/PXI_Trig0',
+				MAX_name='Dev1')
+
+	NI_PXI_6733(name='dev_2',
+				...,
+				clock_terminal='/Dev2/PXI_Trig0',
+				MAX_name='Dev2')
+
+	NI_PXIe_6535(name='dev_3',
+				...,
+				clock_terminal='/Dev3/PXI_Trig7',
+				MAX_name='Dev3',
+				connected_terminals=[('/Dev3/PXI_Trig0', '/Dev3/PXI_Trig7')])
+
+In addition to clocking, the `connected_terminals` argument can be used to link output terminals on an NI DAQ module to shared triggers, then link those shared triggers to input terminals of another NI DAQ module in the same chassis.
+
 
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
