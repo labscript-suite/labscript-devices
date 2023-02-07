@@ -514,6 +514,13 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 None,
             )
 
+        if self.AI_timebase_terminal is None:
+            # use internal default
+            pass
+        else:
+            self.task.SetSampClkTimebaseSrc(self.AI_timebase_terminal)
+            self.task.SetSampClkTimebaseRate(self.AI_timebase_rate)
+
         self.task.CfgSampClkTiming(
             "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, num_samples
         )
