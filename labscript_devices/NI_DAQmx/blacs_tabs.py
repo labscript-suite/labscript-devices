@@ -66,6 +66,8 @@ class NI_DAQmxTab(DeviceTab):
 
         clock_terminal = properties['clock_terminal']
         clock_mirror_terminal = properties['clock_mirror_terminal']
+        # get to avoid error on older connection tables
+        connected_terminals = properties.get('connected_terminals', None)
         static_AO = properties['static_AO']
         static_DO = properties['static_DO']
         clock_limit = properties['clock_limit']
@@ -204,6 +206,8 @@ class NI_DAQmxTab(DeviceTab):
                     'AI_range': properties['AI_range'],
                     'AI_start_delay': properties['AI_start_delay'],
                     'AI_start_delay_ticks': properties['AI_start_delay_ticks'],
+                    'AI_timebase_terminal': properties.get('AI_timebase_terminal',None),
+                    'AI_timebase_rate': properties.get('AI_timebase_rate',None),
                     'clock_terminal': clock_terminal,
                 },
             )

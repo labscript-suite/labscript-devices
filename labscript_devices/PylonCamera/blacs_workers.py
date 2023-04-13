@@ -45,6 +45,8 @@ class Pylon_Camera(object):
         # Keep a nodeMap reference so we don't have to re-create a lot
         self.nodeMap = self.camera.GetNodeMap()
         self._abort_acquisition = False
+        self.exception_on_failed_shot = True
+
 
     def set_attributes(self, attributes_dict):
         """Sets all attribues in attr_dict.
