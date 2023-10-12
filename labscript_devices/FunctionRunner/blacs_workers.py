@@ -14,9 +14,9 @@ import os
 from time import monotonic
 import numpy as np
 import labscript_utils.h5_lock
+from labscript_utils.shot_utils import get_shot_globals
 import h5py
 from blacs.tab_base_classes import Worker
-import runmanager
 import runmanager.remote
 from zprocess import rich_print
 from .utils import deserialise_function
@@ -48,7 +48,7 @@ class ShotContext(object):
     def __init__(self, h5_file, device_name):
         self.h5_file = h5_file
         self.device_name = device_name
-        self.globals = runmanager.get_shot_globals(h5_file)
+        self.globals = get_shot_globals(h5_file)
 
 
 class FunctionRunnerWorker(Worker):
