@@ -14,7 +14,13 @@
 import labscript_devices
 
 labscript_devices.register_classes(
-    'WindfreakSynth',
-    BLACS_tab='labscript_devices.Windfreak.blacs_tabs.WindfreakSynthTab',
+    'WindfreakSynthHD',
+    BLACS_tab='labscript_devices.Windfreak.blacs_tabs.WindfreakSynthHDTab',
+    runviewer_parser=None
+)
+
+labscript_devices.register_classes(
+    'WindfreakSynthHDPro',
+    BLACS_tab='labscript_devices.Windfreak.blacs_tabs.WindfreakSynthHDTab',
     runviewer_parser=None
 )

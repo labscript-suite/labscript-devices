@@ -14,11 +14,11 @@
 from blacs.device_base_class import DeviceTab
 
 
-class WindfreakSynthTab(DeviceTab):
+class WindfreakSynthHDTab(DeviceTab):
 
     def __init__(self, *args, **kwargs):
         if not hasattr(self,'device_worker_class'):
-            self.device_worker_class = 'labscript_devices.Windfreak.blacs_workers.WindfreakSynthWorker'
+            self.device_worker_class = 'labscript_devices.Windfreak.blacs_workers.WindfreakSynthHDWorker'
         DeviceTab.__init__(self, *args, **kwargs)
 
     def initialise_GUI(self):
@@ -69,9 +69,13 @@ class WindfreakSynthTab(DeviceTab):
         conn_obj = self.settings['connection_table'].find_by_name(self.device_name).properties
         self.com_port = conn_obj.get('com_port',None)
         self.trigger_mode = conn_obj.get('trigger_mode','disabled')
+        self.reference_mode = conn_obj['reference_mode']
+        self.reference_frequency = conn_obj['reference_frequency']
 
         self.create_worker('main_worker',self.device_worker_class,{'com_port':self.com_port,
                                                                    'allowed_chans':self.allowed_chans,
-                                                                   'trigger_mode':self.trigger_mode})
+                                                                   'trigger_mode':self.trigger_mode,
+                                                                   'reference_mode':self.reference_mode,
+                                                                   'reference_frequency':self.reference_frequency})
 
         self.primary_worker = 'main_worker'

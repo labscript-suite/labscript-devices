@@ -11,22 +11,22 @@
 #                                                                   #
 #####################################################################
 
-from labscript import LabscriptError, set_passed_properties, config, StaticDDS, IntermediateDevice, Device
+from labscript import LabscriptError, set_passed_properties, config, StaticDDS, Device
 from labscript_utils import dedent
 from labscript_utils.unitconversions.generic_frequency import FreqConversion
 
 import numpy as np
 
 
-class WindfreakSynth(Device):
-    description = 'Windfreak HDPro Synthesizer'
+class WindfreakSynthHD(Device):
+    description = 'Windfreak HD Synthesizer'
     allowed_children = [StaticDDS]
     # note, box labels 'A', 'B' map to programming channels 0, 1
     allowed_chans = [0, 1]
     enabled_chans = []
 
     # define output limitations for the SynthHDPro
-    freq_limits = (10e6, 24e9)  # set in Hz
+    freq_limits = (10e6, 15e9)  # set in Hz
     freq_res = 1  # number of sig digits after decimal
     amp_limits = (-40.0, 20.0)  # set in dBm
     amp_res = 2
@@ -44,9 +44,13 @@ class WindfreakSynth(Device):
             'phase_limits',
             'phase_res',
             'trigger_mode',
+            'reference_mode',
+            'reference_frequency',
         ]
     })
-    def __init__(self, name, com_port="", trigger_mode='disabled', **kwargs):
+    def __init__(self, name, com_port="", trigger_mode='disabled',
+                 reference_mode='internal 27mhz',
+                 reference_frequency=None, **kwargs):
         """Creates a Windfreak HDPro Synthesizer
 
         Args:
@@ -54,17 +58,25 @@ class WindfreakSynth(Device):
             com_port (str): COM port connection string.
                 Must take the form of 'COM d', where d is an integer.
             trigger_mode (str): Trigger mode for the device to use.
-                Currently, labscript only directly programs 'rf enable',
+                Currently, labscript only directly supports `'rf enable'`,
                 via setting DDS gates.
                 labscript could correctly program other modes with some effort.
                 Other modes can be correctly programmed externally,
                 with the settings saved to EEPROM.
-                **kwargs: Keyword arguments passed to :obj:`labscript:labscript.Device.__init__`.
+            reference_mode (str): Frequency reference mode to use.
+                Valid options are 'external', 'internal 27mhz', and 'internal 10mhz'.
+                Default is 'internal 27mhz'.
+            reference_frequency (float): Reference frequency (in Hz)
+                when using an external frequency.
+                Valid values are between 10 and 100 MHz.
+            **kwargs: Keyword arguments passed to :obj:`labscript:labscript.Device.__init__`.
         """
 
         Device.__init__(self, name, None, com_port, **kwargs)
         self.BLACS_connection = com_port
         self.trigger_mode = trigger_mode
+        self.reference_mode = reference_mode
+        self.reference_frequency = reference_frequency
 
     def add_device(self, device):
         Device.add_device(self, device)
@@ -157,3 +169,15 @@ class WindfreakSynth(Device):
                 self.enabled_chans.append(channel)
         else:
             raise LabscriptError(f'Channel {channel} is not a valid option for {self.device.name}.')
+
+
+class WindfreakSynthHDPro(WindfreakSynthHD):
+    description = 'Windfreak HDPro Synthesizer'
+
+    # define output limitations for the SynthHDPro
+    freq_limits = (10e6, 24e9)  # set in Hz
+    freq_res = 1  # number of sig digits after decimal
+    amp_limits = (-40.0, 20.0)  # set in dBm
+    amp_res = 2
+    phase_limits = (0.0, 360.0)  # in deg
+    phase_res = 2
