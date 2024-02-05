@@ -292,27 +292,63 @@ class PrawnBlasterWorker(Worker):
 
         # Program instructions
         for pseudoclock, pulse_program in enumerate(pulse_programs):
-            for i, instruction in enumerate(pulse_program):
-                if i == len(self.smart_cache[pseudoclock]):
-                    # Pad the smart cache out to be as long as the program:
-                    self.smart_cache[pseudoclock].append(None)
+            # check if it is more efficient to fully refresh
+            if not fresh and self.smart_cache[pseudoclock] is not None:
+                # get more convenient handles to smart cache arrays
+                curr_inst = self.smart_cache[pseudoclock]
 
-                # Only program instructions that differ from what's in the smart cache:
-                if self.smart_cache[pseudoclock][i] != instruction:
-                    self.prawnblaster.write(
-                        b"set %d %d %d %d\r\n"
-                        % (
-                            pseudoclock,
-                            i,
-                            instruction["half_period"],
-                            instruction["reps"],
+                # if arrays aren't of same shape, only compare up to smaller array size
+                n_curr = len(curr_inst)
+                n_new = len(pulse_program)
+                if n_curr > n_new:
+                    # technically don't need to reprogram current elements beyond end of new elements
+                    new_inst = np.sum(curr_inst[:n_new] != pulse_program)
+                elif n_curr < n_new:
+                    n_diff = n_new - n_curr
+                    val_diffs = np.sum(curr_inst != pulse_program[:n_curr])
+                    new_inst = val_diffs + n_diff
+                else:
+                    new_inst = np.sum(curr_inst != inst)
+
+                if new_inst / total_inst > 0.1:
+                    fresh = True
+
+            if fresh or self.smart_cache[pseudoclock] is None:
+                print('programming from scratch')
+                self.prawnblaster.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
+                serial_buffer = b''
+                for i in range(0, len(pulse_program)):
+                    serial_buffer += struct.pack('<I', pulse_program[i]['half_period'])
+                    serial_buffer += struct.pack('<I', pulse_program[i]['reps'])
+                self.prawnblaster.write(serial_buffer)
+                response = self.prawnblaster.readline().decode()
+                assert (
+                    response == "ok\r\n"
+                ), f"PrawnBlaster said '{response}', expected 'ok'"
+                self.smart_cache[pseudoclock] = pulse_program
+            else:
+                print('incremental programming')
+                for i, instruction in enumerate(pulse_program):
+                    if i == len(self.smart_cache[pseudoclock]):
+                        # Pad the smart cache out to be as long as the program:
+                        self.smart_cache[pseudoclock].append(None)
+
+                    # Only program instructions that differ from what's in the smart cache:
+                    if self.smart_cache[pseudoclock][i] != instruction:
+                        self.prawnblaster.write(
+                            b"set %d %d %d %d\r\n"
+                            % (
+                                pseudoclock,
+                                i,
+                                instruction["half_period"],
+                                instruction["reps"],
+                            )
                         )
-                    )
-                    response = self.prawnblaster.readline().decode()
-                    assert (
-                        response == "ok\r\n"
-                    ), f"PrawnBlaster said '{response}', expected 'ok'"
-                    self.smart_cache[pseudoclock][i] = instruction
+                        response = self.prawnblaster.readline().decode()
+                        assert (
+                            response == "ok\r\n"
+                        ), f"PrawnBlaster said '{response}', expected 'ok'"
+                        self.smart_cache[pseudoclock][i] = instruction
 
         if not self.is_master_pseudoclock:
             # Start the Prawnblaster and have it wait for a hardware trigger
