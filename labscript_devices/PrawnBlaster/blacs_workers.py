@@ -13,6 +13,7 @@
 import time
 import labscript_utils.h5_lock
 import h5py
+import numpy as np
 from blacs.tab_base_classes import Worker
 from labscript_utils.connections import _ensure_str
 import labscript_utils.properties as properties
@@ -38,6 +39,7 @@ class PrawnBlasterWorker(Worker):
         global time; import time
         global re; import re
         global numpy; import numpy
+        global struct; import struct
         global zprocess; import zprocess
         self.smart_cache = {}
         self.cached_pll_params = {}
@@ -292,6 +294,7 @@ class PrawnBlasterWorker(Worker):
 
         # Program instructions
         for pseudoclock, pulse_program in enumerate(pulse_programs):
+            total_inst = len(pulse_program)
             # check if it is more efficient to fully refresh
             if not fresh and self.smart_cache[pseudoclock] is not None:
                 # get more convenient handles to smart cache arrays
@@ -308,7 +311,7 @@ class PrawnBlasterWorker(Worker):
                     val_diffs = np.sum(curr_inst != pulse_program[:n_curr])
                     new_inst = val_diffs + n_diff
                 else:
-                    new_inst = np.sum(curr_inst != inst)
+                    new_inst = np.sum(curr_inst != pulse_program)
 
                 if new_inst / total_inst > 0.1:
                     fresh = True
