@@ -353,11 +353,9 @@ class PrawnBlasterWorker(Worker):
             if (fresh or self.smart_cache[pseudoclock] is None) and self.fast_serial:
                 print('binary programming')
                 self.prawnblaster.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
-                serial_buffer = b''
-                for i in range(0, len(pulse_program)):
-                    serial_buffer += struct.pack('<I', pulse_program[i]['half_period'])
-                    serial_buffer += struct.pack('<I', pulse_program[i]['reps'])
-                self.prawnblaster.write(serial_buffer)
+                program_array = np.array([pulse_program['half_period'],
+                                          pulse_program['reps']], dtype='<u4').T
+                self.prawnblaster.write(program_array.tobytes())
                 response = self.prawnblaster.readline().decode()
                 assert (
                     response == "ok\r\n"
