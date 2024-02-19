@@ -71,6 +71,40 @@ class PrawnBlasterWorker(Worker):
             self.prawnblaster.write(b"setinpin %d %d\r\n" % (i, in_pin))
             assert self.prawnblaster.readline().decode() == "ok\r\n"
 
+        # Check if fast serial is available
+        self.fast_serial = self.version_greater_than((1, 1, 0))
+
+    def get_version(self):
+        self.prawnblaster.write(b"version\r\n")
+        version_str = self.prawnblaster.readline().decode()
+        assert version_str.startswith("version: ")
+        version = version_str[9:].strip()
+
+        version_overclock_list = version.split('-')
+        overclock = False
+        if len(version_overclock_list) == 2:
+            if version_overclock_list[1] == 'overclock':
+                overclock = True
+
+        version_number = version_overclock_list[0].split('.')
+        assert len(version_number) == 3
+
+        return (int(version_number[0]), int(version_number[1]), int(version_number[2]), overclock)
+
+    def version_greater_than(self, target_version):
+        version = self.get_version()
+        if version[0] > target_version[0]:
+            return True
+        if version[0] < target_version[0]:
+            return False
+        if version[1] > target_version[1]:
+            return True
+        if version[1] < target_version[1]:
+            return False
+        if version[2] >= target_version[2]:
+            return True
+        return False
+
     def check_status(self):
         """Checks the operational status of the PrawnBlaster.
 
@@ -296,7 +330,7 @@ class PrawnBlasterWorker(Worker):
         for pseudoclock, pulse_program in enumerate(pulse_programs):
             total_inst = len(pulse_program)
             # check if it is more efficient to fully refresh
-            if not fresh and self.smart_cache[pseudoclock] is not None:
+            if not fresh and self.smart_cache[pseudoclock] is not None and self.fast_serial:
                 # get more convenient handles to smart cache arrays
                 curr_inst = self.smart_cache[pseudoclock]
 
@@ -316,8 +350,8 @@ class PrawnBlasterWorker(Worker):
                 if new_inst / total_inst > 0.1:
                     fresh = True
 
-            if fresh or self.smart_cache[pseudoclock] is None:
-                print('programming from scratch')
+            if (fresh or self.smart_cache[pseudoclock] is None) and self.fast_serial:
+                print('binary programming')
                 self.prawnblaster.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
                 serial_buffer = b''
                 for i in range(0, len(pulse_program)):
