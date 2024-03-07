@@ -72,7 +72,8 @@ class PrawnBlasterWorker(Worker):
             assert self.prawnblaster.readline().decode() == "ok\r\n"
 
         # Check if fast serial is available
-        self.fast_serial = self.version_greater_than((1, 1, 0))
+        version, _ = self.get_version()
+        self.fast_serial = version >= (1, 1, 0)
 
     def get_version(self):
         self.prawnblaster.write(b"version\r\n")
@@ -86,24 +87,10 @@ class PrawnBlasterWorker(Worker):
             if version_overclock_list[1] == 'overclock':
                 overclock = True
 
-        version_number = version_overclock_list[0].split('.')
-        assert len(version_number) == 3
+        version = tuple(int(v) for v in version_overclock_list[0].split('.'))
+        assert len(version) == 3
 
-        return (int(version_number[0]), int(version_number[1]), int(version_number[2]), overclock)
-
-    def version_greater_than(self, target_version):
-        version = self.get_version()
-        if version[0] > target_version[0]:
-            return True
-        if version[0] < target_version[0]:
-            return False
-        if version[1] > target_version[1]:
-            return True
-        if version[1] < target_version[1]:
-            return False
-        if version[2] >= target_version[2]:
-            return True
-        return False
+        return version, overclock
 
     def check_status(self):
         """Checks the operational status of the PrawnBlaster.
