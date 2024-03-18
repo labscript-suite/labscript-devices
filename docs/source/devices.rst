@@ -59,6 +59,7 @@ These devices cover various frequency sources that provide either hardware-timed
 
    devices/novatechDDS9m
    devices/phasematrixquicksyn
+   devices/windfreak
 
 
 Miscellaneous
