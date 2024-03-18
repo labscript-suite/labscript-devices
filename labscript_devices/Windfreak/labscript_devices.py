@@ -23,7 +23,6 @@ class WindfreakSynthHD(Device):
     allowed_children = [StaticDDS]
     # note, box labels 'A', 'B' map to programming channels 0, 1
     allowed_chans = [0, 1]
-    enabled_chans = []
 
     # define output limitations for the SynthHDPro
     freq_limits = (10e6, 15e9)  # set in Hz
@@ -77,6 +76,7 @@ class WindfreakSynthHD(Device):
         self.trigger_mode = trigger_mode
         self.reference_mode = reference_mode
         self.reference_frequency = reference_frequency
+        self.enabled_chans = []
 
     def add_device(self, device):
         Device.add_device(self, device)
