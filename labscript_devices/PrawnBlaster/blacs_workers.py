@@ -340,6 +340,10 @@ class PrawnBlasterWorker(Worker):
             if (fresh or self.smart_cache[pseudoclock] is None) and self.fast_serial:
                 print('binary programming')
                 self.prawnblaster.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
+                response = self.prawnblaster.readline().decode()
+                assert (
+                    response == "ready\r\n"
+                ), f"PrawnBlaster said '{response}', expected 'ready'"
                 program_array = np.array([pulse_program['half_period'],
                                           pulse_program['reps']], dtype='<u4').T
                 self.prawnblaster.write(program_array.tobytes())
