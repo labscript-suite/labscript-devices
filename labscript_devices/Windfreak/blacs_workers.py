@@ -31,6 +31,7 @@ class WindfreakSynthHDWorker(Worker):
 
         # connect to synth
         self.synth = windfreak.SynthHD(self.com_port)
+        self.device_info()
         self.valid_modes = self.synth.trigger_modes
         self.valid_ref_modes = self.synth.reference_modes
         # set reference mode
@@ -40,6 +41,20 @@ class WindfreakSynthHDWorker(Worker):
 
         # populate smart chache
         self.smart_cache['STATIC_DATA'] = self.check_remote_values()
+
+    def device_info(self):
+        """Print device info for connected device"""
+
+        fw_ver = self.synth.firmware_version
+        hw_ver = self.synth.hardware_version
+        model = self.synth.model
+        sn = self.synth.serial_number
+
+        info = f"""Connected to:
+        {model}: SN {sn}
+        {fw_ver}, {hw_ver}
+        """
+        print(info)
 
     def set_reference_mode(self, mode, ext_freq):
         """Sets the synth reference mode.
