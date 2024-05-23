@@ -6,6 +6,12 @@ This labscript device controls the Windfreak SynthHD and SynthHD Pro signal gene
 At present only static frequencies and DDS gating is supported.
 This driver also supports external referencing.
 
+.. note::
+
+   There have been observed, infrequent instances where the device does not update to newly programmed values.
+   This does not appear to be an issue with this code, but rather the device or the `windfreak` package.
+   As with any new hardware; trust, but verify, the output.
+   If you can reliably reproduce the problem, please create an issue so it can be addressed.
 
 Installation
 ~~~~~~~~~~~~
