@@ -19,6 +19,7 @@ Many pseudoclock devices also include other types of outputs, including digital 
    devices/opalkellyXEM3001
    devices/pineblaster
    devices/prawnblaster
+   devices/prawndo
    devices/rfblaster
 
 NI DAQS

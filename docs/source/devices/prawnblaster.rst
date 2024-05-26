@@ -2,6 +2,8 @@ PrawnBlaster
 ============
 
 This labscript device controls the `PrawnBlaster <https://github.com/labscript-suite/PrawnBlaster>`_ open-source digital pattern generator based on the `Raspberry Pi Pico <https://www.raspberrypi.org/documentation/rp2040/getting-started/>`_ platform.
+It is designed to produce pseudoclock timing pulses.
+See the companion :doc:`PrawnDO <prawndo>` device for arbitary pulse generation.
 
 Specifications
 ~~~~~~~~~~~~~~
@@ -30,7 +32,7 @@ The PrawnBlaster takes advantage of the specs of the Pico to provide the followi
 Installation
 ~~~~~~~~~~~~
 
-In order to turn the standard Pico into a PrawnBlaster, you need to load the custom firmware available in the `Github repo <https://github.com/labscript-suite/PrawnBlaster/tree/master/build/prawnblaster>`_ onto the board.
+In order to turn the standard Pico into a PrawnBlaster, you need to load the custom firmware available in the `Github repo <https://github.com/labscript-suite/PrawnBlaster/releases>`_ onto the board.
 The simplest way to do this is by holding the reset button on the board while plugging the USB into a computer.
 This will bring up a mounted folder that you copy-paste the firmware to. Once copied, the board will reset and be ready to go.
 
@@ -78,6 +80,16 @@ An example connection table that uses the PrawnBlaster:
       start(0)
 
       stop(1)
+
+Input/Output Buffers
+--------------------
+
+While the PrawnBlaster and PrawnDO boards can be used as is,
+it is often a good idea to add unity-gain channel buffers to the inputs and outputs.
+Using buffers and line drivers from a LVCMOS family with 5V/TTL tolerant inputs can provide
+compatibility with TTL inputs and drive higher capacitance loads (such a long BNC cables) more reliably.
+Examples that implement these buffers can be found `here <https://github.com/TU-Darmstadt-APQ/Prawnblaster_Breakout>`_
+and `here <https://github.com/naqslab/PrawnBlaster_Breakout_Connectorized>`_.
 
 
 Detailed Documentation
