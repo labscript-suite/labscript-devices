@@ -17,6 +17,7 @@ from labscript import PseudoclockDevice, config
 
 import numpy as np
 
+from qtutils import qtlock
 
 class PulseBlaster_No_DDS(PulseBlaster):
 
@@ -199,9 +200,9 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
                 icon = QtGui.QIcon(':/qtutils/fugue/tick')
             else:
                 icon = QtGui.QIcon(':/qtutils/fugue/cross')
-            
-            pixmap = icon.pixmap(QtCore.QSize(16, 16))
-            self.status_widgets[state].setPixmap(pixmap)
+            with qtlock:
+                pixmap = icon.pixmap(QtCore.QSize(16, 16))
+                self.status_widgets[state].setPixmap(pixmap)
         
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
