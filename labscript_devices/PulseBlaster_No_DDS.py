@@ -432,7 +432,7 @@ class PulseblasterNoDDSWorker(Worker):
             time_based_shot_over = None
         return pb_read_status(), self.waits_pending, time_based_shot_over
         
-    def transition_to_manual(self):
+    def post_experiment(self):
         status, waits_pending, time_based_shot_over = self.check_status()
         
         if self.programming_scheme == 'pb_start/BRANCH':
@@ -453,6 +453,9 @@ class PulseblasterNoDDSWorker(Worker):
             return True
         else:
             return False
+    
+    def transition_to_manual(self):
+        return True
      
     def abort_buffered(self):
         # Stop the execution
