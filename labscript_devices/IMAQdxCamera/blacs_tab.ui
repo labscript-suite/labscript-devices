@@ -45,6 +45,51 @@
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="pushButtonAutoLevels">
+         <property name="toolTip">
+          <string>Auto scale image levels and histogram range</string>
+         </property>
+         <property name="text">
+          <string>Auto Levels</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>:/qtutils/fugue/gradient.png</normaloff>:/qtutils/fugue/gradient.png</iconset>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_set_bg">
+         <property name="toolTip">
+          <string>Set current image as the background, to be subtracted from displayed images</string>
+         </property>
+         <property name="text">
+          <string>Set background</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>:/qtutils/fugue/image--plus.png</normaloff>:/qtutils/fugue/image--plus.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_clear_bg">
+         <property name="toolTip">
+          <string>Clear the background image</string>
+         </property>
+         <property name="text">
+          <string>Clear background</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>:/qtutils/fugue/image--minus.png</normaloff>:/qtutils/fugue/image--minus.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="pushButton_snap">
          <property name="toolTip">
           <string>Take a single image</string>
