@@ -135,6 +135,8 @@ class NI_DAQmxOutputWorker(Worker):
         # TODO: return coerced/quantised values
         return {}
 
+    # TODO:OPT: Not opening the file in the experiment queue significantly speeds up the file query time
+    # need to figure out why...
     def get_output_tables(self, h5file, device_name):
         """Return the AO and DO tables rom the file, or None if they do not exist."""
         with h5py.File(h5file, 'r') as hdf5_file:
