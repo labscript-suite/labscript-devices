@@ -173,7 +173,10 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # When called with a queue, this function writes to the queue
         # when the pulseblaster is waiting. This indicates the end of
         # an experimental run.
-        self.status, waits_pending, time_based_shot_over = yield(self.queue_work(self._primary_worker,'check_status'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'check_status'))
+        raw_results = yield(tasks, False)
+        self.status, waits_pending, time_based_shot_over = raw_results[0]
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = self.status['waiting']
@@ -207,17 +210,23 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'start_run'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'start_run'))
+        yield(tasks, False)
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def stop(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_stop'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'pb_stop'))
+        yield(tasks, False)
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def reset(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_reset'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'pb_reset'))
+        yield(tasks, False)
         self.status_monitor()
     
     @define_state(MODE_BUFFERED,True)  
