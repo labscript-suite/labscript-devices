@@ -135,6 +135,8 @@ class NI_DAQmxOutputWorker(Worker):
         # TODO: return coerced/quantised values
         return {}
 
+    # TODO:OPT: Not opening the file in the experiment queue significantly speeds up the file query time
+    # need to figure out why...
     def get_output_tables(self, h5file, device_name):
         """Return the AO and DO tables rom the file, or None if they do not exist."""
         with h5py.File(h5file, 'r') as hdf5_file:
@@ -354,11 +356,9 @@ class NI_DAQmxOutputWorker(Worker):
             final_values[self.wait_timeout_connection] = self.wait_timeout_rearm_value
 
         return final_values
-
-    def transition_to_manual(self, abort=False):
-        # Stop output tasks and call program_manual. Only call StopTask if not aborting.
-        # Otherwise results in an error if output was incomplete. If aborting, call
-        # ClearTask only.
+    
+    def post_experiment(self):
+        # Stop output tasks
         npts = uInt64()
         samples = uInt64()
         tasks = []
@@ -370,23 +370,22 @@ class NI_DAQmxOutputWorker(Worker):
             self.DO_task = None
 
         for task, static, name in tasks:
-            if not abort:
-                if not static:
-                    try:
-                        # Wait for task completion with a 1 second timeout:
-                        task.WaitUntilTaskDone(1)
-                    finally:
-                        # Log where we were up to in sample generation, regardless of
-                        # whether the above succeeded:
-                        task.GetWriteCurrWritePos(npts)
-                        task.GetWriteTotalSampPerChanGenerated(samples)
-                        # Detect -1 even though they're supposed to be unsigned ints, -1
-                        # seems to indicate the task was not started:
-                        current = samples.value if samples.value != 2 ** 64 - 1 else -1
-                        total = npts.value if npts.value != 2 ** 64 - 1 else -1
-                        msg = 'Stopping %s at sample %d of %d'
-                        self.logger.info(msg, name, current, total)
-                task.StopTask()
+            if not static:
+                try:
+                    # Wait for task completion with a 1 second timeout:
+                    task.WaitUntilTaskDone(1)
+                finally:
+                    # Log where we were up to in sample generation, regardless of
+                    # whether the above succeeded:
+                    task.GetWriteCurrWritePos(npts)
+                    task.GetWriteTotalSampPerChanGenerated(samples)
+                    # Detect -1 even though they're supposed to be unsigned ints, -1
+                    # seems to indicate the task was not started:
+                    current = samples.value if samples.value != 2 ** 64 - 1 else -1
+                    total = npts.value if npts.value != 2 ** 64 - 1 else -1
+                    msg = 'Stopping %s at sample %d of %d'
+                    self.logger.info(msg, name, current, total)
+            task.StopTask()
             task.ClearTask()
 
         # Remove the mirroring of the clock terminal, if applicable:
@@ -395,6 +394,26 @@ class NI_DAQmxOutputWorker(Worker):
         # Remove connections between other terminals, if applicable:
         self.set_connected_terminals_connected(False)
 
+        return True
+    
+    def transition_to_manual(self, abort=False):
+        # If aborting, stop output tasks. And program device to manual
+        if abort:
+            # We did not call transition_to_manual from post_experiment, stop output 
+            # task accordingly
+            npts = uInt64()
+            samples = uInt64()
+            tasks = []
+            if self.AO_task is not None:
+                tasks.append([self.AO_task, self.static_AO or self.AO_all_zero, 'AO'])
+                self.AO_task = None
+            if self.DO_task is not None:
+                tasks.append([self.DO_task, self.static_DO or self.DO_all_zero, 'DO'])
+                self.DO_task = None
+
+            for task, _, _ in tasks:
+                task.ClearTask()
+        
         # Set up manual mode tasks again:
         self.start_manual_mode_tasks()
         if abort:
@@ -433,13 +452,14 @@ class NI_DAQmxAcquisitionWorker(Worker):
         # and disable inputs in manual mode, and adjust the rate:
         self.manual_mode_chans = self.AI_chans
         self.manual_mode_rate = 1000
+        self.manual_mode_task = False
 
         # An event for knowing when the wait durations are known, so that we may use
         # them to chunk up acquisition data:
         self.wait_durations_analysed = Event('wait_durations_analysed')
 
         # Start task for manual mode
-        self.start_task(self.manual_mode_chans, self.manual_mode_rate)
+        self.manual_mode_task = self.start_task(self.manual_mode_chans, self.manual_mode_rate)
 
     def shutdown(self):
         if self.task is not None:
@@ -536,6 +556,8 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         self.task.StartTask()
 
+        return True
+
     def stop_task(self):
         with self.tasklock:
             if self.task is None:
@@ -570,32 +592,24 @@ class NI_DAQmxAcquisitionWorker(Worker):
             # delay is defined in sample clock ticks, calculate in sec and save for later
             self.AI_start_delay = self.AI_start_delay_ticks*self.buffered_rate
         self.acquired_data = []
-        # Stop the manual mode task and start the buffered mode task:
-        self.stop_task()
+        # Stop the manual mode task if it is running and start the buffered mode task:
+        if self.manual_mode_task:
+            self.stop_task()
         self.buffered_mode = True
         self.start_task(self.buffered_chans, self.buffered_rate)
         return {}
 
-    def transition_to_manual(self, abort=False):
-        self.logger.debug('transition_to_manual')
-        #  If we were doing buffered mode acquisition, stop the buffered mode task and
-        # start the manual mode task. We might not have been doing buffered mode
-        # acquisition if abort() was called when we are not in buffered mode, or if
+    def post_experiment(self):
+        self.logger.debug('post_experiment processing')
+        # If we were doing buffered mode acquisition, stop the buffered mode task. 
+        # We might not have been doing buffered mode acquisition if
         # there were no acuisitions this shot.
         if not self.buffered_mode:
             return True
         if self.buffered_chans is not None:
             self.stop_task()
         self.buffered_mode = False
-        self.logger.info('transitioning to manual mode, task stopped')
-        self.start_task(self.manual_mode_chans, self.manual_mode_rate)
-
-        if abort:
-            self.acquired_data = None
-            self.buffered_chans = None
-            self.h5_file = None
-            self.buffered_rate = None
-            return True
+        self.logger.info('processing acquired data, task stopped')
 
         with h5py.File(self.h5_file, 'a') as hdf5_file:
             data_group = hdf5_file['data']
@@ -622,6 +636,30 @@ class NI_DAQmxAcquisitionWorker(Worker):
         else:
             msg = 'No acquisitions in this shot.'
         self.logger.info(msg)
+
+        self.manual_mode_task = False
+
+        return True
+
+    def transition_to_manual(self, abort=False):
+        self.logger.debug('transition_to_manual')
+        # Handle abort calls, and start manual mode task 
+        if abort:
+            if not self.buffered_mode:
+                return True
+            if self.buffered_chans is not None:
+                self.stop_task()
+            self.buffered_mode = False
+            self.logger.info('transitioning to manual mode, task stopped')
+            self.manual_mode_task = self.start_task(self.manual_mode_chans, self.manual_mode_rate)
+            self.manual_mode_task
+            self.acquired_data = None
+            self.buffered_chans = None
+            self.h5_file = None
+            self.buffered_rate = None
+        else:
+            self.logger.info('transitioning to manual mode')
+            self.manual_mode_task = self.start_task(self.manual_mode_chans, self.manual_mode_rate)
 
         return True
 
@@ -928,10 +966,11 @@ class NI_DAQmxWaitMonitorWorker(Worker):
 
         return {}
 
-    def transition_to_manual(self, abort=False):
-        self.logger.debug('transition_to_manual')
-        self.stop_tasks(abort)
-        if not abort and self.wait_table is not None:
+    def post_experiment(self):
+        self.logger.debug('post_experiment processing')
+        self.stop_tasks(False)
+        
+        if self.wait_table is not None:
             # Let's work out how long the waits were. The absolute times of each edge on
             # the wait monitor were:
             edge_times = np.cumsum(self.semiperiods)
@@ -971,6 +1010,14 @@ class NI_DAQmxWaitMonitorWorker(Worker):
 
         self.h5_file = None
         self.semiperiods = None
+        return True
+    
+    def transition_to_manual(self, abort=False):
+        self.logger.debug('transition_to_manual')
+        if (abort):
+            self.stop_tasks(abort)
+            self.h5_file = None
+            self.semiperiods = None
         return True
 
     def abort_buffered(self):

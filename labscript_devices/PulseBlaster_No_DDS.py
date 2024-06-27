@@ -17,6 +17,7 @@ from labscript import PseudoclockDevice, config
 
 import numpy as np
 
+from qtutils import qtlock
 
 class PulseBlaster_No_DDS(PulseBlaster):
 
@@ -172,7 +173,10 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # When called with a queue, this function writes to the queue
         # when the pulseblaster is waiting. This indicates the end of
         # an experimental run.
-        self.status, waits_pending, time_based_shot_over = yield(self.queue_work(self._primary_worker,'check_status'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'check_status'))
+        raw_results = yield(tasks, False)
+        self.status, waits_pending, time_based_shot_over = raw_results[0]
         
         if self.programming_scheme == 'pb_start/BRANCH':
             done_condition = self.status['waiting']
@@ -199,24 +203,30 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
                 icon = QtGui.QIcon(':/qtutils/fugue/tick')
             else:
                 icon = QtGui.QIcon(':/qtutils/fugue/cross')
-            
-            pixmap = icon.pixmap(QtCore.QSize(16, 16))
-            self.status_widgets[state].setPixmap(pixmap)
+            with qtlock:
+                pixmap = icon.pixmap(QtCore.QSize(16, 16))
+                self.status_widgets[state].setPixmap(pixmap)
         
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def start(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'start_run'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'start_run'))
+        yield(tasks, False)
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def stop(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_stop'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'pb_stop'))
+        yield(tasks, False)
         self.status_monitor()
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
     def reset(self,widget=None):
-        yield(self.queue_work(self._primary_worker,'pb_reset'))
+        tasks = []
+        tasks.append(self.queue_work(self._primary_worker,'pb_reset'))
+        yield(tasks, False)
         self.status_monitor()
     
     @define_state(MODE_BUFFERED,True)  
@@ -225,7 +235,7 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         the run is over"""
         self.statemachine_timeout_remove(self.status_monitor)
         self.start()
-        self.statemachine_timeout_add(100,self.status_monitor,notify_queue)
+        self.statemachine_timeout_add(1,self.status_monitor,notify_queue)
 
 
 class PulseblasterNoDDSWorker(Worker):
@@ -432,7 +442,7 @@ class PulseblasterNoDDSWorker(Worker):
             time_based_shot_over = None
         return pb_read_status(), self.waits_pending, time_based_shot_over
         
-    def transition_to_manual(self):
+    def post_experiment(self):
         status, waits_pending, time_based_shot_over = self.check_status()
         
         if self.programming_scheme == 'pb_start/BRANCH':
@@ -453,6 +463,9 @@ class PulseblasterNoDDSWorker(Worker):
             return True
         else:
             return False
+    
+    def transition_to_manual(self):
+        return True
      
     def abort_buffered(self):
         # Stop the execution
