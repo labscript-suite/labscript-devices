@@ -198,12 +198,14 @@ class Spinnaker_Camera(object):
             self.set_stream_attribute('StreamBufferHandlingMode', 'NewestFirst')
             self.set_attribute('AcquisitionMode', 'Continuous')
         elif bufferCount == 1:
-            self.set_stream_attribute('StreamBufferCountMode', 'Auto')
-            self.set_stream_attribute('StreamBufferHandlingMode', 'OldestFirst')
+            self.set_stream_attribute('StreamBufferCountMode', 'Manual')
+            self.set_stream_attribute('StreamBufferCountManual', 3)
+            self.set_stream_attribute('StreamBufferHandlingMode', 'NewestFirst')
             self.set_attribute('AcquisitionMode', 'SingleFrame')
         else:
-            self.set_stream_attribute('StreamBufferCountMode', 'Auto')
-            self.set_stream_attribute('StreamBufferHandlingMode', 'OldestFirst')
+            self.set_stream_attribute('StreamBufferCountMode', 'Manual')
+            self.set_stream_attribute('StreamBufferCountManual', bufferCount)
+            self.set_stream_attribute('StreamBufferHandlingMode', 'NewestFirst')
             self.set_attribute('AcquisitionMode', 'MultiFrame')
             self.set_attribute('AcquisitionFrameCount', bufferCount)
 
