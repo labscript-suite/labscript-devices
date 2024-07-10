@@ -431,7 +431,7 @@ class NI_DAQmxOutputWorker(Worker):
 
 class NI_DAQmxAcquisitionWorker(Worker):
     MAX_READ_INTERVAL = 0.2
-    MAX_READ_PTS = 10000
+    MAX_READ_PTS = 1000
 
     def init(self):
         # Prevent interference between the read callback and the shutdown code:
