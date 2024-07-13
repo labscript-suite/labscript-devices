@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 try:
     import importlib.metadata as importlib_metadata
@@ -7,12 +6,20 @@ except ImportError:
 
 root = Path(__file__).parent.parent
 if (root / '.git').is_dir():
-    from setuptools_scm import get_version
-    __version__ = get_version(
-        root,
-        version_scheme=os.getenv("SCM_VERSION_SCHEME", "release-branch-semver"),
-        local_scheme=os.getenv("SCM_LOCAL_SCHEME", "node-and-date"),
-    )
+    try:
+        from setuptools_scm import get_version
+        VERSION_SCHEME = {
+            "version_scheme": "release-branch-semver",
+            "local_scheme": "node-and-date",
+        }
+        scm_version = get_version(root, **VERSION_SCHEME)
+    except ImportError:
+        scm_version = None
+else:
+    scm_version = None
+
+if scm_version is not None:
+    __version__ = scm_version
 else:
     try:
         __version__ = importlib_metadata.version(__package__)
