@@ -22,6 +22,7 @@ import labscript_utils.properties
 
 from qtutils.qt import QtWidgets
 
+from qtutils import qtlock
 
 class PrawnBlasterTab(DeviceTab):
     """BLACS Tab for the PrawnBlaster Device."""
@@ -139,8 +140,9 @@ class PrawnBlasterTab(DeviceTab):
         done_condition = status == 0 or status == 5
 
         # Update GUI status/clock status widgets
-        self.status_label.setText(f"Status: {status}")
-        self.clock_status_label.setText(f"Clock status: {clock_status}")
+        with qtlock:
+            self.status_label.setText(f"Status: {status}")
+            self.clock_status_label.setText(f"Clock status: {clock_status}")
 
         if notify_queue is not None and done_condition and not waits_pending:
             # Experiment is over. Tell the queue manager about it, then
