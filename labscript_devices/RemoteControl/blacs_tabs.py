@@ -193,7 +193,7 @@ class RemoteControlTab(DeviceTab):
         # Create the worker
         self.create_worker(
             "main_worker",
-            "user_devices.RemoteControl.blacs_workers.RemoteControlWorker",
+            "labscript_devices.RemoteControl.blacs_workers.RemoteControlWorker",
             {
                 "mock": self.mock,
                 "host": self.host,
