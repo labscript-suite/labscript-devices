@@ -70,7 +70,7 @@ class RemoteCommunication:
 
         self.logger.debug(f"TRYING TO SET UP CONNECTION, tcp://{self.host}:{self.port}")
         
-        message = {"action": "HELLO", "connection": None}
+        message = {"action": "HELLO", "connection": ""}
         
         response = self.send_request(message)
         if response is None:
@@ -206,7 +206,7 @@ class RemoteControlWorker(Worker):
             dict: A dictionary of remote ouput values.
         """
         if not self.remote_comms.connected:
-            return
+            return False
         
         def check_output_values():
             if len(self.child_output_connections) == 0:

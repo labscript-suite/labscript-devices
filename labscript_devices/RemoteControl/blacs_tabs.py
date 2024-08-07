@@ -204,6 +204,8 @@ class RemoteControlTab(DeviceTab):
         )
         self.primary_worker = "main_worker"
 
+        self._can_check_remote_values = True
+
         if self.mock:
             self.reqrep_connected = True
             self.manual_remote_polling()
