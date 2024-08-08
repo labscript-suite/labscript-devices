@@ -33,7 +33,7 @@ class PrawnDOTab(DeviceTab):
     def initialise_workers(self):
         self.create_worker(
             "main_worker",
-            "naqslab_devices.prawn_digital_output_labscript.blacs_workers.PrawnDOWorker",
+            "labscript_devices.PrawnDO.blacs_workers.PrawnDOWorker",
             {
                 'com_port': self.com_port,
             },

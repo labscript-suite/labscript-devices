@@ -15,7 +15,7 @@ from labscript_devices import register_classes
 register_classes(
     'PrawnDO',
     BLACS_tab='labscript_devices.PrawnDO.blacs_tabs.PrawnDOTab',
-    runviewer_parser='naqslab_devices.PrawnDO.runviewer_parsers.PrawnDOParser',
+    runviewer_parser='labscript_devices.PrawnDO.runviewer_parsers.PrawnDOParser',
 )
 
 # private shim class necessary from runviewer parsing of shots
