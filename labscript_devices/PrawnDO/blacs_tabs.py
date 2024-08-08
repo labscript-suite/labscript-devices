@@ -29,6 +29,12 @@ class PrawnDOTab(DeviceTab):
         self.supports_remote_value_check(True)
         self.supports_smart_programming(True)
 
+    
+    def get_child_from_connection_table(self, parent_device_name, port):
+        # all child direct outputs are actually connected to the internal device _PrawnDigitalOutputs
+        # so we must look under that device for the port
+        return self.connection_table.find_child(f'{self.device_name:s}__pod', port)
+
 
     def initialise_workers(self):
         self.create_worker(
