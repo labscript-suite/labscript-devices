@@ -215,6 +215,25 @@ class PrawnDO(PseudoclockDevice):
 
         self.BLACS_connection = com_port
 
+        self._initial_trigger_time = 0
+
+    # following three defs ensure initial_trigger_time is not modified
+    # when directly triggered from a clockline using an internal IntermediateDevice
+    @property
+    def initial_trigger_time(self):
+        return self._initial_trigger_time
+    
+    @initial_trigger_time.setter
+    def initial_trigger_time(self, value):
+        if value != 0 and hasattr(self, "__intermediate"):
+            raise LabscriptError("You cannot set the initial trigger time when the PrawnDO is directly triggered by a clockline")
+        self._initial_trigger_time = value
+
+    def set_initial_trigger_time(self, *args, **kwargs):
+        if hasattr(self, "__intermediate"):
+            raise LabscriptError("You cannot set the initial trigger time when the PrawnDO is directly triggered by a clockline")
+        return super().set_initial_trigger_time(*args, **kwargs)
+
     def add_device(self, device):
 
         if isinstance(device, _PrawnDOPseudoclock):
