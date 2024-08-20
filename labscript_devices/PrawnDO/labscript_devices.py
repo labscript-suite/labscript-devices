@@ -58,10 +58,7 @@ class _PrawnDOClockline(ClockLine):
 class _PrawnDigitalOutputs(IntermediateDevice):
     allowed_children = [DigitalOut]
 
-    allowed_channels = ('0', '1', '2', '3',
-                        '4', '5', '6', '7',
-                        '8', '9', 'A', 'B',
-                        'C', 'D', 'E', 'F')
+    allowed_channels = tuple(range(16))
 
     def __init__(self, name, parent_device,
                  **kwargs):
@@ -88,7 +85,7 @@ class _PrawnDigitalOutputs(IntermediateDevice):
         """
 
         conn = device.connection
-        chan = conn.split(' ')[-1]
+        chan = int(conn.split('do')[-1])
 
         if chan not in self.allowed_channels:
             raise LabscriptError(f'Invalid channel specification: {conn}')
@@ -268,8 +265,8 @@ class PrawnDO(PseudoclockDevice):
         # as the output word for the pins
         for output in outputs:  
             output.make_timeseries(times)
-            chan = output.connection.split(' ')[-1]
-            bits[int(chan, 16)] = np.asarray(output.timeseries, dtype = np.uint16)
+            chan = int(output.connection.split('do')[-1])
+            bits[chan] = np.asarray(output.timeseries, dtype = np.uint16)
         # Merge list of lists into an array with a single 16 bit integer column
         bit_sets = np.array(bitfield(bits, dtype=np.uint16))
 

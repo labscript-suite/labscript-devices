@@ -16,11 +16,14 @@ class PrawnDOTab(DeviceTab):
     def initialise_GUI(self):
         do_prop = {}
         for i in range(0, 16):
-            do_prop['0x{:01X}'.format(i)] = {}
+            do_prop['do{:01d}'.format(i)] = {}
         self.create_digital_outputs(do_prop)
 
+        def sort(channel):
+            return int(channel.split('do')[-1])
+
         _, _, do_widgets = self.auto_create_widgets()
-        self.auto_place_widgets(do_widgets)
+        self.auto_place_widgets(('Digital Outputs', do_widgets, sort))
 
         device = self.settings['connection_table'].find_by_name(self.device_name)
 

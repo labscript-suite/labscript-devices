@@ -45,16 +45,15 @@ Usage
 
 The pinout for the PrawnDO is as follows:
 
-* Outputs 0-15 (labelled by default in hex 0-F): GPIO pins 0-15, respectively.
+* Outputs 0-15: GPIO pins 0-15, respectively.
 * External Trigger input: GPIO 16
 * External Clock input: GPIO 20
 
 Note that signal cables should be connected to the Pico digital grounds for proper operation.
 
 The PrawnDO can provide up to 16 digital outputs, which are accessed via `name.outputs`.
-Each channel is specified using the corresponding hex character (spanning 0-F for 0-15).
-The channel string must end with a single character between 0-F to be valid
-(i.e. `'flag 0'`, `'do 0'`, and `'0'` are all valid channel specifications for GPIO 0 of the PrawnDO).
+Each channel is specified using with a string of the form `'doD'`, where `'D'` is the GPIO number
+(i.e. `'do10'`, is the specification for GPIO 10 of the PrawnDO).
 
 An example connection table that uses the PrawnBlaster and PrawnDO:
 
@@ -69,9 +68,9 @@ An example connection table that uses the PrawnBlaster and PrawnDO:
 
     PrawnDO(name='prawn_do', com_port='COM5', clock_line=prawn.clocklines[0])
 
-    DigitalOut('do0', prawn_do.outputs, 'flag 0')
-    DigitalOut('do1', prawn_do.outputs, 'chan 1')
-    DigitalOut('do10', prawn_do.outputs, 'flag C')
+    DigitalOut('do0', prawn_do.outputs, 'do0')
+    DigitalOut('do1', prawn_do.outputs, 'do1')
+    DigitalOut('do12', prawn_do.outputs, 'do12')
 
     if __name__ == "__main__":
 
@@ -138,9 +137,9 @@ An example connection table using external clocks with the default frequency of 
     PrawnDO(name='prawn_do', com_port='COM5', clock_line=prawn.clocklines[0],
             external_clock=True)
 
-    DigitalOut('do0', prawn_do.outputs, 'flag 0')
-    DigitalOut('do1', prawn_do.outputs, 'chan 1')
-    DigitalOut('do10', prawn_do.outputs, 'flag C')
+    DigitalOut('do0', prawn_do.outputs, 'do0')
+    DigitalOut('do1', prawn_do.outputs, 'do1')
+    DigitalOut('do12', prawn_do.outputs, 'do12')
 
     if __name__ == "__main__":
 
@@ -172,7 +171,7 @@ the second instruction (`do0.go_low(t)`) must be at least 5 clock cycles after t
 .. code-block:: python
 
     t = 0
-    do.go_high(t)
+    do0.go_high(t)
     t = 1e-3
     wait('my_wait', t)
     do0.go_low(t)

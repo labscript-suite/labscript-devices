@@ -173,7 +173,7 @@ class PrawnDOWorker(Worker):
         """
         val = 0
         for conn, value in d.items():
-            val |= value << int(conn, 16)
+            val |= value << int(conn)
 
         return val
     
@@ -186,7 +186,7 @@ class PrawnDOWorker(Worker):
         Returns:
             dict: Dictonary with output channels as keys and values are boolean states
         """
-        return {f'0x{i:X}':((val >> i) & 1) for i in range(16)}
+        return {f'do{i:d}':((val >> i) & 1) for i in range(16)}
     
     def check_status(self):
         '''Checks operational status of the PrawnDO.
