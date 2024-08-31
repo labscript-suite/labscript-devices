@@ -80,8 +80,7 @@ class _PrawnDigitalOutputs(IntermediateDevice):
         
         Args:
             device (): Device to attach. Must be a digital output.
-                Allowed connections are a string that ends with a 0-F hex
-                channel number.
+                Allowed connections are a string of the form `doXX`
         """
 
         conn = device.connection

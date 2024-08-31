@@ -173,7 +173,7 @@ class PrawnDOWorker(Worker):
         """
         val = 0
         for conn, value in d.items():
-            val |= value << int(conn)
+            val |= value << int(conn.split('do')[-1])
 
         return val
     
