@@ -89,7 +89,7 @@ it is often a good idea to add unity-gain channel buffers to the inputs and outp
 Using buffers and line drivers from a LVCMOS family with 5V/TTL tolerant inputs can provide
 compatibility with TTL inputs and drive higher capacitance loads (such a long BNC cables) more reliably.
 Examples that implement these buffers can be found `here <https://github.com/TU-Darmstadt-APQ/Prawnblaster_Breakout>`_
-and `here <https://github.com/naqslab/PrawnBlaster_Breakout_Connectorized>`_.
+and `here <https://github.com/QTC-UMD/PrawnBlaster_Breakout_Connectorized>`_.
 
 
 Detailed Documentation

@@ -155,7 +155,7 @@ While the PrawnBlaster and PrawnDO boards can be used as is,
 it is often a good idea to add unity-gain channel buffers to the inputs and outputs.
 Using buffers and line drivers from a LVCMOS family with 5V/TTL tolerant inputs can provide
 compatibility with TTL inputs and drive higher capacitance loads (such a long BNC cables) more reliably.
-An example that implements these buffers can be found `here <https://github.com/naqslab/PrawnDO_Breakout_Connectorized>`_.
+An example that implements these buffers can be found `here <https://github.com/QTC-UMD/PrawnDO_Breakout_Connectorized>`_.
 
 Waits
 -----
