@@ -1,34 +1,44 @@
-from labscript import Device, LabscriptError, set_passed_properties
+from labscript import Device, LabscriptError, set_passed_properties ,LabscriptError, AnalogIn
+
+
 
 class KeysightScope(Device):
     """A labscript_device for Keysight oscilloscopes (DSOX1202G) using a visa interface.
-          connection_table_properties (set once)
-          termination: character signalling end of response
-          preamble_string: base command for waveform preamble ('WFMO' or 'WFMP')
-
-          device_properties (set per shot)
-          timeout: in seconds for response to queries over visa interface
-          int16: download waveform pts as 16 bit integers (returns 1/2 as many pts) 
+          - connection_table_properties (set once)
+          - device_properties (set per shot)
+                * timeout : in seconds for response to queries over visa interface
+                * int16   : download waveform pts as 16 bit integers 
     """
-    #description = 'Tekstronix oscilloscope'
-    description = "KeysightScope" 
+    description = 'Keysight' 
+    #allowed_children = [ScopeChannel]
+
+    
 
     @set_passed_properties(
         property_names = {
-            'connection_table_properties': ['termination', 'preamble_string'],
-            'device_properties': ['timeout', 'int16']}
+            'device_properties': ['timeout', 'int16']
+            }
         )
     def __init__(self, name, addr, 
-                 termination='\n', preamble_string='WFMP',
                  timeout=5, int16=False,
                  **kwargs):
         Device.__init__(self, name, None, addr, **kwargs)
         self.name = name
         self.BLACS_connection = addr
-        self.termination = termination
-        self.preamble_string = preamble_string
-        assert preamble_string in ['WFMO', 'WFMP'], "preamble_string must be one of 'WFMO' or 'WFMP'"
+        self.acquisitions = []                      # already defined in the class ÁnalogIn 
 
-    def generate_code(self, hdf5_file):
-        # group = self.init_device_name(hdf5_file)
+
+    # ----------------------------------------------- TO DOs
+    def _check_AI_not_too_fast(self, AI_table):     # TO DO
+        pass
+
+    def _make_analog_input_table(self, inputs):     # TO DO 
+        pass 
+
+    def generate_code(self, hdf5_file, *args):      # To improve
+    # group = self.init_device_name(hdf5_file)
         Device.generate_code(self, hdf5_file)
+    # save self.acquisitions in hdf5
+
+
+

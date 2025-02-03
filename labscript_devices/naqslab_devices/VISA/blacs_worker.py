@@ -35,9 +35,7 @@ class VISAWorker(Worker):
             raise LabscriptError(dedent(msg)) from None
         self.connection.timeout = 2000
     
-    def check_remote_values(self):
-        # over-ride this method if remote value check is supported
-        return None
+
     
     def convert_register(self,register):
         """Converts returned register value to dict of bools
@@ -74,14 +72,6 @@ class VISAWorker(Worker):
         
         return self.convert_register(stb)
     
-    def program_manual(self,front_panel_values):
-        """Over-ride this method if remote programming is supported.
-        
-        Returns:
-            :obj:`VISAWorker.check_remote_values()`
-        """
-
-        return self.check_remote_values()
         
     def clear(self,value):
         """Sends standard \*CLR to clear registers of device.

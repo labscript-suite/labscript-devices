@@ -1,8 +1,18 @@
-import pyvisa
 
 
-rm = pyvisa.ResourceManager()
+class A: 
+    def a(self):
+        self.aa = 11
 
-a = rm.list_resources('USB?*::INSTR')
-scope = rm.open_resource(a[0])
-print(scope.read('*IDN?'))
+class B(A):
+    def a(self):
+        self.bb=2
+
+
+var =B()
+var.a()
+print(var.aa)
+
+
+aaa = [B]
+

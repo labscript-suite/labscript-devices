@@ -602,7 +602,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
             data_group.create_group(self.device_name)
             waits_in_use = len(hdf5_file['waits']) > 0
 
-        if self.buffered_chans is not None and not self.acquired_data:
+        if self.buffered_chans is not None and not self.acquired_data:              
             msg = """No data was acquired. Perhaps the acquisition task was not
                 triggered to start, is the device connected to a pseudoclock?"""
             raise RuntimeError(dedent(msg))
@@ -692,7 +692,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         return self.transition_to_manual(True)
 
     def program_manual(self, values):
-        return {}
+        return {} #
 
 
 class NI_DAQmxWaitMonitorWorker(Worker):

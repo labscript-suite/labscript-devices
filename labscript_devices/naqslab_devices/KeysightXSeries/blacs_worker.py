@@ -279,18 +279,4 @@ class KeysightXScopeWorker(VISAWorker):
         return self.convert_register(esr)
     
 
-    # Added this from Tekcscope
-    def abort(self):
-        print('aborting!')
-        self.scope.write('*RST')
-        return True
-
-    def abort_buffered(self):
-        print('abort_buffered: ...')
-        return self.abort()
-
-    def abort_transition_to_buffered(self):
-        print('abort_transition_to_buffered: ...')
-        return self.abort()
-
 

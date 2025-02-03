@@ -14,14 +14,14 @@
 # defines a version and author  
 
 
-# import sys
-# import os
+import sys
+import os
 
-# sys.path
-# sys.path.append(os.getcwd())
+sys.path
+sys.path.append(os.getcwd())
 
-# import sys
-# import os
+import sys
+import os
 
 
 
@@ -144,5 +144,3 @@ class StaticFreqAmp(StaticDDS):
         """
         raise LabscriptError('StaticFreqAmp does not support phase control')
     
-def pleasework():
-    print("I am working chill !!!")

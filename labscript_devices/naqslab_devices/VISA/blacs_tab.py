@@ -70,6 +70,8 @@ class VISATab(DeviceTab):
         self.status_ui.clear_button.clicked.connect(self.send_clear)
         
         
+        ################################ Initalize worker 
+
         # Store the VISA name to be used
         self.address = str(self.settings['connection_table'].find_by_name(self.settings["device_name"]).BLACS_connection)
         #self.device_name = str(self.settings['device_name'])
