@@ -1,102 +1,88 @@
 import pyvisa
 import numpy as np
 import time
-#from keysight_dsox1202g import osci_capabilities, osci_shot_configuration
 from labscript.labscript import LabscriptError
-#from labscript_devices.KeysightScope.models.Keysight_dsox1202g import osci_capabilities, osci_shot_configuration
+
 from re import sub
-
 from labscript_devices.KeysightScope.connection_manager import * 
-
-# -------------------- Change me 
 description = "Example Osci"
-# ------------------------------
-
-
-adress = get_address_from_description(description)
-osci_capabilities = get_capabilities_from_description(description)
-osci_shot_configuration = get_configuration_from_description(description)
-
-
-unit_conversion = {
-            's' : 1  ,  
-            'ns': 1e-9,  # nanoseconds to seconds
-            'us': 1e-6,  # microseconds to seconds
-            'ms': 1e-3   # milliseconds to seconds
-            }
 
 """
 Keysight Scopes 
 
     Using the Oscilloscope requires 3 important steps 
         * Initialsiation : which is setting up the osci for the desired measure
-        * Acquiring : the osci aquires the measurement and saves them in its memory
+        * Acquiring : the osci acquires the measurement and saves them in its memory
         * Analysing : after finishing the measurement, we can display or transfer the data to the Pc
 
  To Improve:
     ** PRIO
-  - Currently only data within the displayed time range is captured
-  - implement triggered bool
-  - implement second channel possi
-  - write docu and example 
+  - what is the best time_range
+  - saving (dabei)
+  - segmented memory ?
+  - HResultion
+  - Keysight() KEysight in ct build
+  - over serial number
+  - set property
+  - other ni card
 
     ** NOT PRIO
-  -  Implemente  other aquiring  modes - Peak HRESolution
   -  Configuration possibility for other trigger types other then EDGE
+
+  ** Ask Marcel
+  - Problem with DO , NiCard won't transtion to buffered 
+  -  subclasses marcel fragen , 
 """
 
+
 class KeysightScope:
-    def __init__(self,  
-                 osci_capabilities=osci_capabilities ,             
-                 osci_shot_configuration=osci_shot_configuration,
-                 adress = adress
+    def __init__(self,
+                 address,
+                 verbose = False
                  ):
         
-        self.verbose = False
-        self.osci_capabilities = osci_capabilities
+        # --------------------------------- Connecting to device
+        rm = pyvisa.ResourceManager()
+        self.dev = rm.open_resource(address)
+        print(f'Initialized: {self.dev.query("*IDN?")}')
+        
+        # --------------------------------- Get device capabilities & Shot configurations
+        cm = connectionManager(address=address)
+        self.osci_capabilities = cm.osci_capabilities               # needed for the blacs worker
+        self.osci_shot_configuration = cm.osci_shot_configuration
+        self.verbose = verbose
 
-        # --------------------------------- device capabilities     
-        for key, value in osci_capabilities.items():
+        # --------------------------------- Device capabilities     
+        for key, value in self.osci_capabilities.items():
                 setattr(self, key, value)
 
         # --------------------------------- Shot configurations
-        for key, value in osci_shot_configuration.items():
+        for key, value in self.osci_shot_configuration.items():
                 setattr(self, key, value)
-
-        # --------------------------------- Connecting to device
-
-        # Based on the serial number in osci_capabilities 
-        # rm = pyvisa.ResourceManager()
-        # devs = rm.list_resources()
-        # for idx, item in enumerate(devs):
-        #     try:
-        #         scope = rm.open_resource(devs[idx], timeout=200)
-        #         scopename = scope.query("*IDN?")
-        #         scope_serial_number = sub(r'\s+', '', scope.query(":SERial?")) # To get rid of white spaces
-        #         if scope_serial_number == self.serial_number:
-        #              self.dev = scope
-        #              print(f"Initialized: {scopename}")
-        #     except:
-        #         continue
-
-        rm = pyvisa.ResourceManager()
-        self.dev = rm.open_resource(adress)
-        scopename = self.dev.query("*IDN?")
-        print(f"Initialized: {scopename}")
-
-
 
         # --------------------------------- Initialize device
         self.reset_device()
         self.dev.timeout = float(self.timeout)*1e3
+
+
+    #######################################################################################
+    #                          The configuration function                                 #
+    ####################################################################################### 
+
+    def set_configuration(self, configuration : dict):
+        """ The purpose of this function is to configure the oscilloscope.
+        it will be called in transition to buffered in the blacs worker"""
+
+        # --------------------------------- Shot configurations
+        # By promoting the entries of the configuration dictionary to class attributs, 
+        # we gain some flexibility later on
+        for key, value in configuration.items():
+                setattr(self, key, value)
+
         self.set_acquire_state(running=True)
-
-        # set_waveform_format better in the beggining because some other configuration
-        # is influecing yincrement and yorigin, which yields wrong voltage values
         self.set_waveform_format(format=self.waveform_format) 
-
-        #self.set_trigger_source(source= self.trigger_source)
-        self.set_trigger_source(source="CHANnel1")
+        
+        self.set_trigger_source(source= self.trigger_source)
         self.set_trigger_level(level= self.trigger_level, unit=self.trigger_level_unit )
         self.set_trigger_edge_slope(slope = self.trigger_edge_slope)
 
@@ -113,15 +99,15 @@ class KeysightScope:
         self.set_channel_display(channel="1",display=self.channel_display_1 )
         self.set_voltage_division(division=self.voltage_division_1, unit= self.voltage_division_unit_1)
         self.set_voltage_offset(offset=self.voltage_offset_1, unit=self.voltage_offset_unit_1)
-        self.set_probe_attenuation(attenuation=self.probe_attenuation_1)
+        self.set_probe_attenuation(attenuation=self.probe_attenuation_1,channel=1)
 
-        # --- Channel 1
+        # --- Channel 2
         self.set_channel_display(channel="2",display=self.channel_display_2 )
-        self.set_voltage_division(division=self.voltage_division_2, unit= self.voltage_division_unit_2)
-        self.set_voltage_offset(offset=self.voltage_offset_2, unit=self.voltage_offset_unit_2)
-        self.set_probe_attenuation(attenuation=self.probe_attenuation_2)
+        self.set_probe_attenuation(channel=2, attenuation=self.probe_attenuation_2)
+        self.set_voltage_division(channel=2, division=self.voltage_division_2, unit= self.voltage_division_unit_2)
+        self.set_voltage_offset(channel=2, offset=self.voltage_offset_2, unit=self.voltage_offset_unit_2)
 
-        
+
     #######################################################################################
     #                               Basic Commands                                        #
     #######################################################################################
@@ -188,7 +174,7 @@ class KeysightScope:
     #                        Setting Axes (Voltage & Time)                                #
     #######################################################################################
 
-    # ----------------------------------------------- Voltage
+    # ----------------------------------------------- Set Voltage
     def set_voltage_range(self, range, channel=1, unit="V"):
         """ unit : V or mV """
         if unit =="V":
@@ -210,11 +196,29 @@ class KeysightScope:
             if self.verbose:
                 print("Done voltage offset")
 
-    # ----------------------------------------------- Time 
+    # ----------------------------------------------- Get Voltage
+    def get_voltage_range(self, channel=1):
+        """
+        Retrieves the voltage range of the channel in volts (V).
+
+        Returns:
+            str: The voltage range in volts (V).
+        """
+        return self.dev.query(f":CHANnel{channel}:RANGe?")
+
+    def get_voltage_division(self, channel=1):
+        """ Get Voltage division of channel in V. """
+        return float(self.dev.query(f":CHANnel{channel}:SCALe?"))
+
+    def get_voltage_offset(self,channel=1):
+        """ Get Voltage offset of channel in V. """
+        return float(self.dev.query(f":CHANnel{channel}:OFFSet?"))
+
+    # ----------------------------------------------- Set Time 
     def set_time_range(self, range, unit):
-        """Set the time range for the oscilloscope.
+        """Set the time range of the oscilloscope.
         Args:
-            time_range: The time range value. (50ns - 500s)
+            time_range (str or float):: The time range value. (50ns - 500s)
             unit: The unit for the time range, 'ms', 'us', 'ns'.
             
         Raises:
@@ -237,16 +241,16 @@ class KeysightScope:
             raise LabscriptError(f"Invalid time range or unit: {e}")
         
         # Send the command to the oscilloscope
-        self.dev.write(f":TIMebase:RANGe {range}")
+        self.dev.write(f":TIMebase:RANGe {converted_time_range}")
 
     def set_time_division(self,division,unit):
-        """Set the time division for the oscilloscope.
+        """ Set the time per division of the oscilloscope.
         Args:
-            time_division: The time division value. (min 5ns - max 50s)
+            time_division (str or float): The time division value. (min 5ns - max 50s)
             unit: The unit for the time division, 'ms', 'us', 'ns'.
             
         Raises:
-            LabscriptError: If the time division is outside the valid range or if the unit is invalid.
+            LabscriptError: If the time division is outside the valid division or if the unit is invalid.
         """
         # Validate unit
         if unit not in unit_conversion:
@@ -254,23 +258,23 @@ class KeysightScope:
         
         # Convert to seconds
         try:
-            converted_time_range = float(division) * unit_conversion[unit]
+            converted_time_division = float(division) * unit_conversion[unit]
             
-            # Check if the converted time range is within the allowed bounds
-            if not (5e-9 <= converted_time_range <= 50):
+            # Check if the converted time division is within the allowed bounds
+            if not (5e-9 <= converted_time_division <= 50):
                 raise LabscriptError(f"Time division not supported. Valid division is between 50 ns and 500 s.")
             
         except Exception as e:
             raise LabscriptError(f"Invalid time division or unit: {e}")
         
-        self.dev.write(f":TIMebase:SCALe {converted_time_range}")
+        self.dev.write(f":TIMebase:SCALe {converted_time_division}")
         if self.verbose:
                 print("Done time division")
 
     def set_time_delay(self,delay,unit="us"):
-        """Set the time delay.
+        """ Set the time delay.
         Args:
-            time_delay: The time delay value.
+            time_delay (str or foat): The time delay value.
             unit: The unit for the time delay, 'ms', 'us', 'ns'.
             
         Raises:
@@ -301,6 +305,53 @@ class KeysightScope:
         self.dev.write(f":TIMebase:REFerence {reference}")
         if self.verbose:
                 print("Done time reference")
+
+    def set_time_mode(self,mode= "MAIN"):
+        """ Set the time mode of the oscilloscope.
+        Args:
+            mode (str):
+            - MAIN : This is the primary mode used in an oscilloscope, 
+            delivering a real-time graph of voltage (Y-axis) versus time (X-axis).
+
+            - WINDow :  In the WINDow (zoomed or delayed) time base mode,
+            measurements are made in the zoomed time base if possible; otherwise, the
+            measurements are made in the main time base.
+            If chosen, we still need to set : position, Range, scale
+            (Not adequate for retrieving data.)
+
+            - XY: The X-Y mode plots one voltage against another. 
+            Therefore :TIMebase:RANGe, :TIMebase:POSition, and :TIMebase:REFerence commands are not available in this mode
+
+            - Roll : Idea for low frequeny signals.  In this mode, the waveform scrolls from right to left across the display
+        
+        """
+        self.dev.write(f":TIMebase:MODE {mode}")
+
+    # ----------------------------------------------- Get Time 
+    def get_time_range(self):
+        """ Retrieves the global time range in s"""
+        return self.dev.query(":TIMebase:RANGe?")
+
+    def get_time_division(self):
+        """ Retrieves the time division in s. """     
+        return self.dev.query(":TIMebase:SCALe?")
+
+    def get_time_delay(self):
+        """ Retrieves the time delay in s. """
+        return self.dev.query(":TIMebase:DELay?")
+
+    def get_time_reference(self):
+        """
+        Retrieves the time reference.
+
+        Returns:
+            str: One of the following time reference positions:
+                - 'LEFT'
+                - 'CENTER'
+                - 'RIGHT'
+        """
+        return self.dev.query(":TIMebase:REFerence?")
+
     #######################################################################################
     #                                Triggering                                           #
     #######################################################################################
@@ -319,10 +370,6 @@ class KeysightScope:
         return int(self.dev.query(':TER?'))  
     
     # ----------------------------------------------- Trigger Type
-    def get_trigger_type(self):
-        """Get the current trigger type."""
-        return self.dev.query(":TRIGger:MODE?")
-
     def set_trigger_type(self, type):
         """ valid types : EDGE, GLITch, PATTern, SHOLd, TRANsition, TV, SBUS1 """
         valid_types = {"EDGE", "GLITch", "PATTern", "SHOLd", "TRANsition", "TV", "SBUS1"}
@@ -332,11 +379,12 @@ class KeysightScope:
         
         self.dev.write(f":TRIGger:MODE {type}")
 
+    def get_trigger_type(self):
+        """Get the current trigger type."""
+        return self.dev.query(":TRIGger:MODE?")
+
     # ----------------------------------------------- Trigger source
-    def get_trigger_source(self):
-        return self.dev.query(":TRIGger:SOURce?")
-        
-    def set_trigger_source(self, source = "EXTernal"):
+    def set_trigger_source(self, source):
         """
           Valid source : CHANnel<n> , EXTernal , LINE" , WGEN}
           with n = channel number
@@ -348,14 +396,10 @@ class KeysightScope:
         except Exception as e: 
             raise LabscriptError("trigger_source: "+ e)
         
+    def get_trigger_source(self):
+        return self.dev.query(":TRIGger:SOURce?")
+    
     # ----------------------------------------------- Trigger Level
-    def get_trigger_level(self):
-        """Get the current trigger level."""
-        if self.trigger_source == "EXTernal":
-            return self.dev.query(":EXTernal:LEVel?")
-        else:
-            return self.dev.query(":TRIGger:LEVel?")
-
     def set_trigger_level(self, level,unit="V"):
         """ unit : V or mV """
         assert unit in ["V","mV"], LabscriptError("unit must be V or mV")
@@ -370,10 +414,18 @@ class KeysightScope:
             if self.verbose:
                 print("Done trigger level")
 
+    def get_trigger_level(self):
+        """Get the current trigger level."""
+        if self.trigger_source == "EXTernal":
+            return self.dev.query(":EXTernal:LEVel?")
+        else:
+            return self.dev.query(":TRIGger:LEVel?")
+        
     # ----------------------------------------------- Trigger Edge slope
     def set_trigger_edge_slope(self,slope):
         """
-        slope : POSitive, NEGative , EITHer , ALTernate
+        Args:
+            slope : POSitive, NEGative , EITHer , ALTernate
         """
         if self.trigger_type != "EDGE":
             raise LabscriptError("Trigger type must be \"EDGE\" ")
@@ -381,12 +433,19 @@ class KeysightScope:
         if self.verbose:
                 print("Done trigger slope")
     
+    def get_trigger_edge_slope(self):
+        """
+        Returns:
+            slope : POSitive, NEGative , EITHer , ALTernate
+        """
+        return self.dev.query(":TRIGger:EDGE:SLOPe?")
+    
     #######################################################################################
     #                            Channel Configurations                                   #
     #######################################################################################
 
     # ----------------------------------------------- Probe Attenuation
-    def set_probe_attenuation(self,attenuation, channel=1):
+    def set_probe_attenuation(self,attenuation, channel):
         """
         Sets the probe attenuation factor for the selected channel.
         Allowed range: 0.1 -  10000
@@ -400,6 +459,9 @@ class KeysightScope:
         except Exception as e:
             raise LabscriptError("Probe attenuation ration not in range 0.1 - 10000") 
 
+    def get_probe_attenuation(self,channel):
+        return self.dev.query(f":CHANnel{channel}:PROBe?")
+    
     # ----------------------------------------------- Display a channel
     def set_channel_display(self,channel,display):
         """"display a channel
@@ -409,13 +471,15 @@ class KeysightScope:
         """
         self.dev.write(f":CHANnel{channel}:DISPlay {display}")
 
+    def get_channel_display(self,channel):
+        return self.dev.query(f":CHANnel{channel}:DISPlay?")
+
     # ----------------------------------------------- Displayed channels
     def channels(self, all=True):
         ''' 
             Returns:  dictionary {str supported channels : bool currently displayed }
                       If "all" is False, only visible channels are returned
         '''
-
         # List with all Channels 
         all_channels = self.dev.query(":MEASure:SOURce?").rstrip().split(",") 
 
@@ -432,6 +496,7 @@ class KeysightScope:
             if all or visible:
                 vals[chan] = visible
         return vals
+    
     #######################################################################################
     #                                 Acquiring                                           #
     #######################################################################################
@@ -474,6 +539,8 @@ class KeysightScope:
         if self.verbose:
                 print("Done acquire type")
 
+    def get_acquire_type(self):
+        return self.dev.query(":ACQuire:TYPE?")
     # ----------------------------------------------- Acquire count
     def set_acquire_count(self,count):
         ''' In averaging and Normal mode, specifies the number of values 
@@ -486,10 +553,18 @@ class KeysightScope:
             if self.verbose:
                 print("Done trigger count")
 
+    def get_acquire_count(self):
+        return self.dev.query(":ACQuire:COUNT?")
     # ----------------------------------------------- Acquire source
     def set_waveform_source(self,channel):
-        ''' Set the location of the data transferred by WAVeform '''
-        self.dev.write(':WAVeform:SOURce ' + channel)    
+        ''' Set the location of the data transferred by WAVeform 
+        ARGS:
+            channel (str or int): the channel number
+        '''
+        self.dev.write(f":WAVeform:SOURce {channel}")    
+    
+    def get_waveform_source(self):
+        return self.dev.query(":WAVeform:SOURce?")
     
     #######################################################################################
     #                                 Reading                                             #
@@ -501,19 +576,16 @@ class KeysightScope:
          WORD: formatted data transfers 16-bit data as two bytes. 
          BYTE: formatted data is transferred as 8-bit bytes.
         '''
-        if format == "WORD":
+        if format in ["WORD", "BYTE"]:
             self.dev.write(f":WAVeform:FORMat {format}")
-            #self.dev.write(':WAVeform:BYTeorder LSBFirst') # MSBF is default, must be overridden for WORD to work
-            self.datatype = "H"
+            self.datatype = "H" if format == "WORD" else "B"
+            
             if self.verbose:
-                print("Done Waveform Word") 
+                print(f"Done Waveform {format}")
 
-        if format == "BYTE":
-            self.dev.write(f":WAVeform:FORMat {format}")
-            self.datatype = "B" 
-            if self.verbose:
-                print("Done Waveform Byte")
-
+    def get_waveform_format(self):
+        return self.dev.query(":WAVeform:FORMat?")
+    
     # ----------------------------------------------- Waveform Preample
     def get_preample_as_dict(self):
         """
@@ -546,6 +618,7 @@ class KeysightScope:
         """
         # configure the data type transfer 
         self.set_waveform_source(channel)
+        self.set_waveform_format(format=self.waveform_format) 
 
         # transfer the data and format into a sequence of strings
         raw = self.dev.query_binary_values(
@@ -555,8 +628,10 @@ class KeysightScope:
             container=np.array
             )
         
-        # create a dictionary of the waveform preamble
+        # Create a dictionary of the waveform preamble
         wfmp = self.get_preample_as_dict()
+        # print(raw)
+        # print(wfmp)
 
         # (see Page 667 , Keysight manual for programmer )
         n = np.arange(wfmp['points'] ) 
@@ -564,7 +639,6 @@ class KeysightScope:
         y = (   raw - wfmp['yreference']) * wfmp['yincrement'] + wfmp['yorigin']  # voltage = [(    data value    - yreference)  * yincrement] + yorigin  
 
         return wfmp, t, y
-
 
     #######################################################################################
     #                               Wave Generator                                        #
@@ -604,15 +678,15 @@ class KeysightScope:
         """
         self.dev(f":WGEN:VOLTage:LOW {voltage_low}")
 
-
 #####################################################################################################
 #####################################################################################################
 
 ## uncomment to test
 if __name__ == '__main__':
+    from models.Keysight_dsox1202g import osci_capabilities, osci_shot_configuration
 
-    scope = KeysightScope(addr='USB?*::INSTR', timeout=5)
-    print(scope.trigger_source)
+    # Testing on Keysigt
+    scope = KeysightScope()     # to complete
 
 
     # # Works perfect
@@ -659,3 +733,20 @@ if __name__ == '__main__':
     #  #   manufacturer, model
     # #)
     # print('Connected to {} (SN: {})'.format(model, sn))
+
+
+
+    # Old Code 
+        # Based on the serial number in osci_capabilities 
+    # rm = pyvisa.ResourceManager()
+    # devs = rm.list_resources()
+    # for idx, item in enumerate(devs):
+    #     try:
+    #         scope = rm.open_resource(devs[idx], timeout=200)
+    #         scopename = scope.query("*IDN?")
+    #         scope_serial_number = sub(r'\s+', '', scope.query(":SERial?")) # To get rid of white spaces
+    #         if scope_serial_number == self.serial_number:
+    #              self.dev = scope
+    #              print(f"Initialized: {scopename}")
+    #     except:
+    #         continue

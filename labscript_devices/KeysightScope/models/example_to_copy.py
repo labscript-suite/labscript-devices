@@ -9,8 +9,6 @@
 
 # -----------------------------------  Keysight DSOX1202G
 osci_shot_configuration = {
-    "description"     :     "Example Osci",
-
     # Channel unrelated
     "trigger_source"        :     "CHANnel1",       #  CHANnel1, CHANnel2 , EXTernal , LINE , WGEN  
     "trigger_level"         :     "0.5",            #
@@ -23,7 +21,7 @@ osci_shot_configuration = {
     "acquire_type"          :     "NORMal",         # NORMal , AVERage , HRESolution , PEAK (TO DO HRESOLUTION and PEAK)
     "acquire_count"         :      "8",            # AVERage=2-65536 ,HRESolution=1 ,NORMal=8 , PEAK=None
 
-    "waveform_format"       :      "WORD",          # WORD , BYTE          # WORD doesnt work 
+    "waveform_format"       :      "BYTE",          # WORD , BYTE (For some reason, WORD doesnt work)
 
     "time_reference"        :     "LEFT",           # LEFT , CENT , RIGH 
     "time_division"         :     "50",             #
@@ -44,7 +42,7 @@ osci_shot_configuration = {
     "probe_attenuation_1"     :     "1",              # 
 
     # ------------------------ Channel 2         
-    "channel_display_2"       :     "0",              # 0,1,2 or 3 = 3+1
+    "channel_display_2"       :     "0",              # 1 ON , 0 = OFF
 
     "voltage_division_2"      :     "2",              # 
     "voltage_division_unit_2" :     "V",              # V or mV
@@ -55,7 +53,8 @@ osci_shot_configuration = {
 
 # -----------------------------------  Keysight DSOX1202G
 osci_capabilities = {
-        "serial_number"   :     "CN61364200",
+        "description"     :     "Example Osci",      # Importamnt to find this osci
+        "serial_number"   :     "SerialNumber",        # important to write
         "band_width"      :       70e6,              # 70 MHz
         "sampling_rate"   :       2*10e9,            # 2GSa/s
         "max_memory"      :       1e6,               # 1Mpts

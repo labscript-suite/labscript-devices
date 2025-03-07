@@ -8,21 +8,19 @@ Two types of properties:
 
 # -----------------------------------  Keysight DSOX1202G
 osci_shot_configuration = {
-    "description"     :     "Example Osci",
-
     # Channel unrelated
     "trigger_source"        :     "CHANnel1",       #  CHANnel1, CHANnel2 , EXTernal , LINE , WGEN  
-    "trigger_level"         :     "0.5",            #
+    "trigger_level"         :     "1",            #
     "trigger_level_unit"    :     "V",              # V or mV
     "trigger_type"          :     "EDGE",           # 
     "trigger_edge_slope"    :     "POSitive",       # Only for trigger type is Edge 
 
-    "triggered"             :      False,           # Flag to keep track of triggers    (TO DO)    
+    # "triggered"             :      False,           # Flag to keep track of triggers    (Onyl when Trigger is External)    
 
     "acquire_type"          :     "NORMal",         # NORMal , AVERage , HRESolution , PEAK (TO DO HRESOLUTION and PEAK)
     "acquire_count"         :      "8",            # AVERage=2-65536 ,HRESolution=1 ,NORMal=8 , PEAK=None
 
-    "waveform_format"       :      "WORD",          # WORD , BYTE          # WORD doesnt work 
+    "waveform_format"       :      "WORD",          # WORD , BYTE          # Sometimes: despite the format is Word , the osci still sends Byte data, unclear ?   
 
     "time_reference"        :     "LEFT",           # LEFT , CENT , RIGH 
     "time_division"         :     "50",             #
@@ -44,9 +42,9 @@ osci_shot_configuration = {
     "probe_attenuation_1"     :     "1",              # 
 
     # ------------------------ Channel 2         
-    "channel_display_2"       :     "0",              # 0,1,2 or 3 = 3+1
+    "channel_display_2"       :     "0",              # 1 ON , 0 = OFF
 
-    "voltage_division_2"      :     "2",              # 
+    "voltage_division_2"      :     "1",              # 
     "voltage_division_unit_2" :     "V",              # V or mV
     "voltage_offset_2"        :     "0",              #
     "voltage_offset_unit_2"   :     "V",              # V or mV
@@ -54,12 +52,19 @@ osci_shot_configuration = {
 
 }
 
+{
+  'added_properties': {}, 
+  'start_order': 0, 
+  'stop_order': 0, 
+}
+
 
 # -----------------------------------  Keysight DSOX1202G
 osci_capabilities = {
+        "description"     :     "Example Osci",
         "serial_number"   :     "CN61364200",
         "band_width"      :       70e6,              # 70 MHz
-        "sampling_rate"   :       2*10e9,            # 2GSa/s
+        "sampling_rate"   :       2*1e9,            # 2GSa/s
         "max_memory"      :       1e6,               # 1Mpts
         "max_update_rate" :       5e4                # 50,000 waveforms/second update rate.   
 }
