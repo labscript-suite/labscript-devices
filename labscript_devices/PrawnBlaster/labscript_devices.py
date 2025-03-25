@@ -225,7 +225,7 @@ class PrawnBlaster(PseudoclockDevice):
         # Update the specs based on the clock frequency
         if self.clock_resolution != 2 / clock_frequency:
             factor = (2 / clock_frequency) / self.clock_resolution
-            self.clock_limit *= factor
+            self.clock_limit /= factor
             self.clock_resolution *= factor
             self.input_response_time *= factor
             self.trigger_delay *= factor

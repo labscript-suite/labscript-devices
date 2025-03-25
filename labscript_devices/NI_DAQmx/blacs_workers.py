@@ -108,8 +108,12 @@ class NI_DAQmxOutputWorker(Worker):
         written = int32()
         if self.AO_task is not None:
             AO_data = np.zeros(self.num_AO, dtype=np.float64)
-            for i in range(self.num_AO):
-                AO_data[i] = front_panel_values['ao%d' % i]
+            if self.MAX_name=='PXI1Slot2' or self.MAX_name=='PXI1Slot3':
+                for i in range(self.num_AO)[::4]:
+                    AO_data[i] = front_panel_values['ao%d' % i]
+            else:
+                for i in range(self.num_AO):
+                    AO_data[i] = front_panel_values['ao%d' % i]
             self.AO_task.WriteAnalogF64(
                 1, True, 1, DAQmx_Val_GroupByChannel, AO_data, written, None
             )
@@ -162,23 +166,6 @@ class NI_DAQmxOutputWorker(Worker):
             )
         else:
             DAQmxDisconnectTerms(self.clock_terminal, self.clock_mirror_terminal)
-
-    def set_connected_terminals_connected(self, connected):
-        """Connect the terminals in the connected terminals list.
-        Allows on daisy chaining of the clock line to/from other devices
-        that do not have a direct route (see Device Routes in NI MAX)."""
-        if self.connected_terminals is None:
-            return
-        if connected:
-            for terminal_pair in self.connected_terminals:
-                DAQmxConnectTerms(
-                    terminal_pair[0],
-                    terminal_pair[1],
-                    DAQmx_Val_DoNotInvertPolarity,
-                )
-        else:
-            for terminal_pair in self.connected_terminals:
-                DAQmxDisconnectTerms(terminal_pair[0], terminal_pair[1])
 
     def program_buffered_DO(self, DO_table):
         """Create the DO task and program in the DO table for a shot. Return a
@@ -337,9 +324,6 @@ class NI_DAQmxOutputWorker(Worker):
         # Mirror the clock terminal, if applicable:
         self.set_mirror_clock_terminal_connected(True)
 
-        # Mirror other terminals, if applicable
-        self.set_connected_terminals_connected(True)
-
         # Program the output tasks and retrieve the final values of each output:
         DO_final_values = self.program_buffered_DO(DO_table)
         AO_final_values = self.program_buffered_AO(AO_table)
@@ -391,9 +375,6 @@ class NI_DAQmxOutputWorker(Worker):
 
         # Remove the mirroring of the clock terminal, if applicable:
         self.set_mirror_clock_terminal_connected(False)
-
-        # Remove connections between other terminals, if applicable:
-        self.set_connected_terminals_connected(False)
 
         # Set up manual mode tasks again:
         self.start_manual_mode_tasks()
@@ -513,13 +494,6 @@ class NI_DAQmxAcquisitionWorker(Worker):
                 DAQmx_Val_Volts,
                 None,
             )
-
-        if self.AI_timebase_terminal is None:
-            # use internal default
-            pass
-        else:
-            self.task.SetSampClkTimebaseSrc(self.AI_timebase_terminal)
-            self.task.SetSampClkTimebaseRate(self.AI_timebase_rate)
 
         self.task.CfgSampClkTiming(
             "", rate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, num_samples

@@ -19,7 +19,6 @@ Called from the command line via
 
     python generate_subclasses.py
 
-For proper formatting of the code, you will need to install the `black` python package.
 """
 import os
 import warnings
