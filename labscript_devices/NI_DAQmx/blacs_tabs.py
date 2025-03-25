@@ -18,6 +18,7 @@ from blacs.device_base_class import DeviceTab
 from .utils import split_conn_AO, split_conn_DO
 from . import models
 import warnings
+import re
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -77,7 +78,7 @@ class NI_DAQmxTab(DeviceTab):
 
         # Create output objects:
         AO_prop = {}
-        if self.MAX_name == 'PXI1Slot2' or self.MAX_name=='PXI1Slot3':
+        if bool(re.fullmatch(r"PXI\d+Slot\d+", self.MAX_name)):
             for i in range(num_AO)[::4]:
                 AO_prop['ao%d' % i] = {
                     'base_unit': AO_base_units,
