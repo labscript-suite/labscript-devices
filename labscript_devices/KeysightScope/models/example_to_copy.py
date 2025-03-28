@@ -48,12 +48,11 @@ osci_shot_configuration = {
     "voltage_division_unit_2" :     "V",              # V or mV
     "voltage_offset_2"        :     "0",              #
     "voltage_offset_unit_2"   :     "V",              # V or mV
-    "probe_attenuation_2"     :     "1"               # 
+    "probe_attenuation_2"    :     "1"               # 
 }
 
 # -----------------------------------  Keysight DSOX1202G
 osci_capabilities = {
-        "description"     :     "Example Osci",      # Importamnt to find this osci
         "serial_number"   :     "SerialNumber",        # important to write
         "band_width"      :       70e6,              # 70 MHz
         "sampling_rate"   :       2*10e9,            # 2GSa/s

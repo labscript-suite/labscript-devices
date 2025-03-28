@@ -1,38 +1,6 @@
 import pyvisa
 import numpy as np
-import time
 from labscript.labscript import LabscriptError
-
-from re import sub
-from labscript_devices.KeysightScope.connection_manager import * 
-description = "Example Osci"
-
-"""
-Keysight Scopes 
-
-    Using the Oscilloscope requires 3 important steps 
-        * Initialsiation : which is setting up the osci for the desired measure
-        * Acquiring : the osci acquires the measurement and saves them in its memory
-        * Analysing : after finishing the measurement, we can display or transfer the data to the Pc
-
- To Improve:
-    ** PRIO
-  - what is the best time_range
-  - saving (dabei)
-  - segmented memory ?
-  - HResultion
-  - Keysight() KEysight in ct build
-  - over serial number
-  - set property
-  - other ni card
-
-    ** NOT PRIO
-  -  Configuration possibility for other trigger types other then EDGE
-
-  ** Ask Marcel
-  - Problem with DO , NiCard won't transtion to buffered 
-  -  subclasses marcel fragen , 
-"""
 
 
 class KeysightScope:
@@ -41,80 +9,119 @@ class KeysightScope:
                  verbose = False
                  ):
         
-        # --------------------------------- Connecting to device
-        rm = pyvisa.ResourceManager()
-        self.dev = rm.open_resource(address)
+        self.verbose = verbose
+        # --------------------------------- Connecting to device 
+        self.dev = pyvisa.ResourceManager().open_resource(address)
         print(f'Initialized: {self.dev.query("*IDN?")}')
         
-        # --------------------------------- Get device capabilities & Shot configurations
-        cm = connectionManager(address=address)
-        self.osci_capabilities = cm.osci_capabilities               # needed for the blacs worker
-        self.osci_shot_configuration = cm.osci_shot_configuration
-        self.verbose = verbose
-
-        # --------------------------------- Device capabilities     
-        for key, value in self.osci_capabilities.items():
-                setattr(self, key, value)
-
-        # --------------------------------- Shot configurations
-        for key, value in self.osci_shot_configuration.items():
-                setattr(self, key, value)
-
         # --------------------------------- Initialize device
-        self.reset_device()
-        self.dev.timeout = float(self.timeout)*1e3
-
+        self.reset_device() 
 
     #######################################################################################
-    #                          The configuration function                                 #
+    #                             Saving and Recalling                                    #
     ####################################################################################### 
+    def get_settings_dict(self,value):  
+        osci_shot_configuration = {
+        "configuration_number"  : str(value) ,
+        # Channel unrelated
+        "trigger_source"        : str(self.get_trigger_source()).strip(),       
+        "trigger_level"         : str(self.get_trigger_level()).strip(),            
+        "trigger_level_unit"    : "V",             
+        "trigger_type"          : str(self.get_trigger_type()).strip(),          
+        "trigger_edge_slope"    : str(self.get_trigger_edge_slope()).strip(),        
+        "triggered"             : False,             
 
-    def set_configuration(self, configuration : dict):
-        """ The purpose of this function is to configure the oscilloscope.
-        it will be called in transition to buffered in the blacs worker"""
+        "acquire_type"          : str(self.get_acquire_type()).strip(),         
+        "acquire_count"         : str(self.get_acquire_count()).strip(),            
+        "waveform_format"       : str(self.get_waveform_format()).strip(),          
 
-        # --------------------------------- Shot configurations
-        # By promoting the entries of the configuration dictionary to class attributs, 
-        # we gain some flexibility later on
-        for key, value in configuration.items():
-                setattr(self, key, value)
+        "time_reference"        : str(self.get_time_reference()).strip(),           
+        "time_division"         : str(self.get_time_division()).strip(),
+        "time_division_unit"    : "s",             
+        "time_delay"            : str(self.get_time_delay()).strip(),          
+        "time_delay_unit"       : "s",            
+        "timeout"               : "5",              # In seconds    
 
-        self.set_acquire_state(running=True)
-        self.set_waveform_format(format=self.waveform_format) 
-        
-        self.set_trigger_source(source= self.trigger_source)
-        self.set_trigger_level(level= self.trigger_level, unit=self.trigger_level_unit )
-        self.set_trigger_edge_slope(slope = self.trigger_edge_slope)
+        # Channel related
+        # ------------------------ Channel 1 
+        "channel_display_1"       : str(self.get_channel_display(channel=1)).strip(),            
+        "voltage_division_1"      : str(self.get_voltage_division()).strip(),             
+        "voltage_division_unit_1" : "V",              
+        "voltage_offset_1"        : str(self.get_voltage_offset()).strip(),              
+        "voltage_offset_unit_1"   : "V",              
+        "probe_attenuation_1"     : str(self.get_probe_attenuation(channel=1)).strip(),              
 
-        self.set_acquire_type(type=self.acquire_type)
-        self.set_acquire_count(count=self.acquire_count)
+        # ------------------------ Channel 2         
+        "channel_display_2"       : str(self.get_channel_display(channel=2)).strip(),             
+        "voltage_division_2"      : str(self.get_voltage_division(channel=2)).strip(),             
+        "voltage_division_unit_2" : "V",              
+        "voltage_offset_2"        : str(self.get_voltage_offset(channel=2)).strip(),              
+        "voltage_offset_unit_2"   : "V",              
+        "probe_attenuation_2"     : str(self.get_probe_attenuation(channel=2)).strip()               
+        }
+        return osci_shot_configuration
 
-        self.set_time_reference(reference=self.time_reference)
-        self.set_time_division(division= self.time_division, unit= self.time_division_unit) 
-        self.set_time_delay(delay=self.time_delay, unit= self.time_delay_unit)
+    def save_start_setup(self, location = 0):
+        """
+        Saves the oscilloscope current configuration to a specified location.
 
-        # Channel specific
+        This method sends a command to the oscilloscope to save the current configuration 
+        to the specified location. The default location is "0", but any valid location 
+        index can be provided.
 
-        # --- Channel 1
-        self.set_channel_display(channel="1",display=self.channel_display_1 )
-        self.set_voltage_division(division=self.voltage_division_1, unit= self.voltage_division_unit_1)
-        self.set_voltage_offset(offset=self.voltage_offset_1, unit=self.voltage_offset_unit_1)
-        self.set_probe_attenuation(attenuation=self.probe_attenuation_1,channel=1)
+        Args:
+            location (str or int, optional): The index of the configuration location to recall. 
+                                    Defaults to "0" if not provided.
+        """
+        self.dev.write(f":SAVE:SETup:STARt {location}")
 
-        # --- Channel 2
-        self.set_channel_display(channel="2",display=self.channel_display_2 )
-        self.set_probe_attenuation(channel=2, attenuation=self.probe_attenuation_2)
-        self.set_voltage_division(channel=2, division=self.voltage_division_2, unit= self.voltage_division_unit_2)
-        self.set_voltage_offset(channel=2, offset=self.voltage_offset_2, unit=self.voltage_offset_unit_2)
+    def recall_start_setup(self, location = 0):
+        """
+        Sets the oscilloscope configuration to a specified location.
 
+        This method sends a command to the oscilloscope to recall and apply the configuration 
+        stored at the specified location. The default location is "0", but any valid location 
+        index can be provided.
 
+        Args:
+            location (str or int, optional): The index of the configuration location to recall. 
+                                    Defaults to "0" if not provided.
+        """
+        self.dev.write(f":RECall:SETup:STARt {location}")
+
+    def get_saving_register(self):
+        """
+            Retrieves the configuration settings for all 10 available saving slots of the device.
+
+            Returns:
+                dict: A dictionary containing the settings for each of the 10 saving slots.
+                    The keys are the slot indices (0 to 9), and the values are dictionaries 
+                    with the configuration settings for the corresponding slot. If an error 
+                    occurs during the retrieval of a slot's settings, for example because the slot is empty, the value will be an 
+                    empty dictionary.
+            
+            Example:
+                saving_register = device.get_saving_register()
+                # saving_register will be a dictionary, e.g.:
+                # {0: {'setting1': value1, 'setting2': value2}, 
+                #  1: {}, 
+                #  2: {'setting1': value1}, 
+                #  ...}
+        """
+        saving_register = {}
+        for i in range(10):
+            self.recall_start_setup(f"{i}")
+            if "250" in self.dev.query(":SYSTem:ERRor?"):
+                saving_register[i] = {}
+            else: saving_register[i] = self.get_settings_dict(i)
+        return saving_register
+    
     #######################################################################################
     #                               Basic Commands                                        #
     #######################################################################################
 
-    # ----------------------------------------------- Running or not Running, that is the question!
-    def get_acquire_state(self):        # In other words , is it running ? 
-        """Determine if the oscilloscope is running.
+    def get_acquire_state(self):    
+        """Determine wether the oscilloscope is running.
         Returns: ``True`` if running, ``False`` otherwise
         """
         reg = int(self.dev.query(':OPERegister:CONDition?')) # The third bit of the operation register is 1 if the instrument is running
@@ -127,28 +134,19 @@ class KeysightScope:
             print("Done running")
 
     def reset_device(self):
-        self.dev.write(":RST*")
+        self.dev.write("*RST")
         if self.verbose:
             print("Done reset")
 
-    # ----------------------------------------------- Other stuff
-    def abort(self):        # brauchen wir das ? 
-        self.dev.write(':STOP')
-        return True
-
-    def digitize(self):
+    def digitize(self):                              # Not used yet  
         ''' Specialized RUN command. 
                         acquires a single waveforms according to the settings of the :ACQuire commands subsystem.
                         When the acquisition is complete, the instrument is stopped.
         '''
-        self.dev.query(":DIGitize")
+        self.dev.write(":DIG")
 
     def autoscale(self):
         self.dev.write(":AUToscale")
-
-    def shutdown(self):
-        """Closes VISA connection to device."""
-        self.dev.close()
 
     def clear_status(self):
         """
@@ -167,9 +165,6 @@ class KeysightScope:
     def unlock(self):
         self.dev.write(':SYSTem:LOCK 0')
 
-    def set_date_time(self):
-            self.sendrecv('DATE "' + time.strftime('%Y-%m-%d',time.localtime()) + '"') # set the date
-            self.sendrecv('TIME "' + time.strftime('%H:%M:%S',time.localtime()) + '"') # set the time
     #######################################################################################
     #                        Setting Axes (Voltage & Time)                                #
     #######################################################################################
@@ -360,7 +355,7 @@ class KeysightScope:
         ''' Single Button '''
         self.dev.write(":SINGle")
     
-    def get_trigger_event(self):                    # how to make use of this ?
+    def get_trigger_event(self):                     # Not used yet
         """
         whether the osci was triggered or not
         return: 
@@ -397,7 +392,8 @@ class KeysightScope:
             raise LabscriptError("trigger_source: "+ e)
         
     def get_trigger_source(self):
-        return self.dev.query(":TRIGger:SOURce?")
+        self.trigger_source = self.dev.query(":TRIGger:SOURce?")
+        return self.trigger_source
     
     # ----------------------------------------------- Trigger Level
     def set_trigger_level(self, level,unit="V"):
@@ -416,6 +412,7 @@ class KeysightScope:
 
     def get_trigger_level(self):
         """Get the current trigger level."""
+        
         if self.trigger_source == "EXTernal":
             return self.dev.query(":EXTernal:LEVel?")
         else:
@@ -570,19 +567,6 @@ class KeysightScope:
     #                                 Reading                                             #
     #######################################################################################
 
-    # ----------------------------------------------- Waveform format
-    def set_waveform_format(self, format):
-        ''' Sets the data transmission mode for waveform data points. 
-         WORD: formatted data transfers 16-bit data as two bytes. 
-         BYTE: formatted data is transferred as 8-bit bytes.
-        '''
-        if format in ["WORD", "BYTE"]:
-            self.dev.write(f":WAVeform:FORMat {format}")
-            self.datatype = "H" if format == "WORD" else "B"
-            
-            if self.verbose:
-                print(f"Done Waveform {format}")
-
     def get_waveform_format(self):
         return self.dev.query(":WAVeform:FORMat?")
     
@@ -609,7 +593,7 @@ class KeysightScope:
         return dict(zip(keys, preamble_val))
 
     # ----------------------------------------------- Waveform function
-    def waveform(self, channel='CHANnel1'):
+    def waveform(self, waveform_format="BYTE" ,channel='CHANnel1' ):
         """ 
         returns:  dict 
             * Waveform preample : List, as set by the 'Record length' setting in the 'Acquisition' menu.
@@ -618,7 +602,19 @@ class KeysightScope:
         """
         # configure the data type transfer 
         self.set_waveform_source(channel)
-        self.set_waveform_format(format=self.waveform_format) 
+
+        # Sets the data transmission mode for waveform data points. 
+                # WORD: formatted data transfers 16-bit data as two bytes. 
+                # BYTE: formatted data is transferred as 8-bit bytes.
+        if waveform_format in ["WORD", "BYTE"]:
+            self.dev.write(f":WAVeform:FORMat {waveform_format}")
+            self.datatype = "H" if waveform_format == "WORD" else "B"
+            
+            if self.verbose:
+                print(f"Done Waveform {waveform_format}")
+        else : 
+            raise KeyError("Waveform format must be WORD or BYTE")
+
 
         # transfer the data and format into a sequence of strings
         raw = self.dev.query_binary_values(
@@ -630,8 +626,6 @@ class KeysightScope:
         
         # Create a dictionary of the waveform preamble
         wfmp = self.get_preample_as_dict()
-        # print(raw)
-        # print(wfmp)
 
         # (see Page 667 , Keysight manual for programmer )
         n = np.arange(wfmp['points'] ) 
@@ -672,81 +666,9 @@ class KeysightScope:
         """
         self.dev(f":WGEN:VOLTage:HIGH {voltage_high}")
 
-    def set_wgen_high(self, voltage_low= 0):
+    def set_wgen_low(self, voltage_low= 0):
         """
         in V : Low level of the signal
         """
         self.dev(f":WGEN:VOLTage:LOW {voltage_low}")
 
-#####################################################################################################
-#####################################################################################################
-
-## uncomment to test
-if __name__ == '__main__':
-    from models.Keysight_dsox1202g import osci_capabilities, osci_shot_configuration
-
-    # Testing on Keysigt
-    scope = KeysightScope()     # to complete
-
-
-    # # Works perfect
-    # def transition_to_manual():
-
-    #     channels = scope.channels()
-    #     data_dict = {}           # Create Dict chanel - data
-    #     vals = {}
-    #     wtype = [('t', 'float')]     
-    #     print('Downloading...')
-
-    #     for ch, enabled in channels.items():
-    #         if enabled:
-    #             data_dict[ch], t, vals[ch] = scope.waveform(
-    #                 ch,
-    #                 int16= False                               # THis was : self.scope_params.get('int16', False),           
-    #             )
-    #             wtype.append((ch, 'float'))
-
-    #     # Collect all data in a structured array
-    #     data = np.empty(len(t), dtype=wtype)
-    #     data['t'] = t
-    #     for ch in vals:
-    #         data[ch] = vals[ch]
-    #     print(data)
-
-    # def transition_to_buffered():
-    #     scope.unlock()
-    #     scope.write(':ACQuire:TYPE AVERage')
-    #     scope.set_acquire_state(True)
-    #     return {}
-    
-
-
-    # transition_to_manual()
-    #transition_to_buffered()
-
-
-
-    # to improve first connection
-    # manufacturer, model, sn, revision = self.scope.idn.split(',')
-    # #assert manufacturer.lower() == 'tektronix'      
-    # #"Device is made by {:s}, not by Tektronix, and is actually a {:s}".format(
-    #  #   manufacturer, model
-    # #)
-    # print('Connected to {} (SN: {})'.format(model, sn))
-
-
-
-    # Old Code 
-        # Based on the serial number in osci_capabilities 
-    # rm = pyvisa.ResourceManager()
-    # devs = rm.list_resources()
-    # for idx, item in enumerate(devs):
-    #     try:
-    #         scope = rm.open_resource(devs[idx], timeout=200)
-    #         scopename = scope.query("*IDN?")
-    #         scope_serial_number = sub(r'\s+', '', scope.query(":SERial?")) # To get rid of white spaces
-    #         if scope_serial_number == self.serial_number:
-    #              self.dev = scope
-    #              print(f"Initialized: {scopename}")
-    #     except:
-    #         continue

@@ -1,5 +1,5 @@
 """
-*************************** DON't DELETE
+*************************** DON't DELETE THIS FILE
 Idea:
 
     - Initializing a device for experiments starts by adding it to the connection table file.
@@ -21,6 +21,7 @@ Idea:
 
 # -----------------------------------  Keysight DSOX1202G
 default_osci_shot_configuration = {
+    "configuration_number"  :     None,                 # General Setup Number
     # Channel unrelated
     "trigger_source"        :     None,                 #  CHANnel1, CHANnel2 , EXTernal , LINE , WGEN  
     "trigger_level"         :     None,                 #
@@ -65,8 +66,7 @@ default_osci_shot_configuration = {
 
 # -----------------------------------  Keysight DSOX1202G
 default_osci_capabilities = {
-        "description"     :       None,      # Importamnt to find this osci
-        "serial_number"   :       None,      # important to write
+        "serial_number"   :       None,      # Important to write
         "band_width"      :       None,      # 70 MHz
         "sampling_rate"   :       None,      # 2GSa/s
         "max_memory"      :       None,      # 1Mpts

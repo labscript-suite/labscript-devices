@@ -1,6 +1,6 @@
-from labscript import TriggerableDevice, LabscriptError, set_passed_properties ,LabscriptError, AnalogIn
+from labscript import TriggerableDevice, LabscriptError, set_passed_properties ,LabscriptError,set_passed_properties
 
-## ---------------------------------------------------------------New imports
+# ---------------------------------------------------------------New imports
 from labscript_devices.KeysightScope.connection_manager import * 
 from labscript_devices.KeysightScope.models.default_properties import default_osci_capabilities, default_osci_shot_configuration
 
@@ -8,51 +8,57 @@ from labscript_devices.KeysightScope.models.default_properties import default_os
 
 class KeysightScope(TriggerableDevice):
     """
-    Defines the interface between 
-        the labscript API and generates hardware instructions that can be saved to the shot h5 file.
-    A labscript_device for Keysight oscilloscopes (DSOX1202G) using a visa interface.
+    A labscript_device for Keysight oscilloscopes (1200 X-Series and EDUX1052A/G) using a visa interface.
           - connection_table_properties (set once)
           - device_properties (set per shot)
     """
 
     @set_passed_properties(
         property_names = {
-            'connection_table_properties': list(default_osci_capabilities.keys()),
-            'device_properties': list(default_osci_shot_configuration.keys())
+            'connection_table_properties':  list(default_osci_capabilities.keys()) ,
+            'device_properties' : ["configuration_number"]
             }
         )
     def __init__(self, 
                  name, 
                  parent_device, 
-                 connection,
                  serial_number,
+                 connection = "trigger",
                  **kwargs):
-        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) # parentless=False # connetion = "trigger"
+        TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) 
 
         self.name = name
 
         cm = connectionManager(serial_number)
         self.BLACS_connection = cm.get_address_from_serial_number()
-        osci_capabilities = cm.osci_capabilities
-        osci_shot_configuration = cm.osci_shot_configuration
 
-        set_passed_properties( 
-            property_names = {
-                'connection_table_properties' : list(osci_capabilities.keys()) ,
-                "device_properties": list(osci_shot_configuration.keys())
-                } 
-            ) 
-        
+        self.triggered = False              # Device can only be triggered zero or one time
+        self.configuration_number = None    # Sets the configuraton slot
+
         # --------------------------------- Device properties
-        for key,value in osci_capabilities.items():
+        self.osci_capabilities = cm.osci_capabilities
+        for key,value in self.osci_capabilities.items():
             setattr(self,key,value)
-        # --------------------------------- Shot configurations
-        for key, value in osci_shot_configuration.items():
-            setattr(self, key, value)
 
-        # Device can only be triggered zero or one time
-        self.triggered = False 
+        
 
+    def set_config(self,configuration_number):
+        """
+        Change the configuration of the oscilloscope to the specified configuration number.
+
+        Args:
+            configuration_number (str or int): The number of the configuration to switch to (0-9).
+            
+        Raises:
+            LabscriptError: If the configuration number is not between 0 and 9.
+        """
+        if not (0 <= configuration_number <= 9):
+            raise LabscriptError("Value must be between 0 and 9")
+        
+        self.configuration_number = configuration_number
+        #setattr(self,'configuration_number', configuration_number)
+
+    
 
     def trigger_at(self, t, duration ):
         if self.triggered:
@@ -63,6 +69,10 @@ class KeysightScope(TriggerableDevice):
 
     def generate_code(self, hdf5_file, *args): 
         TriggerableDevice.generate_code(self, hdf5_file)
+
+        hdf5_file[f'/devices/{self.name}'].attrs["configuration_number"] = self.configuration_number
+
+
         
         
 
