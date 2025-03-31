@@ -130,7 +130,7 @@ class KeysightScopeWorker(Worker):
         # over-ride this method if remote value check is supported
         return {}
     
-    # ------------------------------------------ blacs Tabs functions
+    # ------------------------------------------ Blacs Tabs functions
     def shutdown(self):
         rich_print(f"====== transition to manual: ======", color= PURPLE)
         return self.scope.close()
@@ -151,12 +151,6 @@ class KeysightScopeWorker(Worker):
         self._refresh_configuration_register(value , new_configuration)
         return new_configuration
     
-    # def load_slot_config(self,value):
-    #     self.scope.recall_start_setup(location= value)
-    #     new_configuration = self.scope.get_settings_dict(value)
-    #     self._refresh_configuration_register(value , new_configuration)
-    #     return new_configuration
-
     def default_config(self, value):
         self.scope.reset_device()
         self.scope.save_start_setup(value)
