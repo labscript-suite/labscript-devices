@@ -1,10 +1,18 @@
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties ,LabscriptError,set_passed_properties
+import  h5py
 
 # ---------------------------------------------------------------New imports
 from labscript_devices.KeysightScope.connection_manager import * 
-from labscript_devices.KeysightScope.models.default_properties import default_osci_capabilities, default_osci_shot_configuration
 
 
+default_osci_capabilities = [    # Example:  Keysight DSOX1202G
+        "serial_number"   ,      # Serial number Must be given when initializing the Oscilloscope
+        "band_width"      ,      # 70 MHz
+        "sampling_rate"   ,      # 2GSa/s
+        "max_memory"      ,      # 1Mpts
+        "max_update_rate"        # 50,000 waveforms/second update rate.   
+
+]
 
 class KeysightScope(TriggerableDevice):
     """
@@ -15,8 +23,8 @@ class KeysightScope(TriggerableDevice):
 
     @set_passed_properties(
         property_names = {
-            'connection_table_properties':  list(default_osci_capabilities.keys()) ,
-            'device_properties' : ["configuration_number"]
+            'connection_table_properties':  default_osci_capabilities,
+            'device_properties' : ["configuration_number","triggered", "timeout"]
             }
         )
     def __init__(self, 
@@ -24,24 +32,26 @@ class KeysightScope(TriggerableDevice):
                  parent_device, 
                  serial_number,
                  connection = "trigger",
+                 timeout = 5,
                  **kwargs):
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) 
 
-        self.name = name
-
+        # --------------------------------- Connection Manager
         cm = connectionManager(serial_number)
         self.BLACS_connection = cm.get_address_from_serial_number()
 
-        self.triggered = False              # Device can only be triggered zero or one time
-        self.configuration_number = None    # Sets the configuraton slot
-
-        # --------------------------------- Device properties
+        # --------------------------------- Device capabilities
         self.osci_capabilities = cm.osci_capabilities
         for key,value in self.osci_capabilities.items():
             setattr(self,key,value)
 
-        
+        # --------------------------------- Class attributes
+        self.name = name
+        self.triggered = False              # Device can only be triggered Zero or one time
+        self.configuration_number = None    # Sets the configuraton slot
+        self.timeout = timeout
 
+        
     def set_config(self,configuration_number):
         """
         Change the configuration of the oscilloscope to the specified configuration number.
@@ -56,9 +66,7 @@ class KeysightScope(TriggerableDevice):
             raise LabscriptError("Value must be between 0 and 9")
         
         self.configuration_number = configuration_number
-        #setattr(self,'configuration_number', configuration_number)
 
-    
 
     def trigger_at(self, t, duration ):
         if self.triggered:
@@ -67,14 +75,16 @@ class KeysightScope(TriggerableDevice):
         self.trigger(t, duration)
 
 
-    def generate_code(self, hdf5_file, *args): 
+    def generate_code(self, hdf5_file, *args):                  
         TriggerableDevice.generate_code(self, hdf5_file)
 
-        hdf5_file[f'/devices/{self.name}'].attrs["configuration_number"] = self.configuration_number
+        if self.configuration_number is not None:
+            self.set_property('configuration_number', self.configuration_number, location='device_properties', overwrite=True)
+
+        if self.triggered:
+            self.set_property('triggered', self.triggered , location='device_properties', overwrite=True)
 
 
-        
-        
 
 
 

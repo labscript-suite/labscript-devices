@@ -1,15 +1,18 @@
 import pyvisa
 import numpy as np
 from labscript.labscript import LabscriptError
+from labscript_devices.KeysightScope.connection_manager import unit_conversion
 
 
-class KeysightScope:
+
+class KeysightScope: 
     def __init__(self,
                  address,
                  verbose = False
                  ):
         
         self.verbose = verbose
+
         # --------------------------------- Connecting to device 
         self.dev = pyvisa.ResourceManager().open_resource(address)
         print(f'Initialized: {self.dev.query("*IDN?")}')
@@ -21,6 +24,12 @@ class KeysightScope:
     #                             Saving and Recalling                                    #
     ####################################################################################### 
     def get_settings_dict(self,value):  
+        """
+          Returns a configuration dictionary for the oscilloscope memory slot specified by 'value'.
+          Args:
+            value (int): The memory slot number of the oscilloscope from which to retrieve the configuration.
+
+        """
         osci_shot_configuration = {
         "configuration_number"  : str(value) ,
         # Channel unrelated
@@ -138,7 +147,7 @@ class KeysightScope:
         if self.verbose:
             print("Done reset")
 
-    def digitize(self):                              # Not used yet  
+    def digitize(self):                                
         ''' Specialized RUN command. 
                         acquires a single waveforms according to the settings of the :ACQuire commands subsystem.
                         When the acquisition is complete, the instrument is stopped.

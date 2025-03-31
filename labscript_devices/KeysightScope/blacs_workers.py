@@ -1,9 +1,10 @@
 import numpy as np
+import os
 import labscript_utils.h5_lock
 import h5py
 from zprocess import rich_print
 from blacs.tab_base_classes import Worker
-import labscript_utils.properties
+from  labscript_utils import properties
 
 from matplotlib import pyplot as plt
 from labscript_devices.KeysightScope.connection_manager import BLUE,GREEN,PURPLE
@@ -36,25 +37,32 @@ class KeysightScopeWorker(Worker):
         self.device_name = device_name
 
         with h5py.File(self.h5file, 'r+') as f: 
+            
+            # ----------------------------------------- Get device properties
+            self.activated_configuration = properties.get(f, device_name, 'device_properties')["configuration_number"]
+            self.triggered = properties.get(f, device_name, 'device_properties')["triggered"]
+            self.timeout = properties.get(f, device_name, 'device_properties')["timeout"]
 
-            self.activated_configuration = labscript_utils.properties.get(f, device_name, "device_properties")["configuration_number"]
             self.current_configuration =  self.configuration_register[int(self.activated_configuration)]
   
             # ----------------------------------------- Error handling
+            # --- Finish if no trigger
+            if not self.triggered:
+                return {}
+            
             # --- Trigger source must be external
-            trigger_source =  self.device_properties["trigger_source"]                      
+            trigger_source =  self.current_configuration["trigger_source"]                      
             if not (trigger_source == "EXT" or trigger_source == "EXTernal"):
                 raise KeyError("Trigger source must be an external trigger source (EXT), not channel")
             
-            # ----------------------------------------- Making Sure
-            self.triggered = self.device_properties["triggered"]
-            print("================== Triggered ", self.triggered)  
-            print("================== Current config ", self.current_configuration)
+            # ----------------------------------------- Update configuration dictionary
+            self.current_configuration["triggered"] = self.triggered
+            self.current_configuration["timeout"] = self.timeout
 
-            
+
         # ----------------------------------------- Setting the oscilloscope
         self.scope.recall_start_setup(self.activated_configuration)
-        self.scope.dev.timeout = 1e3 *float( self.device_properties.get('timeout', 5))      # Set Timeout
+        self.scope.dev.timeout = 1e3 *float(self.timeout)      # Set Timeout
         self.scope.single()
 
         self.buffered_mode = True       # confirm that we buffered

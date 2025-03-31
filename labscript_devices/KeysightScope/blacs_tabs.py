@@ -7,7 +7,6 @@ from blacs.device_base_class import DeviceTab
 import os
 import sys
 from PyQt5.QtWidgets import * 
-from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
 from PyQt5.QtCore import QSize
 from PyQt5 import uic
 
@@ -50,11 +49,7 @@ class KeysightScopeTab(DeviceTab):
             self.load_button = self.osci_widget.findChild(QPushButton, f"loadButton_{i}")
             self.load_button.clicked.connect(lambda clicked, i=i: self.load_current_config(i))
 
-            # Connect load buttons slot (load slot)
-            self.load_button = self.osci_widget.findChild(QPushButton, f"loadButtonSlot_{i}")
-            self.load_button.clicked.connect(lambda clicked, i=i: self.load_slot_config(i))
-
-            # connect reset buttons (default buttons)
+            # Connect reset buttons (default buttons)
             self.default_button = self.osci_widget.findChild(QPushButton, f"defaultButton_{i}")
             self.default_button.clicked.connect(lambda clicked, i=i: self.default_config(i))
 
@@ -81,11 +76,6 @@ class KeysightScopeTab(DeviceTab):
     def load_current_config(self,button_id, widget=None ):
         dict_config = yield(self.queue_work(self._primary_worker,'load_current_config',button_id))
         self.osci_widget.load_parameters(current_dict=dict_config , table_index= button_id)
-
-    # @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
-    # def load_slot_config(self,button_id, widget=None ):
-    #     dict_config = yield(self.queue_work(self._primary_worker,'load_slot_config',button_id))
-    #     self.osci_widget.load_parameters(current_dict=dict_config , table_index= button_id)
 
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
     def default_config(self,button_id, widget=None ):
@@ -118,8 +108,7 @@ class OsciTab(QWidget):
         
         self.label_active_setup = self.findChild(QLabel,"label_active_setup")
         self.button_group = QButtonGroup(self)
-
-        # yes_icon = self.style().standardIcon(QStyle.SP_DialogApplyButton)  
+ 
         reset_icon = self.style().standardIcon(QStyle.SP_BrowserReload) 
         load_icon = self.style().standardIcon(QStyle.SP_DialogOpenButton)
         
@@ -142,11 +131,6 @@ class OsciTab(QWidget):
             self.load_button.setObjectName(f"loadButton_{i}")
             self.load_button.setIcon(load_icon)
             self.load_button.setIconSize(QSize(16,16))
-
-            # self.load_button_slot = tab.findChild(QPushButton , "loadButtonSlot")
-            # self.load_button_slot.setObjectName(f"loadButtonSlot_{i}")
-            # self.load_button_slot.setIcon(load_icon)
-            # self.load_button.setIconSize(QSize(16,16))
             
             self.default_button = tab.findChild(QPushButton , "defaultButton")
             self.default_button.setObjectName(f"defaultButton_{i}")

@@ -3,66 +3,47 @@ import importlib
 import pyvisa
 from re import sub
 
-# ----------------------------------- Miscellaneous
 
-BLUE = '#66D9EF'
-PURPLE = '#AE81FF'
-GREEN = '#A6E22E'
-GREY = '#75715E' 
-
-unit_conversion = {
-            's' : 1  ,  
-            'ns': 1e-9,  # nanoseconds to seconds
-            'us': 1e-6,  # microseconds to seconds
-            'ms': 1e-3   # milliseconds to seconds
-            }
-# ----------------------------------- Miscellaneous
 
 class connectionManager:
     """ 
     This class manages the connection and initialization of supported Keysight oscilloscopes 
     using serial number or address for identifying and loading configuration files from the specified folder.
     """
-    def __init__(self, serial_number=None, address = None, folder_name="models"):
 
+    def __init__(self, 
+                 serial_number=None, 
+                 address = None, 
+                 folder_name="models"
+                 ):
+
+        # ----------------------------- Init
         self.serial_number = serial_number
         self.address = address
         self.folder_name = folder_name 
 
-        # List of the supported Keysight oscilloscopes
+        # ----------------------------- List of the supported Keysight oscilloscopes
         self.supported_models = ["EDUX1052A", "EDUX1052G", "DSOX1202A", "DSOX1202G", "DSOX1204A", "DSOX1204G"]
         
         # ----------------------------- Pyvisa ressources
         self.rm = pyvisa.ResourceManager()
         self.devs = self.rm.list_resources()
 
-        # ----------------------------- serial_number initialization
-        if self.serial_number is not None:
+        # ----------------------------- Serial_number initialization
+        if self.serial_number is None:
+            raise ValueError("Serial number must be provided")
+        else:
             self.current_file = self.pick_file_from_serial_number()         # Dictionary containing all the module attributes
 
             if self.current_file is None:
                 raise ValueError(f"File with serial number {self.serial_number} not found.")
         
-            #self.osci_shot_configuration = self.current_file["osci_shot_configuration"]
             self.osci_capabilities = self.current_file["osci_capabilities"]
 
 
-        # ----------------------------- Address initialization
-        if self.address is not None:    
-            self.current_file = self.pick_file_from_adress()                # Dictionary containing all the module attributes
 
-            if self.current_file is None:
-                raise ValueError(f"File with serial number {self.serial_number} not found.")
-            
-            self.osci_shot_configuration = self.current_file["osci_shot_configuration"]
-            self.osci_capabilities = self.current_file["osci_capabilities"]
-
-    
     def _get_files_from_folder(self):
-        """ 
-        Retrieves a list of all files in the specified folder (default is 'models') and returns their absolute paths.
-        Raises a FileNotFoundError if the folder does not exist.
-        """
+        """ Retrieves a list of all file paths in the specified folder (default is 'models') and returns their absolute paths. """
         file_path = os.path.abspath(__file__)                                   # Absolute path of this file
         containing_folder = os.path.dirname(file_path)                          # Absolute path of the containing folder
         keysight_scope_dir = os.path.join(containing_folder, self.folder_name)  # Absolute path to the desired folder (default is "models")
@@ -71,7 +52,7 @@ class connectionManager:
         if not os.path.exists(keysight_scope_dir):
             raise FileNotFoundError(f"The folder '{self.folder_name}' does not exist in the KeysightScope directory.")
         
-        # Get all files in the folder
+        # Get all file paths in the folder
         files = [os.path.abspath(os.path.join(keysight_scope_dir, f)) for f in os.listdir(keysight_scope_dir) if os.path.isfile(os.path.join(keysight_scope_dir, f))]
         return files
     
@@ -121,7 +102,6 @@ class connectionManager:
         if serial_number is None:
             serial_number = self.serial_number
 
-  
         is_right_model= False
         is_right_serial_number = False
 
@@ -148,11 +128,21 @@ class connectionManager:
         if not is_right_serial_number:
             raise ValueError(f"No Device with the serial number {serial_number} was found.")
                 
-    def pick_file_from_adress(self):
-        scope = self.rm.open_resource(self.address, timeout=500)
-        scope_serial_number = sub(r'\s+', '', scope.query(":SERial?"))
-        return self.pick_file_from_serial_number(scope_serial_number)
 
+# ----------------------------------- Miscellaneous
+
+BLUE = '#66D9EF'
+PURPLE = '#AE81FF'
+GREEN = '#A6E22E'
+GREY = '#75715E' 
+
+unit_conversion = {
+            's' : 1  ,  
+            'ns': 1e-9,  # nanoseconds to seconds
+            'us': 1e-6,  # microseconds to seconds
+            'ms': 1e-3   # milliseconds to seconds
+            }
+# ----------------------------------- Miscellaneous
 
 
 # ------------------------------------------------------------------------ Testing
