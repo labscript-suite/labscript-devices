@@ -4,7 +4,7 @@
 
 ### Plugin architecture for controlling experiment hardware
 
-[![Actions Status](https://github.com/labscript-suite/labscript-devices/workflows/Build%20and%20Release/badge.svg?branch=maintenance%2F3.0.x)](https://github.com/labscript-suite/labscript-devices/actions)
+[![Actions Status](https://github.com/labscript-suite/labscript-devices/workflows/Build%20and%20Release/badge.svg)](https://github.com/labscript-suite/labscript-devices/actions)
 [![License](https://img.shields.io/pypi/l/labscript-devices.svg)](https://github.com/labscript-suite/labscript-devices/raw/master/LICENSE.txt)
 [![Python Version](https://img.shields.io/pypi/pyversions/labscript-devices.svg)](https://python.org)
 [![PyPI](https://img.shields.io/pypi/v/labscript-devices.svg)](https://pypi.org/project/labscript-devices)
