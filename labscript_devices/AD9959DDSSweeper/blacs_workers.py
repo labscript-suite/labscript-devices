@@ -29,18 +29,17 @@ class AD9959DDSSweeperInterface(object):
 
         self.conn.write(b'reset\n')
         self.assert_OK()
-        self.conn.write(b'setclock 0 %d\n' % ref_clock_frequency)
-        self.assert_OK()
+        self.conn.write(b'setclock 0 %d %d\n' % (ref_clock_frequency, pll_mult))
+        # self.assert_OK()
         self.conn.write(b'mode 0 0\n')
         self.assert_OK()
-        self.conn.write(b'setmult %d\n' % pll_mult)
         self.assert_OK()
         self.conn.write(b'debug off\n')
         self.assert_OK()
 
     def assert_OK(self):
         resp = self.conn.readline().decode().strip()
-        assert resp == "ok", 'Exepcted "ok", received "%s"' % resp
+        assert resp == "ok", 'Expected "ok", received "%s"' % resp
 
     def get_version(self):
         '''Sends 'version' command, which retrieves the Pico firmware version.
@@ -66,14 +65,20 @@ class AD9959DDSSweeperInterface(object):
         Returns int status code.`'''
         self.conn.write(b'status\n')
         status_str = int(self.conn.readline().decode())
-        if status_str == 0:
-            return 'STOPPED'
-        elif status_str == 1:
-            return 'RUNNING'
-        elif status_str == 2:
-            return 'ABORTING'
+        status_map = {
+            0: 'STOPPED',
+            1: 'TRANSITION_TO_RUNNING',
+            2: 'RUNNING',
+            3: 'ABORTING',
+            4: 'ABORTED',
+            5: 'TRANSITION_TO_STOPPED'
+        }
+        self.conn.write(b'status\n')
+        status_str = int(self.conn.readline().decode())
+        if status_str in status_map:
+            return status_map[status_str]
         else:
-            raise LabscriptError(f'PrawnDO invalid status, returned {status_str}')
+            raise LabscriptError(f'Invalid status, returned {status_str}')
 
     def get_freqs(self):
         '''Responds with a dictionary containing

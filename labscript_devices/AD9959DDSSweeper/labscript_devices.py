@@ -106,6 +106,8 @@ class AD9959DDSSweeper(IntermediateDevice):
         DDSs = {}
         for output in self.child_devices:
             # Check that the instructions will fit into RAM:
+
+            # TODO: Change number of instructions
             if isinstance(output, DDS) and len(output.frequency.raw_output) > 4032 - 2: # -2 to include space for dummy instructions
                 raise LabscriptError('%s can only support 4030 instructions. ' % self.name +
                                      'Please decrease the sample rates of devices on the same clock, ' + 
