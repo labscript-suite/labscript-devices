@@ -26,6 +26,8 @@ class AD9959DDSSweeper(IntermediateDevice):
             'connection_table_properties': [
                 'name',
                 'com_port',
+                'sweep_mode',
+                'timing_mode',
                 'ref_clock_frequency',
                 'pll_mult',
             ]
@@ -33,11 +35,16 @@ class AD9959DDSSweeper(IntermediateDevice):
     )
 
     def __init__(self, name, parent_device, com_port,
+                 sweep_mode=0, timing_mode=0,
                  ref_clock_frequency=125e6, pll_mult=4, **kwargs):
         '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico.
         '''
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s' % com_port
+        
+        # store mode data
+        self.sweep_mode = sweep_mode
+        self.timing_mode = timing_mode
 
         # Check clocking
         if ref_clock_frequency * pll_mult > 500e6:
@@ -103,15 +110,40 @@ class AD9959DDSSweeper(IntermediateDevice):
         return data, scale_factor
 
     def generate_code(self, hdf5_file):
+
+        # external timing
+        max_instructions_map = {
+            'pico1' : 
+                {
+                'steps' : [16656, 8615, 5810, 4383],
+                'sweeps' : [8614, 4382, 2938, 2210]
+                },
+            'pico2' : 
+                {
+                'steps' : [34132, 17654, 11905, 8981],
+                'sweeps' : [17654, 8981, 6022, 4529]
+                }
+        }
+
         DDSs = {}
+        
+        num_channels = len(self.child_devices)
+
+        # later we will need something better to support the other modes
+        if self.sweep_mode > 0:
+            mode = 'sweeps'
+        else:
+            mode = 'steps'
+
         for output in self.child_devices:
             # Check that the instructions will fit into RAM:
-
-            # TODO: Change number of instructions
-            if isinstance(output, DDS) and len(output.frequency.raw_output) > 4032 - 2: # -2 to include space for dummy instructions
-                raise LabscriptError('%s can only support 4030 instructions. ' % self.name +
-                                     'Please decrease the sample rates of devices on the same clock, ' + 
-                                     'or connect %s to a different pseudoclock.' % self.name)
+            max_instructions = max_instructions_map['pico1'][mode][num_channels-1]
+            max_instructions -= 2 # -2 to include space for dummy instructions
+            if isinstance(output, DDS) and len(output.frequency.raw_output) > max_instructions:
+                raise LabscriptError(
+                                    f'{self.name} can only support {max_instructions} instructions. \
+                                    Please decrease the sample rates of devices on the same clock, \
+                                    or connect {self.name} to a different pseudoclock.')
             try:
                 prefix, channel = output.connection.split()
                 channel = int(channel)

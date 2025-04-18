@@ -15,7 +15,14 @@ from blacs.tab_base_classes import Worker
 import labscript_utils.h5_lock, h5py
 
 class AD9959DDSSweeperInterface(object):
-    def __init__(self, com_port, ref_clock_frequency, pll_mult):
+    def __init__(
+                self,
+                com_port,
+                sweep_mode,
+                timing_mode,
+                ref_clock_frequency,
+                pll_mult
+                ):
         global serial; import serial
 
         self.timeout = 0.1
@@ -24,6 +31,9 @@ class AD9959DDSSweeperInterface(object):
         version = self.get_version()
         print(f'Connected to version: {version}')
 
+        board = self.get_board()
+        print(f'Connected to board: {board}')
+
         current_status = self.get_status()
         print(f'Current status is {current_status}')
 
@@ -31,7 +41,7 @@ class AD9959DDSSweeperInterface(object):
         self.assert_OK()
         self.conn.write(b'setclock 0 %d %d\n' % (ref_clock_frequency, pll_mult))
         # self.assert_OK()
-        self.conn.write(b'mode 0 0\n')
+        self.conn.write(b'mode %d %d\n' % (sweep_mode, timing_mode))
         self.assert_OK()
         self.assert_OK()
         self.conn.write(b'debug off\n')
@@ -48,6 +58,9 @@ class AD9959DDSSweeperInterface(object):
         version_str = self.conn.readline().decode()
         version = tuple(int(i) for i in version_str.split('.'))
         assert len(version) == 3
+
+        # may be better logic for semantic versioning w/o version pkg
+        assert version[1] >= 4, f'Version {version} too low'
         return version
 
     def abort(self):
@@ -79,6 +92,12 @@ class AD9959DDSSweeperInterface(object):
             return status_map[status_str]
         else:
             raise LabscriptError(f'Invalid status, returned {status_str}')
+        
+    def get_board(self):
+        '''Responds with pico board version.'''
+        self.conn.write(b'board\n')
+        resp = self.conn.readline().decode()
+        return(resp)
 
     def get_freqs(self):
         '''Responds with a dictionary containing
@@ -133,8 +152,13 @@ class AD9959DDSSweeperInterface(object):
 
 class AD9959DDSSweeperWorker(Worker):
     def init(self):
-        self.intf = AD9959DDSSweeperInterface(self.com_port, self.ref_clock_frequency, self.pll_mult)
-
+        self.intf = AD9959DDSSweeperInterface(
+                                            self.com_port, 
+                                            self.sweep_mode,
+                                            self.timing_mode,
+                                            self.ref_clock_frequency, 
+                                            self.pll_mult
+                                            )
     def program_manual(self, values):
         self.intf.abort()
 
