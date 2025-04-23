@@ -27,36 +27,35 @@ An example connection table that uses the PrawnBlaster and sweeper:
 
 .. code-block:: python
 
-from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS
-from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
-from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
+    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS
+    from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
+    from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
 
-# prawnblaster for external timing
-prawn = PrawnBlaster(
-                    name='prawn',
-                    com_port='COM7',
-                    num_pseudoclocks=1
-                    )
-
-AD9959 = AD9959DDSSweeper(
-                        name='AD9959', 
-                        parent_device=prawn.clocklines[0],
-                        com_port='COM11',
-                        ref_clock_frequency=125e6,
-                        pll_mult=4
+    # prawnblaster for external timing
+    prawn = PrawnBlaster(
+                        name='prawn',
+                        com_port='COM7',
+                        num_pseudoclocks=1
                         )
 
+    AD9959 = AD9959DDSSweeper(
+                            name='AD9959', 
+                            parent_device=prawn.clocklines[0],
+                            com_port='COM11',
+                            ref_clock_frequency=125e6,
+                            pll_mult=4
+                            )
 
-chann0 = DDS( 'chann0', AD9959, 'channel 0')
-chann1 = DDS( 'chann1', AD9959, 'channel 1')
-chann2 = DDS( 'chann2', AD9959, 'channel 2')
-chann3 = DDS( 'chann3', AD9959, 'channel 3')
+
+    chann0 = DDS( 'chann0', AD9959, 'channel 0')
+    chann1 = DDS( 'chann1', AD9959, 'channel 1')
+    chann2 = DDS( 'chann2', AD9959, 'channel 2')
+    chann3 = DDS( 'chann3', AD9959, 'channel 3')
 
 
-t = 0
-start()
+    start()
 
-stop(t)
+    stop(1)
 
 .. note::
 
