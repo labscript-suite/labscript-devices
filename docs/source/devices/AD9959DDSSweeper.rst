@@ -9,7 +9,12 @@ Specifications
 Installation
 ~~~~~~~~~~~~
 
-Download the latest [dds-sweeper_rp2040.uf2 file for Pi Pico](https://github.com/QTC-UMD/dds-sweeper/releases/latest/download/dds-sweeper_rp2040.uf2) or [dds-sweeper_rp2350.uf2 file for Pi Pico 2](https://github.com/QTC-UMD/dds-sweeper/releases/latest/download/dds-sweeper_rp2350.uf2).
+- **For Pi Pico (RP2040)**:  
+  `dds-sweeper_rp2040.uf2 <https://github.com/QTC-UMD/dds-sweeper/releases/latest/download/dds-sweeper_rp2040.uf2>`_
+
+- **For Pi Pico 2 (RP2350)**:  
+  `dds-sweeper_rp2350.uf2 <https://github.com/QTC-UMD/dds-sweeper/releases/latest/download/dds-sweeper_rp2350.uf2>`_
+
 On your Raspberry Pi Pico, hold down the "bootsel" button while plugging the Pico into USB port on a PC (that must already be turned on).
 The Pico should mount as a mass storage device (if it doesn't, try again or consult the Pico documentation).
 Drag and drop the `.uf2` file into the mounted mass storage device.

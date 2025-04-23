@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/AD9959DDSSweeper/register_classes.py           #
+# /labscript_devices/AD9959DDSSweeper/runview_parsers.py            #
 #                                                                   #
 # Copyright 2025, Carter Turnbaugh                                  #
 #                                                                   #
