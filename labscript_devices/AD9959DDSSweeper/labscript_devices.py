@@ -126,7 +126,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         }
 
         DDSs = {}
-        
+        stat_DDSs = {}
         num_channels = len(self.child_devices)
 
         # later we will need something better to support the other modes
@@ -150,7 +150,12 @@ class AD9959DDSSweeper(IntermediateDevice):
             except:
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (output.description,output.name,str(output.connection)) + 
                                      'Format must be \'channel n\' with n from 0 to 4.')
-            DDSs[channel] = output
+            
+            # separate dynamic from static
+            if isinstance(output, DDS):
+                DDSs[channel] = output
+            elif isinstance(output, StaticDDS):
+                stat_DDSs[channel] = output
 
         if not DDSs:
             # if no channels are being used, no need to continue
@@ -180,9 +185,37 @@ class AD9959DDSSweeper(IntermediateDevice):
             out_table['amp%d' % i][:] = dds.amplitude.raw_output
             out_table['phase%d' % i][:] = dds.phase.raw_output
 
+        if stat_DDSs:
+            # conversion to AD9959 units
+            for connection in stat_DDSs:
+                if connection in range(4):
+                    dds = stat_DDSs[connection]   
+                    dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
+                    dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
+                    dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
+                else:
+                    raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (dds.description,dds.name,str(dds.connection)) + 
+                                        'Format must be \'channel n\' with n from 0 to 4.')
+                
+            static_dtypes = {
+                'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
+                'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
+                }
+            
+            # print(f'Static dtypes: {static_dtypes}')
+            static_table = np.zeros(1, dtype=static_dtypes)
+
+            for connection in list(stat_DDSs.keys()):
+                sdds = stat_DDSs[connection]
+                static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
+                static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
+                static_table['phase%d' % connection] = sdds.phase.raw_output[0]
+
         # write out data tables
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('dds_data', compression=config.compression, data=out_table)
+        if stat_DDSs:
+            grp.create_dataset('static_data', compression=config.compression, data=static_table)
         self.set_property('frequency_scale_factor', dds.frequency.scale_factor, location='device_properties')
         self.set_property('amplitude_scale_factor', dds.amplitude.scale_factor, location='device_properties')
         self.set_property('phase_scale_factor', dds.phase.scale_factor, location='device_properties')

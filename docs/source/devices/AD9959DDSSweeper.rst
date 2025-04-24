@@ -32,7 +32,7 @@ An example connection table that uses the PrawnBlaster and sweeper:
 
 .. code-block:: python
 
-    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS
+    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS, StaticDDS
     from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
     from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
 
@@ -53,8 +53,8 @@ An example connection table that uses the PrawnBlaster and sweeper:
 
 
     chann0 = DDS( 'chann0', AD9959, 'channel 0')
-    chann1 = DDS( 'chann1', AD9959, 'channel 1')
-    chann2 = DDS( 'chann2', AD9959, 'channel 2')
+    chann1 = StaticDDS( 'chann1', AD9959, 'channel 1')
+    #chann2 = DDS( 'chann2', AD9959, 'channel 2')
     chann3 = DDS( 'chann3', AD9959, 'channel 3')
 
 

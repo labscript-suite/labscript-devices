@@ -172,12 +172,24 @@ class AD9959DDSSweeperWorker(Worker):
             group = hdf5_file['devices'][device_name]
             dds_data = group['dds_data']
 
+            if 'static_data' in group:
+                stat_data = group['static_data']
+                stat_chans = set([int(n[4:]) for n in stat_data.dtype.names if n.startswith('freq')])
+
             if len(dds_data) == 0:
                 # Don't bother transitioning to buffered if no data
                 return {}
+            
+            if len(stat_data) > 0:
+                stat_array = stat_data[()]
+                for chan in sorted(stat_chans):
+                    freq = stat_array[f'freq{chan}']
+                    amp = stat_array[f'amp{chan}']
+                    phase = stat_array[f'phase{chan}']
+                    self.intf.set_output(chan, freq, amp, phase)
 
-            channels = set([int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')])
-            self.intf.set_channels(max(channels) + 1)
+            dyn_chans = set([int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')])
+            self.intf.set_channels(len(dyn_chans))
             self.intf.set_batch(dds_data[()])
             self.intf.stop(len(dds_data[()]))
 
