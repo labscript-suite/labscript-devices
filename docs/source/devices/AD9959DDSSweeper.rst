@@ -1,10 +1,27 @@
 AD9959DDSSweeper
 ================
 
+This labscript device controls the `DDSSweeper <https://github.com/qtc-umd/dds-sweeper>`_, an interface to the `AD9959 eval board <https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/eval-ad9959.html>`_ four channel direct digital synthesizer (DDS) using the `Raspberry Pi Pico <https://www.raspberrypi.org/documentation/rp2040/getting-started/>`_ platform.
 
 Specifications
 ~~~~~~~~~~~~~~
 
+The AD9959 evaluation board provides the following:
+
+* 4 DDS channels
+
+  - 100 kHz - 250 MHz output frequency with 32 bit frequency resolution (~0.1 Hz)
+  - Up to 0 dBm output power with 10 bit amplitude resolution
+  - Phase control with 16 bit resolution (~48 uRad)
+
+The Pico interface allows the evaluation board parameters to be reprogrammed during a sequence.
+At this time, stepping of frequency, amplitude, and phase parameters is supported.
+Parameter ramping is possible, but not currently supported by the labscript device (if support for this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`).
+The Pico interface provides the following:
+
+* 16,656 instructions distributed evenly among the configured channels; 16,656, 8,615, 5,810, and 4,383 for 1, 2, 3, 4 channels respectively.
+* External timing via a pseudoclock clockline. Interal timing is also possible, but not currently supported (if this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`).
+* The Pi Pico can be used as a (low quality) clock for the AD9959 evaluation board.
 
 Installation
 ~~~~~~~~~~~~
