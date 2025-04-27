@@ -20,6 +20,7 @@ class AD9959DDSSweeperInterface(object):
                 com_port,
                 sweep_mode,
                 timing_mode,
+                ref_clock_external,
                 ref_clock_frequency,
                 pll_mult
                 ):
@@ -39,7 +40,7 @@ class AD9959DDSSweeperInterface(object):
 
         self.conn.write(b'reset\n')
         self.assert_OK()
-        self.conn.write(b'setclock 0 %d %d\n' % (ref_clock_frequency, pll_mult))
+        self.conn.write(b'setclock %d %d %d\n' % (ref_clock_external, ref_clock_frequency, pll_mult))
         self.assert_OK()
         self.conn.write(b'mode %d %d\n' % (sweep_mode, timing_mode))
         self.assert_OK()

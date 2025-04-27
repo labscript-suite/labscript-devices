@@ -28,6 +28,7 @@ class AD9959DDSSweeper(IntermediateDevice):
                 'com_port',
                 'sweep_mode',
                 'timing_mode',
+                'ref_clock_external',
                 'ref_clock_frequency',
                 'pll_mult',
             ]
@@ -36,8 +37,9 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     def __init__(self, name, parent_device, com_port,
                  sweep_mode=0, timing_mode=0,
-                 ref_clock_frequency=125e6, pll_mult=4, **kwargs):
-        '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico.
+                 ref_clock_external=0, ref_clock_frequency=125e6, pll_mult=4, **kwargs):
+        '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico running the DDS Sweeper firmware (https://github.com/QTC-UMD/dds-sweeper).
+
         '''
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s' % com_port
@@ -51,6 +53,8 @@ class AD9959DDSSweeper(IntermediateDevice):
             raise ValueError('DDS system clock frequency must be less than 500 MHz')
         elif pll_mult > 1 and ref_clock_frequency * pll_mult < 100e6:
             raise ValueError('DDS system clock frequency must be greater than 100 MHz when using PLL')
+        elif not ref_clock_external and ref_clock_frequency > 133e6:
+            raise ValueError('ref_clock_frequency must be less than 133 MHz when clock is provided by Pi Pico')
 
         self.dds_clock = ref_clock_frequency * pll_mult
         self.clk_scale = 2**32 / self.dds_clock
