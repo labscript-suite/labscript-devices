@@ -139,6 +139,11 @@ class AD9959DDSSweeperInterface(object):
         if not resp.startswith('ready'):
             resp += ''.join([r.decode() for r in self.conn.readlines()])
             raise LabscriptError(f'setb command failed, got response {repr(resp)}')
+        ready_for_bytes = int(resp[len('ready for '):-len(' bytes\n')])
+        if ready_for_bytes != len(table.tobytes()):
+            self.conn.write(b'\0'*ready_for_bytes)
+            self.assert_OK()
+            raise LabscriptError(f'Device expected {ready_for_bytes}, but we only had {len(table.tobytes())}. Device mode likely incorrect.'
         self.conn.write(table.tobytes())
         self.assert_OK()
 
