@@ -40,6 +40,23 @@ class AD9959DDSSweeper(IntermediateDevice):
                  ref_clock_external=0, ref_clock_frequency=125e6, pll_mult=4, **kwargs):
         '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico running the DDS Sweeper firmware (https://github.com/QTC-UMD/dds-sweeper).
 
+        This labscript device provides up to four channels of DDS outputs. It is designed to be connected to a pseudoclock clockline.
+
+        Args:
+            name (str): python variable name to assign to the AD9959DDSSweeper
+            parent_device (:class:`~.ClockLine`):
+                Pseudoclock clockline used to clock DDS parameter changes.
+            com_port (str): COM port assigned to the AD9959DDSSweeper by the OS.
+                On Windows, takes the form of `COMd` where `d` is an integer.
+            sweep_mode (int):
+                The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
+                At this time, only steps are supported, so sweep_mode must be 0.
+            timing_mode (int):
+                The DDS Sweeper firmware can determine its own update times internally (in which case it only requires a starting trigger).
+                At this time, interal timing is not supported, so timing_mode must be 0.
+            ref_clock_external (int): Set to 0 to have Pi Pico provide the reference clock to the AD9959 eval board. Set to 1 for another source of reference clock for the AD9959 eval board.
+            ref_clock_frequency (float): Frequency of the reference clock. If ref_clock_external is 0, the Pi Pico system clock will be set to this frequency. If the PLL is used, ref_clock_frequency * pll_mult must be between 100 MHz and 500 MHz. If the PLL is not used, ref_clock_frequency must be less than 500 MHz.
+            pll_mult: the AD9959 has a PLL to multiply the reference clock frequency. Allowed values are 1 or 4-20.
         '''
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s' % com_port
