@@ -19,7 +19,6 @@ class AD9959DDSSweeperInterface(object):
                 self,
                 com_port,
                 sweep_mode,
-                timing_mode,
                 ref_clock_external,
                 ref_clock_frequency,
                 pll_mult
@@ -42,7 +41,7 @@ class AD9959DDSSweeperInterface(object):
         self.assert_OK()
         self.conn.write(b'setclock %d %d %d\n' % (ref_clock_external, ref_clock_frequency, pll_mult))
         self.assert_OK()
-        self.conn.write(b'mode %d %d\n' % (sweep_mode, timing_mode))
+        self.conn.write(b'mode %d 0\n' % sweep_mode)
         self.assert_OK()
         self.conn.write(b'debug off\n')
         self.assert_OK()
@@ -144,7 +143,7 @@ class AD9959DDSSweeperInterface(object):
         if ready_for_bytes != len(table.tobytes()):
             self.conn.write(b'\0'*ready_for_bytes)
             self.assert_OK()
-            raise LabscriptError(f'Device expected {ready_for_bytes}, but we only had {len(table.tobytes())}. Device mode likely incorrect.'
+            raise LabscriptError(f'Device expected {ready_for_bytes}, but we only had {len(table.tobytes())}. Device mode likely incorrect.')
         self.conn.write(table.tobytes())
         self.assert_OK()
 
@@ -160,10 +159,11 @@ class AD9959DDSSweeperWorker(Worker):
         self.intf = AD9959DDSSweeperInterface(
                                             self.com_port, 
                                             self.sweep_mode,
-                                            self.timing_mode,
+                                            self.ref_clock_external,
                                             self.ref_clock_frequency, 
                                             self.pll_mult
                                             )
+
     def program_manual(self, values):
         self.intf.abort()
 
