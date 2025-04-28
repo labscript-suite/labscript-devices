@@ -16,5 +16,5 @@ from labscript_devices import register_classes
 register_classes(
     'AD9959DDSSweeper',
     BLACS_tab='labscript_devices.AD9959DDSSweeper.blacs_tabs.AD9959DDSSweeperTab',
-    runviewer_parser='labscript_devices.AD9959DDSSweeper.runviewer_parser.AD9959DDSSweeperParser',
+    runviewer_parser='labscript_devices.AD9959DDSSweeper.runviewer_parsers.AD9959DDSSweeperParser',
 )
