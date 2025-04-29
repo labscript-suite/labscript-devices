@@ -18,6 +18,7 @@ class AD9959DDSSweeperInterface(object):
     def __init__(
                 self,
                 com_port,
+                pico_board,
                 sweep_mode,
                 ref_clock_external,
                 ref_clock_frequency,
@@ -31,6 +32,7 @@ class AD9959DDSSweeperInterface(object):
         Args:
             com_port (str): COM port assigned to the DDS Sweeper by the OS.
                 On Windows, takes the form of `COMd` where `d` is an integer.
+            pico_board (str): The version of pico board used, pico1 or pico2.
             sweep_mode (int):
                 The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
                 At this time, only steps are supported, so sweep_mode must be 0.
@@ -53,11 +55,28 @@ class AD9959DDSSweeperInterface(object):
             5: 'TRANSITION_TO_STOPPED'
         }
 
+        self.sys_clk_freq = ref_clock_frequency * pll_mult
+
+        # self.SI_to_tuning_words = {
+        #     'freq' : (2**32 - 1) / self.sys_clk_freq,
+        #     'amp' : 1023.0,
+        #     'phase' : 360.0 / 16384.0
+        #     }
+        
+        self.tuning_words_to_SI = {
+            'freq' : self.sys_clk_freq / (2**32 - 1) * 10.0,
+            'amp' : 1/1023.0,
+            'phase' : 360 / 16384.0 * 10.0
+        }
+        
+        self.subchnls = ['freq', 'amp', 'phase']
+
         version = self.get_version()
         print(f'Connected to version: {version}')
 
         board = self.get_board()
         print(f'Connected to board: {board}')
+        assert board.strip() == pico_board.strip(), f'firmware thinks {board} attached, labscript thinks {pico_board}'
 
         current_status = self.get_status()
         print(f'Current status is {current_status}')
@@ -208,61 +227,96 @@ class AD9959DDSSweeperWorker(Worker):
     def init(self):
         self.intf = AD9959DDSSweeperInterface(
                                             self.com_port, 
+                                            self.pico_board,
                                             self.sweep_mode,
                                             self.ref_clock_external,
                                             self.ref_clock_frequency, 
                                             self.pll_mult
                                             )
+        
+        self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
     def program_manual(self, values):
-        self.intf.abort()
+        # self.intf.abort()
 
         for chan in values:
             chan_int = int(chan[8:])
             self.intf.set_output(chan_int, values[chan]['freq'], values[chan]['amp'], values[chan]['phase'])
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+
+        # Store the initial values in case we have to abort and restore them:
+        self.initial_values = initial_values
+        # Store the final values for use during transition_to_manual:
         self.final_values = initial_values
+
+        dds_data = None
+        stat_data = None
 
         with h5py.File(h5file, 'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
-            dds_data = group['dds_data']
-
+            if 'dds_data' in group:
+                dds_data = group['dds_data'][()]
+                dyn_chans = set([int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')])
             if 'static_data' in group:
-                stat_data = group['static_data']
+                stat_data = group['static_data'][()]
                 stat_chans = set([int(n[4:]) for n in stat_data.dtype.names if n.startswith('freq')])
 
-            if len(dds_data) == 0:
-                # Don't bother transitioning to buffered if no data
-                return {}
-            
-            if len(stat_data) > 0:
-                stat_array = stat_data[()]
-                for chan in sorted(stat_chans):
-                    freq = stat_array[f'freq{chan}']
-                    amp = stat_array[f'amp{chan}']
-                    phase = stat_array[f'phase{chan}']
-                    self.intf.set_output(chan, freq, amp, phase)
+        if stat_data is not None:
+            stat_array = stat_data[:][0]
+            for chan in sorted(stat_chans):
+                freq = stat_array[f'freq{chan}']
+                amp = stat_array[f'amp{chan}']
+                phase = stat_array[f'phase{chan}']
+                self.intf.set_output(chan, freq, amp, phase)
+                self.final_values[f'channel {chan}'] = {
+                    'freq' : freq * self.intf.tuning_words_to_SI['freq'],
+                    'amp' : amp * self.intf.tuning_words_to_SI['amp'],
+                    'phase' : phase * self.intf.tuning_words_to_SI['phase']
+                }
 
-            dyn_chans = set([int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')])
+        if dds_data is not None:
             self.intf.set_channels(len(dyn_chans))
             self.intf.set_batch(dds_data[()])
             self.intf.stop(len(dds_data[()]))
 
-        self.intf.start()
+            last_entries = dds_data[-1]
+            for chan in sorted(dyn_chans):
+                freq = last_entries[f'freq{chan}']
+                amp = last_entries[f'amp{chan}']
+                phase = last_entries[f'phase{chan}']
+                self.final_values[f'channel {chan}'] = {
+                    'freq' : freq * self.intf.tuning_words_to_SI['freq'],
+                    'amp' : amp * self.intf.tuning_words_to_SI['amp'],
+                    'phase' : phase * self.intf.tuning_words_to_SI['phase']
+                }
+            self.intf.start()
 
-        return {}
+        if dds_data is None and stat_data is None:
+            self.logger.debug('No instructions to set')
+            return {}
+        
+        # self.logger.info(self.final_values)
+        return self.final_values
 
     def transition_to_manual(self):
-        if self.final_values:
-            self.program_manual(self.final_values)
+        self.logger.debug(f'Transitioning to manual, values are: {self.final_values} ')
+        status = self.intf.get_status()
+        self.logger.debug(f'Transitioning to manual, got status: {status}')
+
+        if status.strip().upper() == 'RUNNING':
+            self.logger.debug('Attempting to abort running')
+            self.intf.abort()
+
         return True
 
     def abort_buffered(self):
-        return self.transition_to_manual()
+        self.intf.abort()
+        values = self.initial_values # fix, and update smart cache
+        return True
 
     def abort_transition_to_buffered(self):
-        return self.transition_to_manual()
+        return self.abort_buffered()
 
     def shutdown(self):
         self.intf.close()

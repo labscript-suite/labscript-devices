@@ -20,12 +20,27 @@ import sys
 
 class AD9959DDSSweeper(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
+    allowed_boards = ['pico1', 'pico2']
+        # external timing
+    max_instructions_map = {
+        'pico1' : 
+            {
+            'steps' : [16656, 8615, 5810, 4383],
+            'sweeps' : [8614, 4382, 2938, 2210]
+            },
+        'pico2' : 
+            {
+            'steps' : [34132, 17654, 11905, 8981],
+            'sweeps' : [17654, 8981, 6022, 4529]
+            }
+    }
 
     @set_passed_properties(
         property_names={
             'connection_table_properties': [
                 'name',
                 'com_port',
+                'pico_board',
                 'sweep_mode',
                 'ref_clock_external',
                 'ref_clock_frequency',
@@ -35,7 +50,7 @@ class AD9959DDSSweeper(IntermediateDevice):
     )
 
     def __init__(self, name, parent_device, com_port,
-                 sweep_mode=0,
+                 pico_board='pico1', sweep_mode=0,
                  ref_clock_external=0, ref_clock_frequency=125e6, pll_mult=4, **kwargs):
         '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico running the DDS Sweeper firmware (https://github.com/QTC-UMD/dds-sweeper).
 
@@ -47,6 +62,7 @@ class AD9959DDSSweeper(IntermediateDevice):
                 Pseudoclock clockline used to clock DDS parameter changes.
             com_port (str): COM port assigned to the AD9959DDSSweeper by the OS.
                 On Windows, takes the form of `COMd` where `d` is an integer.
+            pico_board (str): The version of pico board used, pico1 or pico2.
             sweep_mode (int):
                 The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
                 At this time, only steps are supported, so sweep_mode must be 0.
@@ -56,6 +72,11 @@ class AD9959DDSSweeper(IntermediateDevice):
         '''
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s' % com_port
+        
+        if pico_board in self.allowed_boards:
+            self.pico_board = pico_board
+        else:
+            raise LabscriptError(f'Pico board specified not in {self.allowed_boards}')
         
         # store mode data
         self.sweep_mode = sweep_mode
@@ -127,21 +148,8 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     def generate_code(self, hdf5_file):
 
-        # external timing
-        max_instructions_map = {
-            'pico1' : 
-                {
-                'steps' : [16656, 8615, 5810, 4383],
-                'sweeps' : [8614, 4382, 2938, 2210]
-                },
-            'pico2' : 
-                {
-                'steps' : [34132, 17654, 11905, 8981],
-                'sweeps' : [17654, 8981, 6022, 4529]
-                }
-        }
 
-        DDSs = {}
+        dyn_DDSs = {}
         stat_DDSs = {}
         num_channels = len(self.child_devices)
 
@@ -153,7 +161,7 @@ class AD9959DDSSweeper(IntermediateDevice):
 
         for output in self.child_devices:
             # Check that the instructions will fit into RAM:
-            max_instructions = max_instructions_map['pico1'][mode][num_channels-1]
+            max_instructions = self.max_instructions_map[self.pico_board][mode][num_channels-1]
             max_instructions -= 2 # -2 to include space for dummy instructions
             if isinstance(output, DDS) and len(output.frequency.raw_output) > max_instructions:
                 raise LabscriptError(
@@ -161,75 +169,71 @@ class AD9959DDSSweeper(IntermediateDevice):
                                     Please decrease the sample rates of devices on the same clock, \
                                     or connect {self.name} to a different pseudoclock.')
             try:
+                # if output.connection in range(4):
                 prefix, channel = output.connection.split()
                 channel = int(channel)
+                assert channel in range(4), 'requested channel out of range'
             except:
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (output.description,output.name,str(output.connection)) + 
                                      'Format must be \'channel n\' with n from 0 to 4.')
             
             # separate dynamic from static
             if isinstance(output, DDS):
-                DDSs[channel] = output
+                dyn_DDSs[channel] = output
             elif isinstance(output, StaticDDS):
                 stat_DDSs[channel] = output
 
-        if not DDSs:
-            # if no channels are being used, no need to continue
-            return            
-
-        for connection in DDSs:
-            if connection in range(4):
-                dds = DDSs[connection]   
+        if dyn_DDSs:
+            for connection in dyn_DDSs:
+                dds = dyn_DDSs[connection]   
                 dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
                 dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
                 dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
-            else:
-                raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (dds.description,dds.name,str(dds.connection)) + 
-                                     'Format must be \'channel n\' with n from 0 to 4.')
 
-        dtypes = {'names':['%s%d' % (k, i) for i in DDSs for k in ['freq', 'amp', 'phase'] ],
-                  'formats':[f for i in DDSs for f in ('<u4', '<u2', '<u2')]}
+            dyn_dtypes = {'names':['%s%d' % (k, i) for i in dyn_DDSs for k in ['freq', 'amp', 'phase'] ],
+                    'formats':[f for i in dyn_DDSs for f in ('<u4', '<u2', '<u2')]}
 
-        clockline = self.parent_clock_line
-        pseudoclock = clockline.parent_device
-        times = pseudoclock.times[clockline]
+            clockline = self.parent_clock_line
+            pseudoclock = clockline.parent_device
+            times = pseudoclock.times[clockline]
 
-        out_table = np.zeros(len(times), dtype=dtypes)
+            dyn_table = np.zeros(len(times), dtype=dyn_dtypes)
 
-        for i, dds in DDSs.items():
-            out_table['freq%d' % i][:] = dds.frequency.raw_output
-            out_table['amp%d' % i][:] = dds.amplitude.raw_output
-            out_table['phase%d' % i][:] = dds.phase.raw_output
+            for i, dds in dyn_DDSs.items():
+                dyn_table['freq%d' % i][:] = dds.frequency.raw_output
+                dyn_table['amp%d' % i][:] = dds.amplitude.raw_output
+                dyn_table['phase%d' % i][:] = dds.phase.raw_output
 
         if stat_DDSs:
             # conversion to AD9959 units
             for connection in stat_DDSs:
-                if connection in range(4):
-                    dds = stat_DDSs[connection]   
-                    dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-                    dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
-                    dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
-                else:
-                    raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (dds.description,dds.name,str(dds.connection)) + 
-                                        'Format must be \'channel n\' with n from 0 to 4.')
+                dds = stat_DDSs[connection]   
+                dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
+                dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
+                dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
+                    
+                static_dtypes = {
+                    'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
+                    'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
+                    }
                 
-            static_dtypes = {
-                'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
-                'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
-                }
-            
-            # print(f'Static dtypes: {static_dtypes}')
-            static_table = np.zeros(1, dtype=static_dtypes)
+                static_table = np.zeros(1, dtype=static_dtypes)
 
-            for connection in list(stat_DDSs.keys()):
-                sdds = stat_DDSs[connection]
-                static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
-                static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
-                static_table['phase%d' % connection] = sdds.phase.raw_output[0]
+                for connection in list(stat_DDSs.keys()):
+                    sdds = stat_DDSs[connection]
+                    static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
+                    static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
+                    static_table['phase%d' % connection] = sdds.phase.raw_output[0]
 
+
+        # if no channels are being used, no need to continue
+        if not dyn_DDSs and not stat_DDSs:
+            return
+        
         # write out data tables
         grp = self.init_device_group(hdf5_file)
-        grp.create_dataset('dds_data', compression=config.compression, data=out_table)
+        if dyn_DDSs:
+            grp.create_dataset('dds_data', compression=config.compression, data=dyn_table)
         if stat_DDSs:
             grp.create_dataset('static_data', compression=config.compression, data=static_table)
         self.set_property('frequency_scale_factor', dds.frequency.scale_factor, location='device_properties')
