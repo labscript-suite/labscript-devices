@@ -47,6 +47,7 @@ start()
 t = 0
 
 osci_keysight.set_config(3)         # Must be called once at the start of each experiment shot
+t+= 0.5                             # We need to account for  configuration time of the oscilloscope         
 
 trigger_duration = 1e-4             # Example trigger duration
 osci_keysight.trigger_at(t=t, duration=trigger_duration)

@@ -27,18 +27,18 @@ class KeysightScope:
         """
           Returns a configuration dictionary for the oscilloscope memory slot specified by 'value'.
           Args:
-            value (int): The memory slot number of the oscilloscope from which to retrieve the configuration.
+            value (int or str): The memory slot number of the oscilloscope from which to retrieve the configuration.
 
         """
         osci_shot_configuration = {
         "configuration_number"  : str(value) ,
+
         # Channel unrelated
         "trigger_source"        : str(self.get_trigger_source()).strip(),       
         "trigger_level"         : str(self.get_trigger_level()).strip(),            
         "trigger_level_unit"    : "V",             
         "trigger_type"          : str(self.get_trigger_type()).strip(),          
-        "trigger_edge_slope"    : str(self.get_trigger_edge_slope()).strip(),        
-        "triggered"             : False,             
+        "trigger_edge_slope"    : str(self.get_trigger_edge_slope()).strip(),                  
 
         "acquire_type"          : str(self.get_acquire_type()).strip(),         
         "acquire_count"         : str(self.get_acquire_count()).strip(),            
@@ -49,8 +49,7 @@ class KeysightScope:
         "time_division_unit"    : "s",             
         "time_delay"            : str(self.get_time_delay()).strip(),          
         "time_delay_unit"       : "s",            
-        "timeout"               : "5",              # In seconds    
-
+  
         # Channel related
         # ------------------------ Channel 1 
         "channel_display_1"       : str(self.get_channel_display(channel=1)).strip(),            
@@ -84,6 +83,7 @@ class KeysightScope:
         """
         self.dev.write(f":SAVE:SETup:STARt {location}")
 
+
     def recall_start_setup(self, location = 0):
         """
         Sets the oscilloscope configuration to a specified location.
@@ -96,7 +96,10 @@ class KeysightScope:
             location (str or int, optional): The index of the configuration location to recall. 
                                     Defaults to "0" if not provided.
         """
-        self.dev.write(f":RECall:SETup:STARt {location}")
+        return self.dev.query(f":RECall:SETup:STARt {location};*OPC?")
+
+        
+        
 
     def get_saving_register(self):
         """
@@ -641,20 +644,17 @@ class KeysightScope:
         t = (    n  - wfmp['xreference']) * wfmp['xincrement'] + wfmp['xorigin']  # time    = [( data point number - xreference) * xincrement] + xorigin
         data = (   raw - wfmp['yreference']) * wfmp['yincrement'] + wfmp['yorigin']  # voltage = [(    data value    - yreference)  * yincrement] + yorigin  
 
-        print("length time : " , len(t))
         return wfmp, t, data
 
 
     def waveform_ascii(self):
         self.dev.write(":WAVeform:FORMat ASCii") 
         data_ascii = self.dev.query(":WAVeform:DATA?")
-
         data = np.array([float(x) for x in data_ascii.split(", ")[1:]])
         len_data = len(data)
-        len_x_achse = 10*200*10**(-9)
+        len_x_achse =  self.get_time_range()
         t = np.linspace(0,len_x_achse , len_data)
         wfmp = self.get_preample_as_dict()
-
         return wfmp, t, data
 
 

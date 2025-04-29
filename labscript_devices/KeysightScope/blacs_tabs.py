@@ -36,7 +36,7 @@ class KeysightScopeTab(DeviceTab):
 
     def initialise_GUI(self):
 
-        # The Osci Widget
+        # The osci widget
         self.osci_widget = OsciTab()
         self.get_tab_layout().addWidget(self.osci_widget)
         
@@ -53,13 +53,14 @@ class KeysightScopeTab(DeviceTab):
             self.default_button = self.osci_widget.findChild(QPushButton, f"defaultButton_{i}")
             self.default_button.clicked.connect(lambda clicked, i=i: self.default_config(i))
 
+
         # Loads the Osci Configurations
         self.init_osci()
 
         return
 
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
-    def init_osci(self,widget=None ):
+    def init_osci(self, widget=None ):
         list_dict_config = yield(self.queue_work(self._primary_worker,'init_osci'))
 
         for key,value in list_dict_config.items():
@@ -118,7 +119,28 @@ class OsciTab(QWidget):
             self.tabWidget.removeTab(i)
             self.tabWidget.insertTab(i, TabTemplate(), f"s{i}")          # Add the new widget to the layout
             tab = self.tabWidget.widget(i) 
+
+            # --- LoadButtons
+            self.load_button = tab.findChild(QPushButton , "loadButton")
+            self.load_button.setObjectName(f"loadButton_{i}")
+            self.load_button.setIcon(load_icon)
+            self.load_button.setIconSize(QSize(16,16))
+            if i !=0:
+                self.load_button.setEnabled(False)  # init condition
+
+            # --- resetButtons
+            self.default_button = tab.findChild(QPushButton , "defaultButton")
+            self.default_button.setObjectName(f"defaultButton_{i}")
+            self.default_button.setIcon(reset_icon)
+            self.default_button.setIconSize(QSize(16,16))
+            if i !=0:
+                self.default_button.setEnabled(False)  # init condition
             
+
+        for i in range(self.tabWidget.count()):
+
+            tab = self.tabWidget.widget(i)
+
             # --- RadioButtons
             radio_button = tab.findChild(QRadioButton, "activeRadioButton")
             radio_button.setObjectName(f"activeRadioButton_{i}")
@@ -126,16 +148,7 @@ class OsciTab(QWidget):
             self.button_group.setId(radio_button, i  )
             radio_button.toggled.connect(self.radio_toggled )
 
-            # --- ToolButtons
-            self.load_button = tab.findChild(QPushButton , "loadButton")
-            self.load_button.setObjectName(f"loadButton_{i}")
-            self.load_button.setIcon(load_icon)
-            self.load_button.setIconSize(QSize(16,16))
-            
-            self.default_button = tab.findChild(QPushButton , "defaultButton")
-            self.default_button.setObjectName(f"defaultButton_{i}")
-            self.default_button.setIcon(reset_icon)
-            self.default_button.setIconSize(QSize(16,16))
+
             
             # --- TableWidgets
             self.tableWidget = tab.findChild(QTableWidget, "tableWidget")
@@ -180,13 +193,36 @@ class OsciTab(QWidget):
         
         if self.previous_checked_index is not None:
             self.tabWidget.setTabText(self.previous_checked_index, f"s{self.previous_checked_index}" )
+
+            tab = self.tabWidget.widget(self.previous_checked_index) 
+            self.load_button = tab.findChild(QPushButton, f"loadButton_{self.previous_checked_index}")
+            self.default_button = tab.findChild(QPushButton , f"defaultButton_{self.previous_checked_index}")
+
+            if self.load_button:
+                self.load_button.setEnabled(False)
+            
+            if self.default_button:
+                self.default_button.setEnabled(False)
+
             
         if selected_button.isChecked():
             index = self.button_group.id(selected_button) 
             self.label_active_setup.setText("Active setup : " + self.tabWidget.tabText(index) )
             self.tabWidget.setTabText(index,f"🔴")
+
+            tab = self.tabWidget.widget(index) 
+            self.load_button = tab.findChild(QPushButton,f"loadButton_{index}")
+            self.default_button = tab.findChild(QPushButton , f"defaultButton_{index}")
+
+            if self.load_button:
+                self.load_button.setEnabled(True)
+            
+            if self.default_button:
+                self.default_button.setEnabled(True)
+
             self.previous_checked_index = index
             
+
     # --- Fill TableWidget  
     def load_parameters(self, current_dict , table_index):                                            
         for i, (key, value) in enumerate(current_dict.items()):     

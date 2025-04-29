@@ -1,5 +1,6 @@
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties ,LabscriptError,set_passed_properties
 import  h5py
+import time
 
 # ---------------------------------------------------------------New imports
 from labscript_devices.KeysightScope.connection_manager import * 
@@ -29,10 +30,10 @@ class KeysightScope(TriggerableDevice):
         )
     def __init__(self, 
                  name, 
-                 parent_device, 
                  serial_number,
+                 parent_device, 
                  connection = "trigger",
-                 timeout = 10,
+                 timeout = 5,
                  **kwargs):
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) 
 
@@ -47,9 +48,10 @@ class KeysightScope(TriggerableDevice):
 
         # --------------------------------- Class attributes
         self.name = name
-        self.triggered = False              # Device can only be triggered Zero or one time
-        self.configuration_number = None    # Sets the configuraton slot
         self.timeout = timeout
+        self.triggered = False              # Device can only be triggered zero or one time
+        self.configuration_number = None    # Sets the configuraton slot
+
 
         
     def set_config(self,configuration_number):
@@ -83,10 +85,3 @@ class KeysightScope(TriggerableDevice):
 
         if self.triggered:
             self.set_property('triggered', self.triggered , location='device_properties', overwrite=True)
-
-
-
-
-
-
-
