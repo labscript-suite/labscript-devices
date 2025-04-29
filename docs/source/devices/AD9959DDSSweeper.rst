@@ -21,7 +21,8 @@ At this time, stepping of frequency, amplitude, and phase parameters is supporte
 Parameter ramping is possible, but not currently supported by the labscript device (if support for this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`).
 The Pico interface provides the following:
 
-* 16,656 instructions distributed evenly among the configured channels; 16,656, 8,615, 5,810, and 4,383 for 1, 2, 3, 4 channels respectively.
+* For the Pico 1: 16,656 instructions distributed evenly among the configured channels; 16,656, 8,615, 5,810, and 4,383 for 1, 2, 3, 4 channels respectively.
+* For the Pico 2: 34,132 instructions distributed evenly among the configured channels; 34,132, 17,654, 11,905, and 8,981 for 1, 2, 3, 4 channels respectively.
 * External timing via a pseudoclock clockline.
 * By default, the AD9959 system reference clock is taken from the Pi Pico. If a higher quality clock is needed, the user can provide an external system reference clock  to the AD9959. For more details on clocking, see the Usage section.
 
