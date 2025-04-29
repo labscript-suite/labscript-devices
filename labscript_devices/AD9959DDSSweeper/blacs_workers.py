@@ -110,7 +110,7 @@ class AD9959DDSSweeperInterface(object):
                 TRANSITION_TO_STOPPED: transitioning to manual mode'''
 
         self.conn.write(b'status\n')
-        status_str = self.conn.readlines().decode()
+        status_str = self.conn.readline().decode()
         status_int = int(status_str)
         if status_int in self.status_map:
             return self.status_map[status_int]
