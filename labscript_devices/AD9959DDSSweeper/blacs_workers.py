@@ -43,6 +43,16 @@ class AD9959DDSSweeperInterface(object):
         self.timeout = 0.1
         self.conn = serial.Serial(com_port, 10000000, timeout=self.timeout)
 
+        self.min_ver = (0, 4, 0)
+        self.status_map = {
+            0: 'STOPPED',
+            1: 'TRANSITION_TO_RUNNING',
+            2: 'RUNNING',
+            3: 'ABORTING',
+            4: 'ABORTED',
+            5: 'TRANSITION_TO_STOPPED'
+        }
+
         version = self.get_version()
         print(f'Connected to version: {version}')
 
@@ -73,10 +83,8 @@ class AD9959DDSSweeperInterface(object):
         self.conn.write(b'version\n')
         version_str = self.conn.readline().decode()
         version = tuple(int(i) for i in version_str.split('.'))
-        assert len(version) == 3
 
-        # may be better logic for semantic versioning w/o version pkg
-        assert version[1] >= 4, f'Version {version} too low'
+        assert version >= self.min_ver, f'Version {version} too low'
         return version
 
     def abort(self):
@@ -100,20 +108,12 @@ class AD9959DDSSweeperInterface(object):
                 ABORTING: aborting buffered execution
                 ABORTED: last buffered execution was aborted
                 TRANSITION_TO_STOPPED: transitioning to manual mode'''
+
         self.conn.write(b'status\n')
-        status_str = int(self.conn.readline().decode())
-        status_map = {
-            0: 'STOPPED',
-            1: 'TRANSITION_TO_RUNNING',
-            2: 'RUNNING',
-            3: 'ABORTING',
-            4: 'ABORTED',
-            5: 'TRANSITION_TO_STOPPED'
-        }
-        self.conn.write(b'status\n')
-        status_str = int(self.conn.readline().decode())
-        if status_str in status_map:
-            return status_map[status_str]
+        status_str = self.conn.readlines().decode()
+        status_int = int(status_str)
+        if status_int in self.status_map:
+            return self.status_map[status_int]
         else:
             raise LabscriptError(f'Invalid status, returned {status_str}')
         
