@@ -3,6 +3,8 @@ AD9959DDSSweeper
 
 This labscript device controls the `DDSSweeper <https://github.com/qtc-umd/dds-sweeper>`_, an interface to the `AD9959 eval board <https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/eval-ad9959.html>`_ four channel direct digital synthesizer (DDS) using the `Raspberry Pi Pico <https://www.raspberrypi.org/documentation/rp2040/getting-started/>`_ platform.
 
+The DDS Sweeper is described in more detail in E. Huegler, J. C. Hill, and D. H. Meyer, An agile radio-frequency source using internal sweeps of a direct digital synthesizer, *Review of Scientific Instruments*, **94**, 094705 (2023) https://doi.org/10.1063/5.0163342 .
+
 Specifications
 ~~~~~~~~~~~~~~
 
@@ -20,8 +22,8 @@ Parameter ramping is possible, but not currently supported by the labscript devi
 The Pico interface provides the following:
 
 * 16,656 instructions distributed evenly among the configured channels; 16,656, 8,615, 5,810, and 4,383 for 1, 2, 3, 4 channels respectively.
-* External timing via a pseudoclock clockline. Interal timing is also possible, but not currently supported (if this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`).
-* The Pi Pico can be used as a (low quality) clock for the AD9959 evaluation board.
+* External timing via a pseudoclock clockline.
+* By default, the AD9959 system reference clock is taken from the Pi Pico. If a higher quality clock is needed, the user can provide an external system reference clock  to the AD9959. For more details on clocking, see the Usage section.
 
 Installation
 ~~~~~~~~~~~~
@@ -45,7 +47,7 @@ Usage
 ~~~~~
 
 
-An example connection table that uses the PrawnBlaster and sweeper:
+An example connection table that uses the PrawnBlaster and sweeper with an external, 100 MHz clock:
 
 .. code-block:: python
 
@@ -64,15 +66,16 @@ An example connection table that uses the PrawnBlaster and sweeper:
                             name='AD9959', 
                             parent_device=prawn.clocklines[0],
                             com_port='COM11',
-                            ref_clock_frequency=125e6,
-                            pll_mult=4
+							ref_clock_external=1,
+                            ref_clock_frequency=100e6,
+                            pll_mult=5
                             )
 
 
     chann0 = DDS( 'chann0', AD9959, 'channel 0')
-    chann1 = StaticDDS( 'chann1', AD9959, 'channel 1')
-    #chann2 = DDS( 'chann2', AD9959, 'channel 2')
-    chann3 = DDS( 'chann3', AD9959, 'channel 3')
+    chann1 = DDS( 'chann1', AD9959, 'channel 1')
+    chann2 = DDS( 'chann2', AD9959, 'channel 2')
+    chann3 = StaticDDS( 'chann3', AD9959, 'channel 3')
 
 
     start()
@@ -80,6 +83,10 @@ An example connection table that uses the PrawnBlaster and sweeper:
     stop(1)
 
 .. note::
+
+**Clocking**
+
+If the Pi Pico is used as the AD9959 system reference clock, pin 21 of the Pi Pico should be connected to the REF CLK input (J9) of the AD9959 eval board. Otherwise, another clock source should be connected to REF CLK input and its frequency provided as the ref_clock_frequency.
 
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
