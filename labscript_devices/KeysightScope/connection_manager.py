@@ -126,7 +126,7 @@ class connectionManager:
                 continue
 
         if not is_right_serial_number:
-            raise ValueError(f"No Device with the serial number {serial_number} was found.")
+            raise ValueError(f"No Device with the serial number {serial_number} was found. Please check connection")
                 
 
 # ----------------------------------- Miscellaneous

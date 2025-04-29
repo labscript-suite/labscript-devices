@@ -601,7 +601,7 @@ class KeysightScope:
         preamble_val = [float(i) for i in preamble.split(",")]
         return dict(zip(keys, preamble_val))
 
-    # ----------------------------------------------- Waveform function
+    # ----------------------------------------------- Waveform function (BYTE or WORD(int16))
     def waveform(self, waveform_format="BYTE" ,channel='CHANnel1' ):
         """ 
         returns:  dict 
@@ -617,7 +617,7 @@ class KeysightScope:
                 # BYTE: formatted data is transferred as 8-bit bytes.
         if waveform_format in ["WORD", "BYTE"]:
             self.dev.write(f":WAVeform:FORMat {waveform_format}")
-            self.datatype = "H" if waveform_format == "WORD" else "B"
+            datatype = "H" if waveform_format == "WORD" else "B"
             
             if self.verbose:
                 print(f"Done Waveform {waveform_format}")
@@ -628,7 +628,7 @@ class KeysightScope:
         # transfer the data and format into a sequence of strings
         raw = self.dev.query_binary_values(
             ':WAVeform:DATA?',                
-            datatype=self.datatype,       # 'B' and 'H' are for unassigned , if you want signed use h and b 
+            datatype=datatype,       # 'B' and 'H' are for unassigned , if you want signed use h and b 
             #is_big_endian=True,                                             # In case we shift to signed
             container=np.array
             )
@@ -639,9 +639,24 @@ class KeysightScope:
         # (see Page 667 , Keysight manual for programmer )
         n = np.arange(wfmp['points'] ) 
         t = (    n  - wfmp['xreference']) * wfmp['xincrement'] + wfmp['xorigin']  # time    = [( data point number - xreference) * xincrement] + xorigin
-        y = (   raw - wfmp['yreference']) * wfmp['yincrement'] + wfmp['yorigin']  # voltage = [(    data value    - yreference)  * yincrement] + yorigin  
+        data = (   raw - wfmp['yreference']) * wfmp['yincrement'] + wfmp['yorigin']  # voltage = [(    data value    - yreference)  * yincrement] + yorigin  
 
-        return wfmp, t, y
+        print("length time : " , len(t))
+        return wfmp, t, data
+
+
+    def waveform_ascii(self):
+        self.dev.write(":WAVeform:FORMat ASCii") 
+        data_ascii = self.dev.query(":WAVeform:DATA?")
+
+        data = np.array([float(x) for x in data_ascii.split(", ")[1:]])
+        len_data = len(data)
+        len_x_achse = 10*200*10**(-9)
+        t = np.linspace(0,len_x_achse , len_data)
+        wfmp = self.get_preample_as_dict()
+
+        return wfmp, t, data
+
 
     #######################################################################################
     #                               Wave Generator                                        #

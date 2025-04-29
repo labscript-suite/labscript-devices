@@ -32,7 +32,7 @@ class KeysightScope(TriggerableDevice):
                  parent_device, 
                  serial_number,
                  connection = "trigger",
-                 timeout = 5,
+                 timeout = 10,
                  **kwargs):
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) 
 
