@@ -13,6 +13,7 @@
 
 from blacs.tab_base_classes import Worker
 import labscript_utils.h5_lock, h5py
+import time
 
 class AD9959DDSSweeperInterface(object):
     def __init__(
@@ -32,7 +33,7 @@ class AD9959DDSSweeperInterface(object):
         Args:
             com_port (str): COM port assigned to the DDS Sweeper by the OS.
                 On Windows, takes the form of `COMd` where `d` is an integer.
-            pico_board (str): The version of pico board used, pico1 or pico2.
+            pico_board (str): The version of pico board used, 'pico1' or 'pico2'.
             sweep_mode (int):
                 The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
                 At this time, only steps are supported, so sweep_mode must be 0.
@@ -120,12 +121,13 @@ class AD9959DDSSweeperInterface(object):
         '''Reads the status of the AD9959 DDS Sweeper.
 
         Returns:
-            (str): Status in string representation. Accepted values are
-                   STOPPED: manual mode
-                TRANSITION_TO_RUNNING: transitioning to buffered execution
-                RUNNING: buffered execution
-                ABORTING: aborting buffered execution
-                ABORTED: last buffered execution was aborted
+            (str): Status in string representation. Accepted values are:
+
+                STOPPED: manual mode\n
+                TRANSITION_TO_RUNNING: transitioning to buffered execution\n
+                RUNNING: buffered execution\n
+                ABORTING: aborting buffered execution\n
+                ABORTED: last buffered execution was aborted\n
                 TRANSITION_TO_STOPPED: transitioning to manual mode'''
 
         self.conn.write(b'status\n')
@@ -237,13 +239,18 @@ class AD9959DDSSweeperWorker(Worker):
         self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
     def program_manual(self, values):
-        # self.intf.abort()
+        '''Called when user makes changes to the front panel. Performs updates 
+        to freq, amp, phase by calling 
+        :meth:`AD9959DDSSweeperInterface.set_output`'''
 
         for chan in values:
             chan_int = int(chan[8:])
             self.intf.set_output(chan_int, values[chan]['freq'], values[chan]['amp'], values[chan]['phase'])
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+
+        if fresh:
+            self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
         # Store the initial values in case we have to abort and restore them:
         self.initial_values = initial_values
@@ -263,6 +270,8 @@ class AD9959DDSSweeperWorker(Worker):
                 stat_chans = set([int(n[4:]) for n in stat_data.dtype.names if n.startswith('freq')])
 
         if stat_data is not None:
+
+            # update static (final) values
             stat_array = stat_data[:][0]
             for chan in sorted(stat_chans):
                 freq = stat_array[f'freq{chan}']
@@ -280,6 +289,7 @@ class AD9959DDSSweeperWorker(Worker):
             self.intf.set_batch(dds_data[()])
             self.intf.stop(len(dds_data[()]))
 
+            # update dynamic final values
             last_entries = dds_data[-1]
             for chan in sorted(dyn_chans):
                 freq = last_entries[f'freq{chan}']
@@ -300,23 +310,46 @@ class AD9959DDSSweeperWorker(Worker):
         return self.final_values
 
     def transition_to_manual(self):
-        self.logger.debug(f'Transitioning to manual, values are: {self.final_values} ')
-        status = self.intf.get_status()
-        self.logger.debug(f'Transitioning to manual, got status: {status}')
+        '''Handles period between programmed instructions and return to front 
+        panel control. Device will move from RUNNING -> TRANSITION_TO_STOPPED 
+        -> STOPPED ideally. If buffered execution takes too long, calls
+        :meth:`abort_buffered`'''
 
-        if status.strip().upper() == 'RUNNING':
-            self.logger.debug('Attempting to abort running')
-            self.intf.abort()
-
-        return True
+        i = 0
+        while True:
+            status = self.intf.get_status()
+            i += 1
+            if status == 'STOPPED':
+                # self.logger.info('Transition to manual successful')
+                return True
+            
+            elif i == 1000:
+                # program hasn't ended, probably bad triggering
+                # abort and raise an error
+                self.abort_buffered()
+                raise LabscriptError(f'Buffered operation did not end with status {status:d}. Is triggering working?')
+            elif status in ['ABORTING', 'ABORTED']:
+                raise LabscriptError(f'AD9959 returned status {status} in transition to manual')
 
     def abort_buffered(self):
+        '''Aborts currently running program, ensuring ABORTED status. 
+        Additionally updates front panels with values before run start and 
+        updates smart cache before return.'''
         self.intf.abort()
+        while self.intf.get_status() != 'ABORTED':
+            self.logger.info('Tried to abort buffer, waiting another half second for ABORTED STATUS')
+            time.sleep(0.5)
+        self.logger.info('Successfully aborted buffered execution')
+        
         values = self.initial_values # fix, and update smart cache
         return True
 
     def abort_transition_to_buffered(self):
+        '''Aborts transition to buffered.
+        
+        Calls :meth:`abort_buffered`'''
         return self.abort_buffered()
 
     def shutdown(self):
+        '''Calls :meth:`AD9959DDSSweeperInterface.close` to end serial connection to AD9959'''
         self.intf.close()
