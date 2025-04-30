@@ -327,7 +327,7 @@ class AD9959DDSSweeperWorker(Worker):
                 # program hasn't ended, probably bad triggering
                 # abort and raise an error
                 self.abort_buffered()
-                raise LabscriptError(f'Buffered operation did not end with status {status:d}. Is triggering working?')
+                raise LabscriptError(f'Buffered operation did not end with status {status}. Is triggering working?')
             elif status in ['ABORTING', 'ABORTED']:
                 raise LabscriptError(f'AD9959 returned status {status} in transition to manual')
 
