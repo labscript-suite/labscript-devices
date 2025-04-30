@@ -1,14 +1,13 @@
 import numpy as np
-
-# import labscript_utils.h5_lock
 import h5py
 from zprocess import rich_print
 from blacs.tab_base_classes import Worker
 from  labscript_utils import properties
+import time 
 
-# import os
 # from matplotlib.ticker import MaxNLocator
 # from matplotlib import pyplot as plt
+
 from labscript_devices.KeysightScope.connection_manager import BLUE,GREEN,PURPLE
 
 
@@ -31,7 +30,8 @@ class KeysightScopeWorker(Worker):
 
         # ----------------------------------------- Buffered/Manuel flags
         self.buffered_mode = False
-           
+
+        
     def transition_to_buffered( self, device_name, h5file , front_panel_values, refresh): 
         rich_print(f"====== Begin transition to Buffered: ======", color=BLUE)    
         
@@ -67,12 +67,14 @@ class KeysightScopeWorker(Worker):
 
         # ----------------------------------------- Setting the oscilloscope
         self.scope.dev.timeout = 1e3 *float(self.timeout)               # Set Timeout
-        self.scope.recall_start_setup(self.activated_configuration)     # returns "1" when complete 
+   
+        self.scope.recall_start_setup(self.activated_configuration)
 
         self.buffered_mode = True       # confirm that we buffered
         self.scope.lock()               # Lock The oscilloscope
 
         self.scope.single() 
+
         rich_print(f"====== End transition to Buffered: ======", color=BLUE) 
         return {}
 
