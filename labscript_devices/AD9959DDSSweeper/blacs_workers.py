@@ -14,6 +14,8 @@
 from blacs.tab_base_classes import Worker
 import labscript_utils.h5_lock, h5py
 import time
+import numpy as np
+from labscript import LabscriptError
 
 class AD9959DDSSweeperInterface(object):
     def __init__(
@@ -67,7 +69,8 @@ class AD9959DDSSweeperInterface(object):
         self.tuning_words_to_SI = {
             'freq' : self.sys_clk_freq / (2**32 - 1) * 10.0,
             'amp' : 1/1023.0,
-            'phase' : 360 / 16384.0 * 10.0
+            # 'phase' : 360 / 16384.0 * 10.0
+            'phase' : 360 / 16384.0
         }
         
         self.subchnls = ['freq', 'amp', 'phase']
@@ -194,7 +197,9 @@ class AD9959DDSSweeperInterface(object):
             phase (unsigned 14 bit int):
                 phase to jump to when this instruction runs.
                 In DDS units: 360 * phase / 2^14 degrees.'''
-        self.conn.write(b'seti %d %d %f %f %f\n' % (channel, addr, frequency, amplitude, phase))
+        cmd = f'seti {channel} {addr} {int(frequency)} {int(amplitude)} {int(phase)}\n'
+        self.conn.write(cmd.encode())
+        # self.conn.write(b'seti %d %d %f %f %f\n' % (channel, addr, frequency, amplitude, phase))
         self.assert_OK()
 
     def set_batch(self, table):
@@ -238,10 +243,30 @@ class AD9959DDSSweeperWorker(Worker):
         
         self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
+    def _update_final_values(self, dds_data, dyn_chans):
+        '''Updates the final values in place using the last entry of dynamic 
+        data. Only for internal use.'''
+        last_entries = dds_data[-1]
+        for chan in sorted(dyn_chans):
+            freq = last_entries[f'freq{chan}']
+            amp = last_entries[f'amp{chan}']
+            phase = last_entries[f'phase{chan}']
+            self.final_values[f'channel {chan}'] = {
+                'freq' : freq * self.intf.tuning_words_to_SI['freq'],
+                'amp' : amp * self.intf.tuning_words_to_SI['amp'],
+                'phase' : phase * self.intf.tuning_words_to_SI['phase']
+            }
+
     def program_manual(self, values):
         '''Called when user makes changes to the front panel. Performs updates 
         to freq, amp, phase by calling 
-        :meth:`AD9959DDSSweeperInterface.set_output`'''
+        :meth:`AD9959DDSSweeperInterface.set_output`
+        
+        Args:
+            values (dict): dictionary of dictionaries with keys of active DDS 
+            channels, subkeys of ['freq', 'amp', 'phase']
+        '''
+        # invalidate static cache
 
         for chan in values:
             chan_int = int(chan[8:])
@@ -250,6 +275,7 @@ class AD9959DDSSweeperWorker(Worker):
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
 
         if fresh:
+            self.logger.debug('\n------------Clearing smart cache for fresh start-----------')
             self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
         # Store the initial values in case we have to abort and restore them:
@@ -260,6 +286,7 @@ class AD9959DDSSweeperWorker(Worker):
         dds_data = None
         stat_data = None
 
+        # get data to program from shot, if defined
         with h5py.File(h5file, 'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
             if 'dds_data' in group:
@@ -269,44 +296,151 @@ class AD9959DDSSweeperWorker(Worker):
                 stat_data = group['static_data'][()]
                 stat_chans = set([int(n[4:]) for n in stat_data.dtype.names if n.startswith('freq')])
 
+        # handle static channels
         if stat_data is not None:
+            self.logger.debug(f'Static Data found')
+            stat_array = stat_data[0]
 
-            # update static (final) values
-            stat_array = stat_data[:][0]
+            if self.smart_cache['static_data'] is None:
+                self.smart_cache['static_data'] = np.zeros_like(stat_array)
+                
             for chan in sorted(stat_chans):
                 freq = stat_array[f'freq{chan}']
                 amp = stat_array[f'amp{chan}']
                 phase = stat_array[f'phase{chan}']
-                self.intf.set_output(chan, freq, amp, phase)
-                self.final_values[f'channel {chan}'] = {
-                    'freq' : freq * self.intf.tuning_words_to_SI['freq'],
-                    'amp' : amp * self.intf.tuning_words_to_SI['amp'],
-                    'phase' : phase * self.intf.tuning_words_to_SI['phase']
-                }
+
+                cache_freq = self.smart_cache['static_data'][f'freq{chan}']
+                cache_amp = self.smart_cache['static_data'][f'amp{chan}']
+                cache_phase = self.smart_cache['static_data'][f'phase{chan}']
+        
+                if fresh or freq != cache_freq or amp != cache_amp or phase != cache_phase:
+                    self.logger.debug(f'Setting fresh outputs on chan: {chan}')
+                    self.intf.set_output(chan, freq, amp, phase)
+                    self.final_values[f'channel {chan}'] = {
+                        'freq' : freq * self.intf.tuning_words_to_SI['freq'],
+                        'amp' : amp * self.intf.tuning_words_to_SI['amp'],
+                        'phase' : phase * self.intf.tuning_words_to_SI['phase']
+                    }
+
+                else:
+                    self.logger.debug(f'Setting outputs using cache on chan: {chan}')
+                    self.intf.set_output(chan, cache_freq, cache_amp, cache_phase)
+                    self.final_values[f'channel {chan}'] = {
+                        'freq' : cache_freq * self.intf.tuning_words_to_SI['freq'],
+                        'amp' : cache_amp * self.intf.tuning_words_to_SI['amp'],
+                        'phase' : cache_phase * self.intf.tuning_words_to_SI['phase']
+                    }
 
         if dds_data is not None:
-            self.intf.set_channels(len(dyn_chans))
-            self.intf.set_batch(dds_data[()])
-            self.intf.stop(len(dds_data[()]))
+            self.logger.debug(f'Dynamic Data found')
 
-            # update dynamic final values
-            last_entries = dds_data[-1]
-            for chan in sorted(dyn_chans):
-                freq = last_entries[f'freq{chan}']
-                amp = last_entries[f'amp{chan}']
-                phase = last_entries[f'phase{chan}']
-                self.final_values[f'channel {chan}'] = {
-                    'freq' : freq * self.intf.tuning_words_to_SI['freq'],
-                    'amp' : amp * self.intf.tuning_words_to_SI['amp'],
-                    'phase' : phase * self.intf.tuning_words_to_SI['phase']
-                }
-            self.intf.start()
+            if self.smart_cache['dds_data'] is None:
+                # self.logger.debug('Initializing dds_data smart cache')
+                self.logger.debug('First time run ')
+                self.intf.set_channels(len(dyn_chans))
+                self.intf.set_batch(dds_data)
+                self.intf.stop(len(dds_data))
+                self.smart_cache['dds_data'] = dds_data.copy()
+                self._update_final_values(dds_data, dyn_chans)
+                self.intf.start()
+                return self.final_values
+
+            # check if it is more efficient to fully refresh
+            ## define boolean mask of lines that differ here for later line-by-line programming
+            # if not fresh and self.smart_cache['dds_data'] is not None:
+            if not fresh:
+                self.logger.debug('Checking to see if more efficient to fully refresh')
+
+                cache = self.smart_cache['dds_data']
+
+                #  check where the cache and table are equal
+                min_len = min(len(cache), len(dds_data))
+                equal_mask = cache[:min_len] == dds_data[:min_len]
+                n_diff = np.count_nonzero(~equal_mask)
+
+                # check where they differ
+                n_total = max(len(cache), len(dds_data))
+                n_extra = abs(len(cache) - len(dds_data))
+                changed_ratio = (n_diff + n_extra) / n_total
+
+                # past a 10% change, force a refresh
+                if changed_ratio > 0.1:
+                    self.logger.debug(f'Changed ratio: {changed_ratio:.2%}, refreshing fully')
+                    fresh = True
+
+            # Fresh starts use the faster binary batch mode
+            if fresh:
+                self.logger.debug('Programming a fresh set of dynamic instructions')
+                self.intf.set_channels(len(dyn_chans))
+                self.intf.set_batch(dds_data)
+                self.intf.stop(len(dds_data))
+                self.smart_cache['dds_data'] = dds_data.copy()
+                self.logger.debug('Updating dynamic final values via batch')
+                self._update_final_values(dds_data, dyn_chans)
+                self.intf.start()
+
+            # If only a few changes, it should be fast to go through and change
+            # just the new instructions
+            else:
+                self.intf.set_channels(len(dyn_chans))
+                self.logger.debug('Comparing changed instructions')
+                cache = self.smart_cache['dds_data']
+                n_cache = len(cache)
+
+                # Extend cache if necessary
+                if len(dds_data) > n_cache:
+                    new_cache = np.empty(len(dds_data), dtype=dds_data.dtype)
+                    new_cache[:n_cache] = cache
+                    self.smart_cache['dds_data'] = new_cache
+                    cache = new_cache
+
+                # Boolean mask of each rows
+                changed_mask = np.zeros(len(dds_data), dtype=bool)
+                for name in dds_data.dtype.names:
+
+                    # need to check field-by-field, both vals and dtypes
+                    diffs = np.where(cache[:len(dds_data)][name] != dds_data[name])[0]
+                    if diffs.size > 0:
+                        self.logger.debug(f"Field {name} differs at rows: {diffs}")
+                    field_dtype = dds_data[name].dtype
+                    if np.issubdtype(field_dtype, np.floating):
+                        changed_mask |= ~np.isclose(cache[:len(dds_data)][name], dds_data[name])
+                    else:
+                        changed_mask |= cache[:len(dds_data)][name] != dds_data[name]
+
+                changed_indices = np.where(changed_mask)[0]
+                # Handle potential row count difference
+                if len(cache) != len(dds_data):
+                    self.logger.debug(f"Length mismatch: cache has {len(cache)}, dds_data has {len(dds_data)}")
+                    changed_indices = np.union1d(changed_indices, np.arange(len(dds_data), len(cache)))
+                self.logger.debug(f"Changed rows: {changed_indices}")
+
+                # Iterate only over changed rows
+                for i in changed_indices:
+                    self.logger.debug(f'Smart cache differs at index {i}')
+                    if i >= len(dds_data):
+                        self.logger.warning(f"Skipping seti at index {i} — beyond dds_data length")
+                        continue
+                    for chan in sorted(dyn_chans):
+                        freq = dds_data[i][f'freq{chan}']
+                        amp = dds_data[i][f'amp{chan}']
+                        phase = dds_data[i][f'phase{chan}']
+                        self.logger.debug(f'seti {chan} {i} {freq} {amp} {phase}')
+                        self.intf.seti(int(chan), int(i), int(freq), int(amp), int(phase))
+                    for name in dds_data.dtype.names:
+                        cache[i][name] = dds_data[i][name]
+
+                self.smart_cache['dds_data'] = cache[:len(dds_data)]
+                self.intf.stop(len(dds_data))
+                self.logger.debug('Updating dynamic final values with smart cache')
+                self._update_final_values(self.smart_cache['dds_data'], dyn_chans)
+                self.intf.start()
 
         if dds_data is None and stat_data is None:
             self.logger.debug('No instructions to set')
             return {}
         
-        # self.logger.info(self.final_values)
+        self.logger.debug('Ending buffered execution\n')
         return self.final_values
 
     def transition_to_manual(self):
@@ -320,7 +454,7 @@ class AD9959DDSSweeperWorker(Worker):
             status = self.intf.get_status()
             i += 1
             if status == 'STOPPED':
-                # self.logger.info('Transition to manual successful')
+                self.logger.debug('Transition to manual successful')
                 return True
             
             elif i == 1000:
@@ -337,11 +471,16 @@ class AD9959DDSSweeperWorker(Worker):
         updates smart cache before return.'''
         self.intf.abort()
         while self.intf.get_status() != 'ABORTED':
-            self.logger.info('Tried to abort buffer, waiting another half second for ABORTED STATUS')
+            self.logger.debug('Tried to abort buffer, waiting another half second for ABORTED STATUS')
             time.sleep(0.5)
-        self.logger.info('Successfully aborted buffered execution')
+        self.logger.debug('Successfully aborted buffered execution')
         
+        # return state to initial values
         values = self.initial_values # fix, and update smart cache
+        self.logger.debug(f'Returning to values: {values}')
+        self.smart_cache['static_data'] = None
+        self.smart_cache['dds_data'] = None
+        self.program_manual(values)
         return True
 
     def abort_transition_to_buffered(self):
