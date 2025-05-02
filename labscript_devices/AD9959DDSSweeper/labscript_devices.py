@@ -85,7 +85,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         
         # store mode data
         self.sweep_mode = sweep_mode
-
+        self.ref_clock_frequency = ref_clock_frequency
         # Check clocking
         if ref_clock_frequency * pll_mult > 500e6:
             raise ValueError('DDS system clock frequency must be less than 500 MHz')
@@ -99,9 +99,10 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     @property
     def clock_limit(self):
-        '''Dynamically computs clock limit based off of number of channels and ref clock.'''
-        num_channels = len(self.child_devices)
-        if num_channels == 0:
+        '''Dynamically computs clock limit based off of number of dynamic 
+        channels and reference clock frequency.'''
+        num_dyn_chans = sum(isinstance(child, DDS) for child in self.child_devices)
+        if num_dyn_chans == 0:
             # Set to worst case 
             # 4 channels, step mode, default 125 MHz pico ref clk
             return 100000
@@ -111,11 +112,11 @@ class AD9959DDSSweeper(IntermediateDevice):
         else:
             mode = 'steps'
         try:
-            cycles_per_instruction = self.cycles_per_instruction_map[mode][num_channels - 1]
+            cycles_per_instruction = self.cycles_per_instruction_map[mode][num_dyn_chans - 1]
         except (KeyError, IndexError):
-            raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {num_channels}')        
+            raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {num_dyn_chans}')        
 
-        return self.dds_clock / cycles_per_instruction
+        return self.ref_clock_frequency / cycles_per_instruction
     
     def get_default_unit_conversion_classes(self, device):
         """Child devices call this during their __init__ (with themselves
@@ -182,7 +183,7 @@ class AD9959DDSSweeper(IntermediateDevice):
             mode = 'sweeps'
         else:
             mode = 'steps'
-
+        
         for output in self.child_devices:
             # Check that the instructions will fit into RAM:
             max_instructions = self.max_instructions_map[self.pico_board][mode][num_channels-1]
