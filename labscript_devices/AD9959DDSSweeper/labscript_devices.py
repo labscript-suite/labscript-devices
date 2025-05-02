@@ -21,7 +21,7 @@ import sys
 class AD9959DDSSweeper(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
     allowed_boards = ['pico1', 'pico2']
-        # external timing
+    # external timing
     max_instructions_map = {
         'pico1' : 
             {
@@ -33,6 +33,11 @@ class AD9959DDSSweeper(IntermediateDevice):
             'steps' : [34132, 17654, 11905, 8981],
             'sweeps' : [17654, 8981, 6022, 4529]
             }
+    }
+    
+    cycles_per_instruction_map = {
+        'steps' : [500, 750, 1000, 1250],
+        'sweeps' : [1000, 1500, 2000, 2500]
     }
 
     @set_passed_properties(
@@ -91,7 +96,27 @@ class AD9959DDSSweeper(IntermediateDevice):
 
         self.dds_clock = ref_clock_frequency * pll_mult
         self.clk_scale = 2**32 / self.dds_clock
-            
+
+    @property
+    def clock_limit(self):
+        '''Dynamically computs clock limit based off of number of channels and ref clock.'''
+        num_channels = len(self.child_devices)
+        if num_channels == 0:
+            # Set to worst case 
+            # 4 channels, step mode, default 125 MHz pico ref clk
+            return 100000
+        
+        if self.sweep_mode > 0:
+            mode = 'sweeps'
+        else:
+            mode = 'steps'
+        try:
+            cycles_per_instruction = self.cycles_per_instruction_map[mode][num_channels - 1]
+        except (KeyError, IndexError):
+            raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {num_channels}')        
+
+        return self.dds_clock / cycles_per_instruction
+    
     def get_default_unit_conversion_classes(self, device):
         """Child devices call this during their __init__ (with themselves
         as the argument) to check if there are certain unit calibration
@@ -148,7 +173,6 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     def generate_code(self, hdf5_file):
 
-
         dyn_DDSs = {}
         stat_DDSs = {}
         num_channels = len(self.child_devices)
@@ -169,7 +193,6 @@ class AD9959DDSSweeper(IntermediateDevice):
                                     Please decrease the sample rates of devices on the same clock, \
                                     or connect {self.name} to a different pseudoclock.')
             try:
-                # if output.connection in range(4):
                 prefix, channel = output.connection.split()
                 channel = int(channel)
                 assert channel in range(4), 'requested channel out of range'
