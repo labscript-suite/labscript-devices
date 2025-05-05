@@ -2,7 +2,7 @@ import os
 import importlib
 import pyvisa
 from re import sub
-
+from  datetime import datetime
 
 
 class connectionManager:
@@ -39,7 +39,6 @@ class connectionManager:
                 raise ValueError(f"File with serial number {self.serial_number} not found.")
         
             self.osci_capabilities = self.current_file["osci_capabilities"]
-
 
 
     def _get_files_from_folder(self):
@@ -135,19 +134,4 @@ BLUE = '#66D9EF'
 PURPLE = '#AE81FF'
 GREEN = '#A6E22E'
 GREY = '#75715E' 
-
-unit_conversion = {
-            's' : 1  ,  
-            'ns': 1e-9,  # nanoseconds to seconds
-            'us': 1e-6,  # microseconds to seconds
-            'ms': 1e-3   # milliseconds to seconds
-            }
-# ----------------------------------- Miscellaneous
-
-
-# ------------------------------------------------------------------------ Testing
-if __name__ == "__main__":
-    cm = connectionManager(serial_number="CN61364200")
-    print(cm.osci_capabilities)
-
 
