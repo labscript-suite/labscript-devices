@@ -1,0 +1,11 @@
+DRAFT 
+
+Author:
+I am a physics student working with the APQ (Atoms-Photons-Quanta) group at the University of Darmstadt. 
+As part of my work, I integrated Keysight oscilloscopes into labscript. Please see the README file for further information. 
+I will be happy to answer any questions.
+
+best reagards
+Kerim Takouti
+
+

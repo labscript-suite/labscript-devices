@@ -135,3 +135,10 @@ PURPLE = '#AE81FF'
 GREEN = '#A6E22E'
 GREY = '#75715E' 
 
+unit_conversion = {
+            's' : 1  ,  
+            'ns': 1e-9,  # nanoseconds to seconds
+            'us': 1e-6,  # microseconds to seconds
+            'ms': 1e-3   # milliseconds to seconds
+            }
+
