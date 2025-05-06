@@ -168,7 +168,20 @@ class AD9959DDSSweeperInterface(object):
         return freqs
 
     def set_output(self, channel, frequency, amplitude, phase):
-        '''Set frequency, amplitude, and phase of a channel.'''
+        '''Set frequency, phase, and amplitude of a channel
+        outside of the buffered sequence from floating point values.
+
+        Args:
+            channel (int): channel to set the instruction for. Zero indexed.
+            frequency (float):
+                frequency of output. Floating point number in Hz (0-DDS clock/2).
+                Will be rounded during quantization to DDS units.
+            amplitude (float):
+                amplitude of output. Fraction of maximum output amplitude (0-1).
+                Will be rounded during quantization to DDS units.
+            phase (float):
+                phase of output. Floating point number in degrees (0-360).
+                Will be rounded during quantization to DDS units.'''
         self.conn.write(b'setfreq %d %f\n' % (channel, frequency))
         self.assert_OK()
         self.conn.write(b'setamp %d %f\n' % (channel, amplitude))
@@ -177,7 +190,13 @@ class AD9959DDSSweeperInterface(object):
         self.assert_OK()
 
     def set_channels(self, channels):
-        '''Set number of channels to use in buffered sequence.'''
+        '''Set number of channels to use in buffered sequence.
+
+        Args:
+            channels (int):
+                If 1-4, sets the number of channels activated for buffered mode.
+                Lowest channels are always used first.
+                If 0, simultaneously updates all channels during buffered mode.'''
         self.conn.write(b'setchannels %d\n' % channels)
         self.assert_OK()
 
@@ -203,8 +222,26 @@ class AD9959DDSSweeperInterface(object):
         self.assert_OK()
 
     def set_batch(self, table):
-        '''Set frequency, phase, and amplitude of a channel
-        for address addr in buffered sequence.'''
+        '''Set frequency, phase, and amplitude of all channels
+        for many addresses in buffered sequence from integer values in a table.
+
+        Uses binary instruction encoding in transit to improve write speeds.
+        :meth:`set_batch` does not send a stop instruction, so call :meth:`stop` separately.
+
+        Args:
+            table (numpy array):
+                Table should be an array of instructions in a mode-dependent format.
+                The dtypes should be repeated for each channel, with channel 0s parameters
+                first, followed by channel1s parameters, etc. depending on the number of channels.
+                The formats for each channel are as follows:
+                Single-step mode: ('frequency', '<u4'), ('amplitude', '<u2'), ('phase', '<u2')
+                Amplitude sweep mode: ('start_amplitude', '<u2'), ('stop_amplitude', '<u2'), ('delta', '<u2'), ('rate', '<u1')
+                Frequency sweep mode: ('start_frequency', '<u4'), ('stop_frequency', '<u4'), ('delta', '<u4'), ('rate', '<u1')
+                Phase sweep mode: ('start_phase', '<u2'), ('stop_phase', '<u2'), ('delta', '<u2'), ('rate', '<u1')
+                Amplitude sweep mode with steps: ('start_amplitude', '<u2'), ('stop_amplitude', '<u2'), ('delta', '<u2'), ('rate', '<u1'), ('frequency', '<u4'), ('phase', '<u2')
+                Frequency sweep mode with steps: ('start_frequency', '<u4'), ('stop_frequency', '<u4'), ('delta', '<u4'), ('rate', '<u1'), ('amplitude', '<u2'), ('phase', '<u2')
+                Phase sweep mode with steps: ('start_phase', '<u2'), ('stop_phase', '<u2'), ('delta', '<u2'), ('rate', '<u1'), ('frequency', '<u4'), ('amplitude', '<u2')
+        Raises: LabscriptError if the table is not compatible with the device's current mode.'''
         self.conn.write(b'setb 0 %d\n' % len(table))
         resp = self.conn.readline().decode()
         if not resp.startswith('ready'):
@@ -273,7 +310,24 @@ class AD9959DDSSweeperWorker(Worker):
             self.intf.set_output(chan_int, values[chan]['freq'], values[chan]['amp'], values[chan]['phase'])
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
+        '''Configure the DDS Sweeper for buffered execution.
 
+        First, data is loaded from the shot files.
+        Then, static channels are set using the :meth:`set_output` function.
+        Next, dynamic data is loaded.
+            If the sequence has run before, the smart cache is used to minimize new updates.
+        Finally, buffered execution is started.
+
+        Args:
+            device_name (str): labscript name of DDS Sweeper
+            h5file (str): path to shot file to run
+            initial_values (dict): Dictionary of output states at start of shot
+            fresh (bool): When `True`, clear the local :py:attr:`smart_cache`, forcing
+                a complete reprogramming of the output table.
+
+        Returns:
+            dict: Dictionary of the expected final output states.
+        '''
         if fresh:
             self.logger.debug('\n------------Clearing smart cache for fresh start-----------')
             self.smart_cache = {'static_data' : None, 'dds_data' : None}
