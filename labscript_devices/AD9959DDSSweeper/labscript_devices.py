@@ -207,48 +207,45 @@ class AD9959DDSSweeper(IntermediateDevice):
             elif isinstance(output, StaticDDS):
                 stat_DDSs[channel] = output
 
-        if dyn_DDSs:
-            for connection in dyn_DDSs:
-                dds = dyn_DDSs[connection]   
-                dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-                dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
-                dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
+        for connection in dyn_DDSs:
+            dds = dyn_DDSs[connection]   
+            dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
+            dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
+            dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
 
-            dyn_dtypes = {'names':['%s%d' % (k, i) for i in dyn_DDSs for k in ['freq', 'amp', 'phase'] ],
-                    'formats':[f for i in dyn_DDSs for f in ('<u4', '<u2', '<u2')]}
+        dyn_dtypes = {'names':['%s%d' % (k, i) for i in dyn_DDSs for k in ['freq', 'amp', 'phase'] ],
+                'formats':[f for i in dyn_DDSs for f in ('<u4', '<u2', '<u2')]}
 
-            clockline = self.parent_clock_line
-            pseudoclock = clockline.parent_device
-            times = pseudoclock.times[clockline]
+        clockline = self.parent_clock_line
+        pseudoclock = clockline.parent_device
+        times = pseudoclock.times[clockline]
 
-            dyn_table = np.zeros(len(times), dtype=dyn_dtypes)
+        dyn_table = np.zeros(len(times), dtype=dyn_dtypes)
 
-            for i, dds in dyn_DDSs.items():
-                dyn_table['freq%d' % i][:] = dds.frequency.raw_output
-                dyn_table['amp%d' % i][:] = dds.amplitude.raw_output
-                dyn_table['phase%d' % i][:] = dds.phase.raw_output
+        for i, dds in dyn_DDSs.items():
+            dyn_table['freq%d' % i][:] = dds.frequency.raw_output
+            dyn_table['amp%d' % i][:] = dds.amplitude.raw_output
+            dyn_table['phase%d' % i][:] = dds.phase.raw_output
 
-        if stat_DDSs:
-            # conversion to AD9959 units
-            for connection in stat_DDSs:
-                dds = stat_DDSs[connection]   
-                dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-                dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
-                dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
-                    
-                static_dtypes = {
-                    'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
-                    'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
-                    }
+        # conversion to AD9959 units
+        for connection in stat_DDSs:
+            dds = stat_DDSs[connection]   
+            dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
+            dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
+            dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
                 
-                static_table = np.zeros(1, dtype=static_dtypes)
+        static_dtypes = {
+            'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
+            'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
+            }
+        
+        static_table = np.zeros(1, dtype=static_dtypes)
 
-                for connection in list(stat_DDSs.keys()):
-                    sdds = stat_DDSs[connection]
-                    static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
-                    static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
-                    static_table['phase%d' % connection] = sdds.phase.raw_output[0]
-
+        for connection in list(stat_DDSs.keys()):
+            sdds = stat_DDSs[connection]
+            static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
+            static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
+            static_table['phase%d' % connection] = sdds.phase.raw_output[0]
 
         # if no channels are being used, no need to continue
         if not dyn_DDSs and not stat_DDSs:
