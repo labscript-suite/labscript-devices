@@ -47,8 +47,7 @@ The number is assigned by the controlling computer and will need to be determine
 Usage
 ~~~~~
 
-
-An example connection table that uses the PrawnBlaster and sweeper with an external, 100 MHz clock:
+An example connection table with the default settings of the sweeper:
 
 .. code-block:: python
 
@@ -67,7 +66,41 @@ An example connection table that uses the PrawnBlaster and sweeper with an exter
                             name='AD9959', 
                             parent_device=prawn.clocklines[0],
                             com_port='COM11',
-							ref_clock_external=1,
+                            )
+
+
+    chann0 = DDS( 'chann0', AD9959, 'channel 0')
+    chann1 = DDS( 'chann1', AD9959, 'channel 1')
+    chann2 = StaticDDS( 'chann2', AD9959, 'channel 2')
+    chann3 = StaticDDS( 'chann3', AD9959, 'channel 3')
+
+
+    start()
+
+    stop(1)
+
+An example connection table that uses the PrawnBlaster and sweeper with an 
+external, 100 MHz clock and pll multiplier of 5:
+
+.. code-block:: python
+
+    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS, StaticDDS
+    from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
+    from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
+
+    # prawnblaster for external timing
+    prawn = PrawnBlaster(
+                        name='prawn',
+                        com_port='COM7',
+                        num_pseudoclocks=1
+                        )
+
+    AD9959 = AD9959DDSSweeper(
+                            name='AD9959', 
+                            parent_device=prawn.clocklines[0],
+                            com_port='COM11',
+                            pico_board='pico2',
+                            ref_clock_external=1,
                             ref_clock_frequency=100e6,
                             pll_mult=5
                             )
