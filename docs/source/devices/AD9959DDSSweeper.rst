@@ -51,7 +51,7 @@ An example connection table with the default settings of the sweeper:
 
 .. code-block:: python
 
-    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS, StaticDDS
+    from labscript import start, stop, DDS, StaticDDS
     from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
     from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
 
@@ -84,7 +84,7 @@ external, 100 MHz clock and pll multiplier of 5:
 
 .. code-block:: python
 
-    from labscript import start, stop, add_time_marker, AnalogOut, DigitalOut, DDS, StaticDDS
+    from labscript import start, stop, DDS, StaticDDS
     from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
     from labscript_devices.AD9959DDSSweeper.labscript_devices import AD9959DDSSweeper
 
