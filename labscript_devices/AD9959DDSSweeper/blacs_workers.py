@@ -148,7 +148,7 @@ class AD9959DDSSweeperInterface(object):
             (str): Either "pico1" for a Pi Pico 1 board or "pico2" for a Pi Pico 2 board.'''
         self.conn.write(b'board\n')
         resp = self.conn.readline().decode()
-        return(resp)
+        return resp
 
     def get_freqs(self):
         '''Responds with a dictionary containing
@@ -385,24 +385,17 @@ class AD9959DDSSweeperWorker(Worker):
                         'phase' : cache_phase * self.intf.tuning_words_to_SI['phase']
                     }
 
+        if dds_data is None and stat_data is None:
+            self.logger.debug('No instructions to set')
+            return self.initial_values
+        
         if dds_data is not None:
             self.logger.debug(f'Dynamic Data found')
 
-            if self.smart_cache['dds_data'] is None:
-                # self.logger.debug('Initializing dds_data smart cache')
-                self.logger.debug('First time run ')
-                self.intf.set_channels(len(dyn_chans))
-                self.intf.set_batch(dds_data)
-                self.intf.stop(len(dds_data))
-                self.smart_cache['dds_data'] = dds_data.copy()
-                self._update_final_values(dds_data, dyn_chans)
-                self.intf.start()
-                return self.final_values
-
             # check if it is more efficient to fully refresh
-            ## define boolean mask of lines that differ here for later line-by-line programming
-            # if not fresh and self.smart_cache['dds_data'] is not None:
-            if not fresh:
+            # using boolean mask of lines that differ here for later 
+            # line-by-line programming
+            if not fresh and self.smart_cache['dds_data'] is not None:
                 self.logger.debug('Checking to see if more efficient to fully refresh')
 
                 cache = self.smart_cache['dds_data']
@@ -421,6 +414,9 @@ class AD9959DDSSweeperWorker(Worker):
                 if changed_ratio > 0.1:
                     self.logger.debug(f'Changed ratio: {changed_ratio:.2%}, refreshing fully')
                     fresh = True
+            
+            elif self.smart_cache['dds_data'] is None:
+                fresh = True
 
             # Fresh starts use the faster binary batch mode
             if fresh:
@@ -433,8 +429,8 @@ class AD9959DDSSweeperWorker(Worker):
                 self._update_final_values(dds_data, dyn_chans)
                 self.intf.start()
 
-            # If only a few changes, it should be fast to go through and change
-            # just the new instructions
+            # If only a few changes, incrementally program only the differing
+            # instructions
             else:
                 self.intf.set_channels(len(dyn_chans))
                 self.logger.debug('Comparing changed instructions')
@@ -490,11 +486,6 @@ class AD9959DDSSweeperWorker(Worker):
                 self._update_final_values(self.smart_cache['dds_data'], dyn_chans)
                 self.intf.start()
 
-        if dds_data is None and stat_data is None:
-            self.logger.debug('No instructions to set')
-            return {}
-        
-        self.logger.debug('Ending buffered execution\n')
         return self.final_values
 
     def transition_to_manual(self):
