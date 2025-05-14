@@ -59,17 +59,10 @@ class AD9959DDSSweeperInterface(object):
         }
 
         self.sys_clk_freq = ref_clock_frequency * pll_mult
-
-        # self.SI_to_tuning_words = {
-        #     'freq' : (2**32 - 1) / self.sys_clk_freq,
-        #     'amp' : 1023.0,
-        #     'phase' : 360.0 / 16384.0
-        #     }
         
         self.tuning_words_to_SI = {
-            'freq' : self.sys_clk_freq / (2**32 - 1) * 10.0,
+            'freq' : self.sys_clk_freq / (2**32 - 1),
             'amp' : 1/1023.0,
-            # 'phase' : 360 / 16384.0 * 10.0
             'phase' : 360 / 16384.0
         }
         
