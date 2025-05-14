@@ -58,6 +58,7 @@ These devices cover various frequency sources that provide either hardware-timed
 .. toctree::
    :maxdepth: 2
 
+   devices/AD9959DDSSweeper
    devices/novatechDDS9m
    devices/phasematrixquicksyn
 
