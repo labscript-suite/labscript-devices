@@ -371,9 +371,9 @@ class AD9959DDSSweeperWorker(Worker):
                     self.logger.debug(f'Setting fresh outputs on chan: {chan}')
                     self.intf.set_output(chan, freq, amp, phase)
                     self.final_values[f'channel {chan}'] = {
-                        'freq' : freq * self.intf.tuning_words_to_SI['freq'],
-                        'amp' : amp * self.intf.tuning_words_to_SI['amp'],
-                        'phase' : phase * self.intf.tuning_words_to_SI['phase']
+                        'freq' : freq,
+                        'amp' : amp,
+                        'phase' : phase,
                     }
 
                 else:
