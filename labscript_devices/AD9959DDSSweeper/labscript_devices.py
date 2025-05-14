@@ -227,16 +227,10 @@ class AD9959DDSSweeper(IntermediateDevice):
             dyn_table['amp%d' % i][:] = dds.amplitude.raw_output
             dyn_table['phase%d' % i][:] = dds.phase.raw_output
 
-        # conversion to AD9959 units
-        for connection in stat_DDSs:
-            dds = stat_DDSs[connection]   
-            dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-            dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
-            dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
-                
+        # conversion to AD9959 units is done on the Pi Pico
         static_dtypes = {
             'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
-            'formats':[f for i in stat_DDSs for f in ('<u4', '<u2', '<u2')]
+            'formats':[f for i in stat_DDSs for f in ('float', 'float', 'float')]
             }
         
         static_table = np.zeros(1, dtype=static_dtypes)
