@@ -377,10 +377,6 @@ class AD9959DDSSweeperWorker(Worker):
                         'amp' : cache_amp * self.intf.tuning_words_to_SI['amp'],
                         'phase' : cache_phase * self.intf.tuning_words_to_SI['phase']
                     }
-
-        if dds_data is None and stat_data is None:
-            self.logger.debug('No instructions to set')
-            return self.initial_values
         
         if dds_data is not None:
             self.logger.debug(f'Dynamic Data found')
