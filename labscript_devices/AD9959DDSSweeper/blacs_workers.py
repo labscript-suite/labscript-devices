@@ -296,7 +296,7 @@ class AD9959DDSSweeperWorker(Worker):
             values (dict): dictionary of dictionaries with keys of active DDS 
             channels, subkeys of ['freq', 'amp', 'phase']
         '''
-        # invalidate static cache
+        self.smart_cache = {'static_data' : None, 'dds_data' : None}
 
         for chan in values:
             chan_int = int(chan[8:])
@@ -367,15 +367,6 @@ class AD9959DDSSweeperWorker(Worker):
                         'freq' : freq,
                         'amp' : amp,
                         'phase' : phase,
-                    }
-
-                else:
-                    self.logger.debug(f'Setting outputs using cache on chan: {chan}')
-                    self.intf.set_output(chan, cache_freq, cache_amp, cache_phase)
-                    self.final_values[f'channel {chan}'] = {
-                        'freq' : cache_freq * self.intf.tuning_words_to_SI['freq'],
-                        'amp' : cache_amp * self.intf.tuning_words_to_SI['amp'],
-                        'phase' : cache_phase * self.intf.tuning_words_to_SI['phase']
                     }
         
         if dds_data is not None:
