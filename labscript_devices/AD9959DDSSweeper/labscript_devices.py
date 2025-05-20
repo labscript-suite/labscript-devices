@@ -54,7 +54,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         }
     )
 
-    def __init__(self, name, parent_device, com_port,
+    def __init__(self, name, parent_device, com_port, dynamic_channels,
                  pico_board='pico1', sweep_mode=0,
                  ref_clock_external=0, ref_clock_frequency=125e6, pll_mult=4, **kwargs):
         '''Labscript device class for AD9959 eval board controlled by a Raspberry Pi Pico running the DDS Sweeper firmware (https://github.com/QTC-UMD/dds-sweeper).
@@ -67,6 +67,8 @@ class AD9959DDSSweeper(IntermediateDevice):
                 Pseudoclock clockline used to clock DDS parameter changes.
             com_port (str): COM port assigned to the AD9959DDSSweeper by the OS.
                 On Windows, takes the form of `COMd` where `d` is an integer.
+            dynamic_channels (int): number of dynamic DDS channels that will be added.
+                This must be specified in the constructor so that update rates can be calculated correctly.
             pico_board (str): The version of pico board used, pico1 or pico2.
             sweep_mode (int):
                 The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
@@ -75,7 +77,6 @@ class AD9959DDSSweeper(IntermediateDevice):
             ref_clock_frequency (float): Frequency of the reference clock. If ref_clock_external is 0, the Pi Pico system clock will be set to this frequency. If the PLL is used, ref_clock_frequency * pll_mult must be between 100 MHz and 500 MHz. If the PLL is not used, ref_clock_frequency must be less than 500 MHz.
             pll_mult: the AD9959 has a PLL to multiply the reference clock frequency. Allowed values are 1 or 4-20.
         '''
-        IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s' % com_port
         
         if pico_board in self.allowed_boards:
@@ -97,27 +98,55 @@ class AD9959DDSSweeper(IntermediateDevice):
         self.dds_clock = ref_clock_frequency * pll_mult
         self.clk_scale = 2**32 / self.dds_clock
 
+        # Store number of dynamic channels
+        if dynamic_channels > 4:
+            raise ValueError('AD9959DDSSweeper only supports up to 4 total channels, dynamic channels must be 4 or less.')
+        self.dynamic_channels = dynamic_channels
+
+        IntermediateDevice.__init__(self, name, parent_device, **kwargs)
+
     @property
     def clock_limit(self):
         '''Dynamically computs clock limit based off of number of dynamic 
         channels and reference clock frequency.'''
-        num_dyn_chans = sum(isinstance(child, DDS) for child in self.child_devices)
-        if num_dyn_chans == 0:
-            # Set to worst case 
-            # 4 channels, step mode, default 125 MHz pico ref clk
-            return 100000
+        if self.dynamic_channels == 0:
+            # No clock limit
+            return None
         
         if self.sweep_mode > 0:
             mode = 'sweeps'
         else:
             mode = 'steps'
         try:
-            cycles_per_instruction = self.cycles_per_instruction_map[mode][num_dyn_chans - 1]
+            cycles_per_instruction = self.cycles_per_instruction_map[mode][self.dynamic_channels - 1]
         except (KeyError, IndexError):
-            raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {num_dyn_chans}')        
+            raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {self.dynamic_channels}')
 
         return self.ref_clock_frequency / cycles_per_instruction
-    
+
+    def add_device(self, device):
+        """Confirms channel specified is valid before adding
+
+        Validity checks include channel name and static/dynamic status.
+        Dynamic channels must be specified before static channels.
+        Args:
+            device(): Device to attach. Must be a DDS or a StaticDDS.
+                Allowed connections are a string of the form `channel X`.
+        """
+        conn = device.connection
+        chan = int(conn.split('channel ')[-1])
+
+        if isinstance(device, StaticDDS):
+            if chan < self.dynamic_channels:
+                raise LabscriptError(f'Channel {chan} configured as dynamic channel, can not create StaticDDS.')
+            elif chan >= 4:
+                raise LabscriptError('AD9959DDSSweeper only supports 4 channels')
+        elif isinstance(device, DDS):
+            if chan >= self.dynamic_channels:
+                raise LabscriptError(f'Channel {chan} not configured as dynamic channel, can not create DDS.')
+
+        super().add_device(device)
+
     def get_default_unit_conversion_classes(self, device):
         """Child devices call this during their __init__ (with themselves
         as the argument) to check if there are certain unit calibration
