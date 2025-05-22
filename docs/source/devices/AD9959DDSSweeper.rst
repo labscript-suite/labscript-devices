@@ -66,6 +66,7 @@ An example connection table with the default settings of the sweeper:
                             name='AD9959', 
                             parent_device=prawn.clocklines[0],
                             com_port='COM11',
+                            dynamic_channels=2
                             )
 
 
@@ -79,8 +80,8 @@ An example connection table with the default settings of the sweeper:
 
     stop(1)
 
-An example connection table that uses the PrawnBlaster and sweeper with an 
-external, 100 MHz clock and pll multiplier of 5:
+An example connection table that uses the PrawnBlaster and sweeper with three 
+dynamic channels, an external, 100 MHz clock and pll multiplier of 5:
 
 .. code-block:: python
 
@@ -99,6 +100,7 @@ external, 100 MHz clock and pll multiplier of 5:
                             name='AD9959', 
                             parent_device=prawn.clocklines[0],
                             com_port='COM11',
+                            dynamic_channels=3,
                             pico_board='pico2',
                             ref_clock_external=1,
                             ref_clock_frequency=100e6,
