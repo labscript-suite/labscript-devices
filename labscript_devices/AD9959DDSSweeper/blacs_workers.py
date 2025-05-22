@@ -296,7 +296,7 @@ class AD9959DDSSweeperWorker(Worker):
             values (dict): dictionary of dictionaries with keys of active DDS 
             channels, subkeys of ['freq', 'amp', 'phase']
         '''
-        self.smart_cache = {'static_data' : None, 'dds_data' : None}
+        self.smart_cache = {'static_data' : None}
 
         for chan in values:
             chan_int = int(chan[8:])
