@@ -256,13 +256,6 @@ class AD9959DDSSweeper(IntermediateDevice):
             dyn_table['amp%d' % i][:] = dds.amplitude.raw_output
             dyn_table['phase%d' % i][:] = dds.phase.raw_output
 
-        # conversion to AD9959 units is done on the Pi Pico
-        for connection in stat_DDSs:
-            dds = stat_DDSs[connection]
-            dds.frequency.scale_factor = 1.0
-            dds.phase.scale_factor = 1.0
-            dds.amplitude.scale_factor = 1.0
-
         static_dtypes = {
             'names':['%s%d' % (k, i) for i in stat_DDSs for k in ['freq', 'amp', 'phase'] ],
             'formats':[f for i in stat_DDSs for f in ('float', 'float', 'float')]
@@ -286,6 +279,10 @@ class AD9959DDSSweeper(IntermediateDevice):
             grp.create_dataset('dds_data', compression=config.compression, data=dyn_table)
         if stat_DDSs:
             grp.create_dataset('static_data', compression=config.compression, data=static_table)
-        self.set_property('frequency_scale_factor', dds.frequency.scale_factor, location='device_properties')
-        self.set_property('amplitude_scale_factor', dds.amplitude.scale_factor, location='device_properties')
-        self.set_property('phase_scale_factor', dds.phase.scale_factor, location='device_properties')
+        # Store parameter scale factors
+        _, frequency_scale_factor = self.quantise_freq([], None)
+        _, amplitude_scale_factor = self.quantise_amp([], None)
+        _, phase_scale_factor = self.quantise_phase([], None)
+        self.set_property('frequency_scale_factor', frequency_scale_factor, location='device_properties')
+        self.set_property('amplitude_scale_factor', amplitude_scale_factor, location='device_properties')
+        self.set_property('phase_scale_factor', phase_scale_factor, location='device_properties')
