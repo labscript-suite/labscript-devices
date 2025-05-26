@@ -2,9 +2,7 @@ import serial
 import time
 import serial.tools.list_ports
 
-# dmesg | grep tty
-# ls /dev/tty*
-# lsusb
+
 
 def check_ports():
     ports = serial.tools.list_ports.comports()

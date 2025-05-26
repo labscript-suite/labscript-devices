@@ -1,6 +1,7 @@
+import threading
+
 from blacs.tab_base_classes import Worker
 from labscript import LabscriptError
-import serial
 from .logger_config import logger
 import time
 import h5py
@@ -12,6 +13,9 @@ from datetime import datetime
 class BS_341AWorker(Worker):
     def init(self):
         """Initialises communication with the device. When BLACS (re)starts"""
+        self.thread = None
+        # self.thread_stop_event = threading.Event()
+
         self.final_values = {}  # [[channel_nums(ints)],[voltages(floats)]]
         self.verbose = True
 
@@ -22,7 +26,7 @@ class BS_341AWorker(Worker):
 
             # Get device information
             self.device_serial = self.voltage_source.device_serial  # For example, 'HV023'
-            self.device_voltage_range = self.voltage_source.device_voltage_range or 5 # For example, '50' # TODO: 5 volts for safety
+            self.device_voltage_range = self.voltage_source.device_voltage_range # For example, '50'
             self.device_channels = self.voltage_source.device_channels  # For example, '10'
             self.device_output_type = self.voltage_source.device_output_type  # For example, 'b' (bipolar, unipolar, quadrupole, steerer supply)
 
@@ -71,6 +75,7 @@ class BS_341AWorker(Worker):
         return front_panel_values
 
     def check_remote_values(self): # reads the current settings of the device, updating the BLACS_tab widgets 
+
         return
 
     def transition_to_buffered(self, device_name, h5_file, initial_values, fresh): 
@@ -92,25 +97,17 @@ class BS_341AWorker(Worker):
             # self.device_prop = properties.get(hdf5_file, device_name, 'device_properties')
             # print("======== Device Properties : ", self.device_prop, "=========")
 
+        # prepare events
+        events = []
         for row in AO_data:
-            if self.verbose is True:
-                time = row["time"]
-                print(f"\n time = {time}")
-                logger.info(f"Programming the device from buffered at time {time} with following values")
+            t = row['time']
+            voltages = {ch: row[ch] for ch in row.dtype.names if ch != 'time'}
+            events.append((t, voltages))
 
-            for channel_name in row.dtype.names:
-                if channel_name.lower() == 'time':  # Skip the time column
-                    continue
-
-                voltage = row[channel_name]
-                channel_num = self._get_channel_num(channel_name)
-                self.voltage_source.set_voltage(channel_num, voltage)
-
-                if self.verbose is True:
-                    print(f"→ Channel: {channel_name} (#{channel_num}), Voltage: {voltage}")
-
-                # Store the values
-                self.final_values[channel_num] = voltage
+        # Create and launch thread
+        # self.thread_stop_event.clear()
+        self.thread = threading.Thread(target=self._playback_thread, args=(events,))
+        self.thread.start()
 
         rich_print(f"---------- End transition to Buffered: ----------", color=BLUE)
         return
@@ -120,6 +117,10 @@ class BS_341AWorker(Worker):
         """transitions the device from buffered to manual mode to read/save measurements from hardware
         to the shot h5 file as results. 
         Runs at the end of the shot."""
+        #Stop the thread
+        rich_print(f"---------- Begin transition to Manual: ----------", color=BLUE)
+        self.thread.join()
+        rich_print(f"---------- End transition to Manual: ----------", color=BLUE)
         return True
     
     def abort_transition_to_buffered(self):
@@ -236,6 +237,24 @@ class BS_341AWorker(Worker):
         except ValueError:
             raise ValueError(f"Impossible to convert from '{channel_name}'")
 
+    def _playback_thread(self, events):
+        for t, voltages in events:
+            if self.verbose:
+                # print(f"stop event flag: {self.thread_stop_event.is_set()}")
+                print(f"time: {t} \t voltage: {voltages} \n")
+            #if self.thread_stop_event.is_set():
+                #break
+
+            time.sleep(t)
+
+            for ch_name, voltage in voltages.items():
+                ch_num = self._get_channel_num(ch_name)
+                self.voltage_source.set_voltage(ch_num, voltage)
+                self.final_values[ch_num] = voltage
+                if self.verbose:
+                    print(f"[{t:.3f}s] --> Set {ch_num} (#{ch_num}) = {voltage}")
+
+        print(f"[Thread] finished all events !")
 
 
 # --------------------contants

@@ -1,14 +1,12 @@
 """
-Simulate the serial port for the BS 34-1A, as I don't have access to the real device.
+Emulate the serial port for the BS 34-1A.
 
 You will create a virtual serial port using this script. This script will act as if it’s the BS 34-1A device. When you run the script, it will open a serial port (for example, /dev/pts/1) and allow other programs (such as your BLACS worker) to communicate with it.
 
 The virtual serial port should stay open while the simulation is running, so other code that expects to interact with the serial device can do so just as if the actual device were connected.
 
-Run following command
-    cd labscript-suite/labscript-devices/labscript_devices
+Run following command in the corresponding folder.
     python3 -m BS_341A.emulateSerPort
-
 """
 
 import os, pty

@@ -43,8 +43,8 @@ class VoltageSource:
                 f"Device identification failed.\n"
                 f"Raw identity: {raw_response!r}\n"
                 f"Parsed identity: {identity!r}\n"
-                f"Expected format: ['BSXXX', 'RRR', 'CC', 'b']\n"
-                f"Device: BS-1-10 at port {self.port!r}\n"
+                f"Expected format: ['HVXXX', 'RRR', 'CC', 'b']\n"
+                f"Device: at port {self.port!r}\n"
             )
 
     def set_voltage(self, channel_num, value):
@@ -117,7 +117,7 @@ class VoltageSource:
         Raises:
             LabscriptError: If the response format is invalid or parsing fails.
         """
-
+        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}" # 1 -> '01'
         send_str = f"{self.device_serial} U{channel}\r" # 'DDDDD UXX'
         self.connection.write(send_str.encode())
@@ -127,7 +127,7 @@ class VoltageSource:
         if response.endswith("V"):
             try:
                 numeric_part = response[:-1].strip()  # remove 'V' and whitespace
-                numeric_part = numeric_part.replace(',', '.')  # convert to Python-style float
+                numeric_part = numeric_part.replace(',', '.')
                 voltage = float(numeric_part)
                 return voltage
             except ValueError:
@@ -149,9 +149,9 @@ class VoltageSource:
         Raises:
             LabscriptError: If the response format is invalid or parsing fails.
         """
-
+        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}" # 1 -> '01'
-        send_str = f"{self.device_serial} I{channel}\r" # 'DDDDD IXX' #TODO: is it I or l or 1?
+        send_str = f"{self.device_serial} I{channel}\r"
         self.connection.write(send_str.encode())
 
         response = self.connection.readline().decode().strip()  # '+/-yy,yyy mA'
@@ -182,6 +182,7 @@ class VoltageSource:
        Raises:
            LabscriptError: If the response format is invalid or parsing fails.
        """
+        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}"  # 1 -> '01'
         send_str = f"{self.device_serial} Q{channel}\r"  # 'DDDDD QXX'
         self.connection.write(send_str.encode())

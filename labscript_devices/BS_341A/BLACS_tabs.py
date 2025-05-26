@@ -12,11 +12,11 @@ class BS_341ATab(DeviceTab):
 
         # Capabilities
         self.base_units = 'V'
-        self.base_min = -5 # TODO: What is the range?
-        self.base_max = 5
+        self.base_min = -24
+        self.base_max = 24
         self.base_step = 1
         self.base_decimals = 3
-        self.num_AO = 4
+        self.num_AO = 8 # or properties['num_AO']
                 
         # Create AO Output objects
         ao_prop = {}

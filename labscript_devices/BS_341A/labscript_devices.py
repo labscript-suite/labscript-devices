@@ -10,7 +10,7 @@ class BS_341A(IntermediateDevice): # no pseudoclock IntermediateDevice --> Devic
     description = 'BS_341A'
     
     @set_passed_properties({"connection_table_properties": ["port", "baud_rate", "num_AO"]})
-    def __init__(self, name, port='', baud_rate=115200, parent_device=None, connection=None, num_AO=0, **kwargs):
+    def __init__(self, name, port='', baud_rate=9600, parent_device=None, connection=None, num_AO=0, **kwargs):
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         # self.start_commands = []
         self.BLACS_connection = '%s,%s' % (port, str(baud_rate))
