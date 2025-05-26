@@ -19,8 +19,8 @@ class KeysightScopeWorker(Worker):
     def init(self):
         # ----------------------------------------- Initialize osci
         global KeysightScope
-        from .KeysightScope import KeysightScope
-        self.scope = KeysightScope(
+        from .KeysightScope import KeysightScopeDevice
+        self.scope = KeysightScopeDevice(
             address= self.address,
             verbose = False)
 

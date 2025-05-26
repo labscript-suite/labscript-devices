@@ -5,7 +5,7 @@ from labscript_devices.KeysightScope.connection_manager import unit_conversion
 
 
 
-class KeysightScope: 
+class KeysightScopeDevice: 
     def __init__(self,
                  address,
                  verbose = False
