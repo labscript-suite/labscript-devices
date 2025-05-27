@@ -1,17 +1,24 @@
 import pyvisa
 import numpy as np
 from labscript.labscript import LabscriptError
-from labscript_devices.KeysightScope.connection_manager import unit_conversion
+# from labscript_devices.KeysightScope.connection_manager import self.unit_conversion
 
 
 
-class KeysightScope: 
+class KeysightScopeDevice: 
     def __init__(self,
                  address,
                  verbose = False
                  ):
         
         self.verbose = verbose
+
+        self.unit_conversion = {
+            's' : 1  ,  
+            'ns': 1e-9,  # nanoseconds to seconds
+            'us': 1e-6,  # microseconds to seconds
+            'ms': 1e-3   # milliseconds to seconds
+            }
 
         # --------------------------------- Connecting to device 
         self.dev = pyvisa.ResourceManager().open_resource(address)
@@ -233,12 +240,12 @@ class KeysightScope:
         """
 
         # Validate unit
-        if unit not in unit_conversion:
+        if unit not in self.unit_conversion:
             raise LabscriptError(f"Invalid unit '{unit}'. Supported units are 'ns', 'us', 'ms'.")
         
         # Convert to seconds
         try:
-            converted_time_range = float(range) * unit_conversion[unit]
+            converted_time_range = float(range) * self.unit_conversion[unit]
             
             # Check if the converted time range is within the allowed bounds
             if not (50e-9 <= converted_time_range <= 500):
@@ -260,12 +267,12 @@ class KeysightScope:
             LabscriptError: If the time division is outside the valid division or if the unit is invalid.
         """
         # Validate unit
-        if unit not in unit_conversion:
+        if unit not in self.unit_conversion:
             raise LabscriptError(f"Invalid unit '{unit}'. Supported units are 'ns', 'us', 'ms'.")
         
         # Convert to seconds
         try:
-            converted_time_division = float(division) * unit_conversion[unit]
+            converted_time_division = float(division) * self.unit_conversion[unit]
             
             # Check if the converted time division is within the allowed bounds
             if not (5e-9 <= converted_time_division <= 50):
@@ -289,12 +296,12 @@ class KeysightScope:
         """
 
         # Validate unit
-        if unit not in unit_conversion:
+        if unit not in self.unit_conversion:
             raise LabscriptError(f"Invalid unit '{unit}'. Supported units are 'ns', 'us', 'ms'.")
 
         # Convert to seconds
         try:
-            converted_time_delay = float(delay) * unit_conversion[unit]
+            converted_time_delay = float(delay) * self.unit_conversion[unit]
             
             # Check if the converted time range is within the allowed bounds
             if converted_time_delay >= 500:

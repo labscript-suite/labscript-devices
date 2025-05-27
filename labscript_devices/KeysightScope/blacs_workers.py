@@ -1,3 +1,4 @@
+from labscript_devices.KeysightScope.KeysightScope import KeysightScopeDevice
 import numpy as np
 import h5py
 from zprocess import rich_print
@@ -8,7 +9,8 @@ import time
 # from matplotlib.ticker import MaxNLocator
 # from matplotlib import pyplot as plt
 
-from labscript_devices.KeysightScope.connection_manager import BLUE,GREEN,PURPLE
+# from labscript_devices.KeysightScope.connection_manager import BLUE,GREEN,PURPLE
+# ----------------------------------- Miscellaneous
 
 
 class KeysightScopeWorker(Worker):
@@ -20,7 +22,7 @@ class KeysightScopeWorker(Worker):
         # ----------------------------------------- Initialize osci
         global KeysightScope
         from .KeysightScope import KeysightScope
-        self.scope = KeysightScope(
+        self.scope = KeysightScopeDevice(
             address= self.address,
             verbose = False)
 
@@ -33,7 +35,7 @@ class KeysightScopeWorker(Worker):
 
         
     def transition_to_buffered( self, device_name, h5file , front_panel_values, refresh): 
-        rich_print(f"====== Begin transition to Buffered: ======", color=BLUE)    
+        rich_print(f"====== Begin transition to Buffered: ======", color='#66D9EF')    
         
         self.h5file = h5file                                                    
         self.device_name = device_name
@@ -75,11 +77,11 @@ class KeysightScopeWorker(Worker):
 
         self.scope.single() 
 
-        rich_print(f"====== End transition to Buffered: ======", color=BLUE) 
+        rich_print(f"====== End transition to Buffered: ======", color='#66D9EF') 
         return {}
 
     def transition_to_manual(self, abort = False):
-        rich_print(f"====== Begin transition to manual: ======", color=GREEN)
+        rich_print(f"====== Begin transition to manual: ======", color='#A6E22E')
         self.scope.unlock()                                                 # Unlocks The oscilloscope
 
         if (not self.buffered_mode) or (not self.triggered) or abort :      # In case we didn't take a shot or we didn't trigger
@@ -114,7 +116,7 @@ class KeysightScopeWorker(Worker):
             dset.attrs.update(self.current_configuration)
         
         #self.scope.set_acquire_state(True)  # run on 
-        rich_print(f"====== End transition to manual: ======", color=GREEN)
+        rich_print(f"====== End transition to manual: ======", color='#A6E22E')
         return True
 
     # ----------------------------------------- Aborting
@@ -143,7 +145,7 @@ class KeysightScopeWorker(Worker):
     
     # ------------------------------------------ Blacs Tabs functions
     def shutdown(self):
-        rich_print(f"====== transition to manual: ======", color= PURPLE)
+        rich_print(f"====== transition to manual: ======", color= '#AE81FF')
         return self.scope.close()
     
     # ------------------------------------------ New
