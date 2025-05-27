@@ -10,12 +10,10 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QSize
 from PyQt5 import uic
 
-"""
-The device class handles the creation of the GUI + interaction GUI ~ QueueManager
 
-"""
 
 class KeysightScopeTab(DeviceTab): 
+    '''The device class handles the creation + interaction with the GUI ~ QueueManager'''
 
     def initialise_workers(self):
         # Here we can change the initialization properties in the connection table
@@ -52,7 +50,6 @@ class KeysightScopeTab(DeviceTab):
             # Connect reset buttons (default buttons)
             self.default_button = self.osci_widget.findChild(QPushButton, f"defaultButton_{i}")
             self.default_button.clicked.connect(lambda clicked, i=i: self.default_config(i))
-
 
         # Loads the Osci Configurations
         self.init_osci()
@@ -148,8 +145,6 @@ class OsciTab(QWidget):
             self.button_group.setId(radio_button, i  )
             radio_button.toggled.connect(self.radio_toggled )
 
-
-            
             # --- TableWidgets
             self.tableWidget = tab.findChild(QTableWidget, "tableWidget")
             self.tableWidget.setObjectName(f"table_{i}")

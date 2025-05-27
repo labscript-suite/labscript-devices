@@ -1,20 +1,7 @@
 from labscript import TriggerableDevice, LabscriptError, set_passed_properties ,LabscriptError,set_passed_properties
-import  h5py
-import time
 from re import sub
+from pyvisa import ResourceManager
 
-# ---------------------------------------------------------------New imports
-# from labscript_devices.KeysightScope.connection_manager import * 
-
-
-# default_osci_capabilities = [    # Example:  Keysight DSOX1202G
-#         "serial_number"   ,      # Serial number Must be given when initializing the Oscilloscope
-#         "band_width"      ,      # 70 MHz
-#         "sampling_rate"   ,      # 2GSa/s
-#         "max_memory"      ,      # 1Mpts
-#         "max_update_rate"        # 50,000 waveforms/second update rate.   
-
-# ]
 
 class KeysightScope(TriggerableDevice):
     """
@@ -25,7 +12,6 @@ class KeysightScope(TriggerableDevice):
 
     @set_passed_properties(
         property_names = {
-            # 'connection_table_properties':  default_osci_capabilities,
             'device_properties' : ["configuration_number","triggered", "timeout"]
             }
         )
@@ -38,44 +24,7 @@ class KeysightScope(TriggerableDevice):
                  **kwargs):
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs) 
 
-        # --------------------------------- Connection Manager
-        # cm = connectionManager(serial_number)
-        # self.BLACS_connection = cm.get_address_from_serial_number()
-
-        self.address = None
-        is_right_model= False
-        is_right_serial_number = False
-
-        for idx, item in enumerate(self.devs):
-            try:
-                scope = self.rm.open_resource(self.devs[idx], timeout=500)          # opens the device
-                osci_model = scope.query("*IDN?")                                   # asks about the identity
-                
-                for supported_model in self.supported_models:                       # checks if it is a supported model
-                    if supported_model in osci_model:
-                        is_right_model= True
-
-                # Check the serial number 
-                scope_serial_number = sub(r'\s+', '', scope.query(":SERial?"))      # gets the device serial number
-                is_right_serial_number = (scope_serial_number == serial_number)   # checks the conformity between the given and the read serial number
-
-                if is_right_serial_number and is_right_model:                            
-                    self.address =  item
-                elif not is_right_model and is_right_serial_number:
-                    raise ValueError(f"The device model {osci_model} is not supported. Supported models are EDUX1052A, EDUX1052G, DSOX1202A, DSOX1202G, DSOX1204A, DSOX1204G.")
-            except:
-                continue
-
-        if not is_right_serial_number:
-            raise ValueError(f"No Device with the serial number {serial_number} was found. Please check connection")
-                
-
-        self.BLACS_connection = self.address
-
-        # # --------------------------------- Device capabilities
-        # self.osci_capabilities = cm.osci_capabilities
-        # for key,value in self.osci_capabilities.items():
-        #     setattr(self,key,value)
+        self.BLACS_connection = self.get_adress_from_serial_number(serial_number)
 
         # --------------------------------- Class attributes
         self.name = name
@@ -84,7 +33,37 @@ class KeysightScope(TriggerableDevice):
         self.configuration_number = None    # Sets the configuraton slot
 
 
-        
+    def get_adress_from_serial_number(self,serial_number):
+        rm = ResourceManager()
+        devs = rm.list_resources()
+        is_right_model= False
+        is_right_serial_number = False
+        supported_models = ["EDUX1052A", "EDUX1052G" ,"DSOX1202A" , "DSOX1202G","DSOX1204A" , "DSOX1204G"]
+
+        for idx, item in enumerate(devs):
+            try:
+                scope = rm.open_resource(devs[idx], timeout=500)          # opens the device
+                osci_model = scope.query("*IDN?")                                   # asks about the identity
+                
+                for supported_model in supported_models:                       # checks if it is a supported model
+                    if supported_model in osci_model:
+                        is_right_model= True
+
+                # Check the serial number 
+                scope_serial_number = sub(r'\s+', '', scope.query(":SERial?"))      # gets the device serial number
+                is_right_serial_number = (scope_serial_number == serial_number)   # checks the conformity between the given and the read serial number
+
+                if is_right_serial_number and is_right_model:                         
+                    return  item
+                elif not is_right_model and is_right_serial_number:
+                    raise ValueError(f"The device model {osci_model} is not supported. Supported models are EDUX1052A, EDUX1052G, DSOX1202A, DSOX1202G, DSOX1204A, DSOX1204G.")
+            except:
+                continue
+
+        if not is_right_serial_number:
+            raise ValueError(f"No Device with the serial number {serial_number} was found. Please check connection")
+
+
     def set_config(self,configuration_number):
         """
         Change the configuration of the oscilloscope to the specified configuration number.

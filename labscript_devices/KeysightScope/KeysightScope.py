@@ -1,8 +1,6 @@
 import pyvisa
 import numpy as np
 from labscript.labscript import LabscriptError
-# from labscript_devices.KeysightScope.connection_manager import self.unit_conversion
-
 
 
 class KeysightScopeDevice: 
@@ -639,7 +637,7 @@ class KeysightScopeDevice:
         raw = self.dev.query_binary_values(
             ':WAVeform:DATA?',                
             datatype=datatype,       # 'B' and 'H' are for unassigned , if you want signed use h and b 
-            #is_big_endian=True,                                             # In case we shift to signed
+            #is_big_endian=True,     # In case we shift to signed
             container=np.array
             )
         

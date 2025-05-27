@@ -4,13 +4,9 @@ import h5py
 from zprocess import rich_print
 from blacs.tab_base_classes import Worker
 from  labscript_utils import properties
-import time 
 
 # from matplotlib.ticker import MaxNLocator
 # from matplotlib import pyplot as plt
-
-# from labscript_devices.KeysightScope.connection_manager import BLUE,GREEN,PURPLE
-# ----------------------------------- Miscellaneous
 
 
 class KeysightScopeWorker(Worker):
