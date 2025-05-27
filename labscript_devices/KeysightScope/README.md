@@ -23,20 +23,6 @@
 
 * **3** This zone gives an overview of the most important setting parameters for the currently selected (green highleted, not necessarly activated) tab.
 
-#  First settings for your Keysight oscilloscope 
-
-1. In the file `Keysightscope/models/Keysight_dsox1202g`, you’ll find an example containing the dictionary:  
-   * `osci_capabilities`: defines device-specific capabilities.
-
-2. To support your specific oscilloscope model:
-   * Copy this example file into the same folder.
-   * Edit the `osci_capabilities` dictionary to match your oscilloscope’s specifications.
-
-**--------- !!! Important !!! ---------**
-1. The filename **must** begin with `"Keysight"` to be detected properly,  
-   e.g., `Keysightscope/models/Keysight_dsox1202g`
-
-2. Do **not** rename the dictionary `osci_capabilities`.
 
 ##  Example Script
 
@@ -51,7 +37,7 @@ KeysightScope(
 ```
 
 ### In the python experiment file
-There are two main function to use in the experiment scipt:
+There are two main functions to use in the experiment scipt:
 
 * `set_config( spot_index : int or string )` : The oscilloscope has ten different spots where it saves its global settings. set_config(spot_index) must be called at the beginning of the experiment script with the desired spot_index to initialize the oscilloscope with the corresponding configuration for the shot.
 
