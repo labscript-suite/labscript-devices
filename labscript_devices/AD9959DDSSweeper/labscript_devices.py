@@ -96,7 +96,11 @@ class AD9959DDSSweeper(IntermediateDevice):
             raise ValueError('ref_clock_frequency must be less than 133 MHz when clock is provided by Pi Pico')
 
         self.dds_clock = ref_clock_frequency * pll_mult
-        self.clk_scale = 2**32 / self.dds_clock
+        # define output scale factors for dynamic channels
+        # static channel scaling handled by firmware
+        self.freq_scale = 2**32 / self.dds_clock
+        self.amp_scale = 1023
+        self.phase_scale = 16384/360.0
 
         # Store number of dynamic channels
         if dynamic_channels > 4:
@@ -168,11 +172,10 @@ class AD9959DDSSweeper(IntermediateDevice):
             raise LabscriptError('%s %s ' % (device.description, device.name) +
                                  'can only have frequencies between 0.0Hz and %f MHz, ' + 
                                  'the limit imposed by %s.' % (self.name, self.dds_clock/2e6))
-        scale_factor = self.clk_scale # Need to multiply by clk scale factor
 
         # It's faster to add 0.5 then typecast than to round to integers first:
-        data = np.array((scale_factor*data)+0.5,dtype='<u4')
-        return data, scale_factor
+        data = np.array((self.freq_scale*data)+0.5,dtype='<u4')
+        return data
         
     def quantise_phase(self, data, device):
         """Ensures phase is wrapped about 360 degrees and scales to instrument
@@ -182,9 +185,8 @@ class AD9959DDSSweeper(IntermediateDevice):
         # ensure that phase wraps around:
         data %= 360
         # It's faster to add 0.5 then typecast than to round to integers first:
-        scale_factor = 16384/360.0
-        data = np.array((scale_factor*data)+0.5,dtype='<u2')
-        return data, scale_factor
+        data = np.array((self.phase_scale*data)+0.5,dtype='<u2')
+        return data
         
     def quantise_amp(self, data, device):
         """Ensures amplitude is within bounds and scales to instrument units
@@ -197,9 +199,8 @@ class AD9959DDSSweeper(IntermediateDevice):
                               'can only have amplitudes between 0 and 1 (Volts peak to peak approx), ' + 
                               'the limit imposed by %s.' % self.name)
         # It's faster to add 0.5 then typecast than to round to integers first:
-        data = np.array((1023*data)+0.5,dtype='<u2')
-        scale_factor = 1023
-        return data, scale_factor
+        data = np.array((self.amp_scale*data)+0.5,dtype='<u2')
+        return data
 
     def generate_code(self, hdf5_file):
 
@@ -238,9 +239,9 @@ class AD9959DDSSweeper(IntermediateDevice):
 
         for connection in dyn_DDSs:
             dds = dyn_DDSs[connection]   
-            dds.frequency.raw_output, dds.frequency.scale_factor = self.quantise_freq(dds.frequency.raw_output, dds)
-            dds.phase.raw_output, dds.phase.scale_factor = self.quantise_phase(dds.phase.raw_output, dds)
-            dds.amplitude.raw_output, dds.amplitude.scale_factor = self.quantise_amp(dds.amplitude.raw_output, dds)
+            dds.frequency.raw_output = self.quantise_freq(dds.frequency.raw_output, dds)
+            dds.phase.raw_output = self.quantise_phase(dds.phase.raw_output, dds)
+            dds.amplitude.raw_output = self.quantise_amp(dds.amplitude.raw_output, dds)
 
         dyn_dtypes = {'names':['%s%d' % (k, i) for i in dyn_DDSs for k in ['freq', 'amp', 'phase'] ],
                 'formats':[f for i in dyn_DDSs for f in ('<u4', '<u2', '<u2')]}
@@ -280,9 +281,6 @@ class AD9959DDSSweeper(IntermediateDevice):
         if stat_DDSs:
             grp.create_dataset('static_data', compression=config.compression, data=static_table)
         # Store parameter scale factors
-        _, frequency_scale_factor = self.quantise_freq([], None)
-        _, amplitude_scale_factor = self.quantise_amp([], None)
-        _, phase_scale_factor = self.quantise_phase([], None)
-        self.set_property('frequency_scale_factor', frequency_scale_factor, location='device_properties')
-        self.set_property('amplitude_scale_factor', amplitude_scale_factor, location='device_properties')
-        self.set_property('phase_scale_factor', phase_scale_factor, location='device_properties')
+        self.set_property('frequency_scale_factor', self.freq_scale, location='device_properties')
+        self.set_property('amplitude_scale_factor', self.amp_scale, location='device_properties')
+        self.set_property('phase_scale_factor', self.phase_scale, location='device_properties')
