@@ -16,7 +16,6 @@ from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTec
 
 
 import numpy as np
-import sys
 
 class AD9959DDSSweeper(IntermediateDevice):
     allowed_children = [DDS, StaticDDS]
@@ -169,9 +168,9 @@ class AD9959DDSSweeper(IntermediateDevice):
             data = np.array(data)
         # Ensure that frequencies are within bounds:
         if np.any(data > self.dds_clock/2.) or np.any(data < 0.0):
-            raise LabscriptError('%s %s ' % (device.description, device.name) +
-                                 'can only have frequencies between 0.0Hz and %f MHz, ' + 
-                                 'the limit imposed by %s.' % (self.name, self.dds_clock/2e6))
+            raise LabscriptError(f'{device.description:s} {device.name:s} '+
+                                 f'can only have frequencies between 0.0Hz and {self.dds_clock/2e6:.1f} MHz, ' + 
+                                 f'the limit imposed by {self.name:s}.')
 
         # It's faster to add 0.5 then typecast than to round to integers first:
         data = np.array((self.freq_scale*data)+0.5,dtype='<u4')
@@ -224,10 +223,10 @@ class AD9959DDSSweeper(IntermediateDevice):
                                     Please decrease the sample rates of devices on the same clock, \
                                     or connect {self.name} to a different pseudoclock.')
             try:
-                prefix, channel = output.connection.split()
+                _, channel = output.connection.split()
                 channel = int(channel)
                 assert channel in range(4), 'requested channel out of range'
-            except:
+            except Exception:
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (output.description,output.name,str(output.connection)) + 
                                      'Format must be \'channel n\' with n from 0 to 4.')
             
@@ -250,6 +249,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         dyn_dtypes = {'names':['%s%d' % (k, i) for i in dyn_DDSs for k in ['freq', 'amp', 'phase'] ],
                 'formats':[f for i in dyn_DDSs for f in ('<u4', '<u2', '<u2')]}
 
+        # TODO: may not be necessary, should be able to get length from dds.xxxx.raw_output size
         clockline = self.parent_clock_line
         pseudoclock = clockline.parent_device
         times = pseudoclock.times[clockline]
@@ -268,7 +268,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         
         static_table = np.zeros(1, dtype=static_dtypes)
 
-        for connection in list(stat_DDSs.keys()):
+        for connection in stat_DDSs.keys():
             sdds = stat_DDSs[connection]
             static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
             static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
