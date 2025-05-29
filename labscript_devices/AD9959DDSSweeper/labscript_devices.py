@@ -237,6 +237,10 @@ class AD9959DDSSweeper(IntermediateDevice):
             elif isinstance(output, StaticDDS):
                 stat_DDSs[channel] = output
 
+        # if no channels are being used, no need to continue
+        if not dyn_DDSs and not stat_DDSs:
+            return
+
         for connection in dyn_DDSs:
             dds = dyn_DDSs[connection]   
             dds.frequency.raw_output = self.quantise_freq(dds.frequency.raw_output, dds)
@@ -269,10 +273,6 @@ class AD9959DDSSweeper(IntermediateDevice):
             static_table['freq%d' % connection] = sdds.frequency.raw_output[0]
             static_table['amp%d' % connection] = sdds.amplitude.raw_output[0]
             static_table['phase%d' % connection] = sdds.phase.raw_output[0]
-
-        # if no channels are being used, no need to continue
-        if not dyn_DDSs and not stat_DDSs:
-            return
         
         # write out data tables
         grp = self.init_device_group(hdf5_file)
