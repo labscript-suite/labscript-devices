@@ -56,15 +56,17 @@ class VoltageSource:
             LabscriptError: If the response from BS-1-10 is incorrect.
         """
         try:
-            channel_num = f"{int(channel_num) + 1}"
             channel = f"CH{int(channel_num):02d}"
-            scaled_voltage = self._scale_to_normalized(float(value), float(self.device_voltage_range))
+            if channel_num == 1:
+                scaled_voltage = self._scale_to_normalized(float(value), float(self.device_voltage_range))
+            else: #workaround defect
+                scaled_voltage = self._scale_to_normalized(float(value), float(self.device_voltage_range + 10))
             send_str = f"{self.device_serial} {channel} {scaled_voltage:.5f}\r"
 
             self.connection.write(send_str.encode())
             response = self.connection.readline().decode().strip() #'CHXX Y.YYYYY'
 
-            logger.debug(f"Sent to BS-34/BS-1-8: {send_str!r} | Received: {response!r}")
+            logger.debug(f"Sent to BS-34: {send_str!r} | Received: {response!r}")
 
             expected_response = f"{channel} {scaled_voltage:.5f}"
             if response != expected_response:
@@ -117,7 +119,6 @@ class VoltageSource:
         Raises:
             LabscriptError: If the response format is invalid or parsing fails.
         """
-        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}" # 1 -> '01'
         send_str = f"{self.device_serial} U{channel}\r" # 'DDDDD UXX'
         self.connection.write(send_str.encode())
@@ -149,7 +150,6 @@ class VoltageSource:
         Raises:
             LabscriptError: If the response format is invalid or parsing fails.
         """
-        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}" # 1 -> '01'
         send_str = f"{self.device_serial} I{channel}\r"
         self.connection.write(send_str.encode())
@@ -182,7 +182,6 @@ class VoltageSource:
        Raises:
            LabscriptError: If the response format is invalid or parsing fails.
        """
-        channel_num = f"{int(channel_num) + 1}"
         channel = f"{int(channel_num):02d}"  # 1 -> '01'
         send_str = f"{self.device_serial} Q{channel}\r"  # 'DDDDD QXX'
         self.connection.write(send_str.encode())

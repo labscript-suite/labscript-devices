@@ -21,13 +21,22 @@ class BS_341ATab(DeviceTab):
         # Create AO Output objects
         ao_prop = {}
         for i in range(self.num_AO):
-            ao_prop['channel %d' % i] = {
-                'base_unit': self.base_units,
-                'min': self.base_min,
-                'max': self.base_max,
-                'step': self.base_step,
-                'decimals': self.base_decimals,
-            }
+            if i == 0:
+                ao_prop['channel %d' % i+1] = {
+                    'base_unit': self.base_units,
+                    'min': self.base_min,
+                    'max': self.base_max,
+                    'step': self.base_step,
+                    'decimals': self.base_decimals,
+                }
+            else:
+                ao_prop['channel %d' % i+1] = {
+                    'base_unit': self.base_units,
+                    'min': self.base_min - 10, #workaround defect
+                    'max': self.base_max + 10,
+                    'step': self.base_step,
+                    'decimals': self.base_decimals,
+                }
             
         # Create the output objects
         self.create_analog_outputs(ao_prop)

@@ -93,7 +93,7 @@ class BS_341AWorker(Worker):
 
         with h5py.File(h5_file, 'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
-            AO_data = group['AO'][:]
+            AO_data = group['AO_buffered'][:]
             # self.device_prop = properties.get(hdf5_file, device_name, 'device_properties')
             # print("======== Device Properties : ", self.device_prop, "=========")
 
@@ -133,7 +133,7 @@ class BS_341AWorker(Worker):
             print("\nProgramming the device with the following values:")
             logger.info("Programming the device from manual with the following values:")
 
-        for channel_num in range(int(self.num_AO)):
+        for channel_num in range(1, int(self.num_AO) + 1):
             channel_name = f'channel {channel_num}'
             voltage = front_panel_values.get(channel_name, 0.0)
             if self.verbose is True:
@@ -182,7 +182,7 @@ class BS_341AWorker(Worker):
             Parameters
             ----------
             front_panel_values : dict
-                Dictionary mapping channel names (e.g., 'channel 0') to voltage values (float).
+                Dictionary mapping channel names (e.g., 'channel 1') to voltage values (float).
             current_time : str
                 The timestamp (formatted as a string) when the values were recorded
 

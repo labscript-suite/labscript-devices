@@ -39,7 +39,7 @@ class BS_341A(IntermediateDevice): # no pseudoclock IntermediateDevice --> Devic
         logger.info(f"AO table for BS-34-1A is: {AO_table}")
         AO_manual_table = self._make_analog_out_table_from_manual(analogs)
 
-        group.create_dataset("AO", data=AO_table, compression=config.compression)
+        group.create_dataset("AO_buffered", data=AO_table, compression=config.compression)
         group.create_dataset("AO_manual", shape=AO_manual_table.shape, maxshape=(None,), dtype=AO_manual_table.dtype,
                              compression=config.compression, chunks=True)
 
