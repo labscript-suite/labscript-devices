@@ -50,23 +50,20 @@ class VoltageSource:
     def set_voltage(self, channel_num, value):
         """ Send set voltage command to device.
         Args:
-            channel_num (str): Channel number.
+            channel_num (str): Channel number '01'.
             value (float): Voltage value to set.
         Raises:
-            LabscriptError: If the response from BS-1-10 is incorrect.
+            LabscriptError: If the response from BS-341A is incorrect.
         """
         try:
             channel = f"CH{int(channel_num):02d}"
-            if channel_num == 1:
-                scaled_voltage = self._scale_to_normalized(float(value), float(self.device_voltage_range))
-            else: #workaround defect
-                scaled_voltage = self._scale_to_normalized(float(value), float(self.device_voltage_range + 10))
+            voltage_range = float(self.device_voltage_range) if channel == 'CH01' else 34.560  # dirty workaround
+            scaled_voltage = self._scale_to_normalized(float(value), float(voltage_range))
             send_str = f"{self.device_serial} {channel} {scaled_voltage:.5f}\r"
 
             self.connection.write(send_str.encode())
             response = self.connection.readline().decode().strip() #'CHXX Y.YYYYY'
-
-            logger.debug(f"Sent to BS-34: {send_str!r} | Received: {response!r}")
+            logger.debug(f"Sent to BS-34: {send_str!r} with {value} | Received: {response!r}")
 
             expected_response = f"{channel} {scaled_voltage:.5f}"
             if response != expected_response:
@@ -113,7 +110,7 @@ class VoltageSource:
         """
         Query voltage on the channel.
         Args:
-            channel_num (int): Channel number.
+            channel_num (str): Channel number.
         Returns:
             float: voltage in Volts.
         Raises:

@@ -20,9 +20,9 @@ class BS_341ATab(DeviceTab):
                 
         # Create AO Output objects
         ao_prop = {}
-        for i in range(self.num_AO):
-            if i == 0:
-                ao_prop['channel %d' % i+1] = {
+        for i in range(1, int(self.num_AO) + 1):
+            if i == 1:
+                ao_prop['channel %d' % i] = {
                     'base_unit': self.base_units,
                     'min': self.base_min,
                     'max': self.base_max,
@@ -30,10 +30,10 @@ class BS_341ATab(DeviceTab):
                     'decimals': self.base_decimals,
                 }
             else:
-                ao_prop['channel %d' % i+1] = {
+                ao_prop['channel %d' % i] = {
                     'base_unit': self.base_units,
-                    'min': self.base_min - 10, #workaround defect
-                    'max': self.base_max + 10,
+                    'min': -34.560, #workaround defect
+                    'max': 34.560,
                     'step': self.base_step,
                     'decimals': self.base_decimals,
                 }

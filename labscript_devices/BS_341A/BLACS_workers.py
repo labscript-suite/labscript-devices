@@ -230,7 +230,7 @@ class BS_341AWorker(Worker):
 
     @staticmethod
     def _channel_name_to_ao(channel_name: str) -> str:
-        """ Convert 'channel 0' to 'ao0' """
+        """ Convert 'channel 1' to 'ao1' """
         try:
             channel_index = int(channel_name.replace('channel ', ''))
             return f'ao{channel_index}'
@@ -248,7 +248,7 @@ class BS_341AWorker(Worker):
             time.sleep(t)
 
             for ch_name, voltage in voltages.items():
-                ch_num = self._get_channel_num(ch_name)
+                ch_num = self._get_channel_num(ch_name) # 'ao1' --> '01'
                 self.voltage_source.set_voltage(ch_num, voltage)
                 self.final_values[ch_num] = voltage
                 if self.verbose:
