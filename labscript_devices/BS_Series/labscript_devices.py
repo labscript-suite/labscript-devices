@@ -6,23 +6,22 @@ import numpy as np
 from labscript_devices.NI_DAQmx.utils import split_conn_DO, split_conn_AO
 from .logger_config import logger
 
-class BS_341A(IntermediateDevice): # no pseudoclock IntermediateDevice --> Device
-    description = 'BS_341A'
+class BS_341A(IntermediateDevice):
+    description = 'BS_Series'
     
     @set_passed_properties({"connection_table_properties": ["port", "baud_rate", "num_AO"]})
-    def __init__(self, name, port='', baud_rate=9600, parent_device=None, connection=None, num_AO=0, **kwargs):
+    def __init__(self, name, port='', baud_rate=9600, parent_device=None, num_AO=0, **kwargs):
+        self.num_AO = num_AO
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
-        # self.start_commands = []
         self.BLACS_connection = '%s,%s' % (port, str(baud_rate))
     
     def add_device(self, device):
-        Device.add_device(self, device)
+        IntermediateDevice.add_device(self, device)
 
     def generate_code(self, hdf5_file):
         """Convert the list of commands into numpy arrays and save them to the shot file."""
         logger.info("generate_code for BS 34-1A is called")
         IntermediateDevice.generate_code(self, hdf5_file)
-        group = self.init_device_group(hdf5_file)
 
         clockline = self.parent_device
         pseudoclock = clockline.parent_device
@@ -35,10 +34,11 @@ class BS_341A(IntermediateDevice): # no pseudoclock IntermediateDevice --> Devic
                 analogs[child_device.connection] = child_device
 
         AO_table = self._make_analog_out_table(analogs, times)
-        logger.info(f"Times in generate_code AO table: {times}")
-        logger.info(f"AO table for BS-34-1A is: {AO_table}")
         AO_manual_table = self._make_analog_out_table_from_manual(analogs)
+        logger.info(f"Times in generate_code AO table: {times}")
+        logger.info(f"AO table for HV-Series is: {AO_table}")
 
+        group = self.init_device_group(hdf5_file)
         group.create_dataset("AO_buffered", data=AO_table, compression=config.compression)
         group.create_dataset("AO_manual", shape=AO_manual_table.shape, maxshape=(None,), dtype=AO_manual_table.dtype,
                              compression=config.compression, chunks=True)
@@ -56,8 +56,7 @@ class BS_341A(IntermediateDevice): # no pseudoclock IntermediateDevice --> Devic
                 return None
 
             n_timepoints = len(times)
-            connections = sorted(analogs, key=split_conn_AO)  # sorted channel names
-            dtypes = [('time', np.float64)] + [(c, np.float32) for c in connections]  # first column = time
+            dtypes = [('time', np.float64)] + [(c, np.float32) for c in analogs]  # first column = time
 
             analog_out_table = np.empty(n_timepoints, dtype=dtypes)
 

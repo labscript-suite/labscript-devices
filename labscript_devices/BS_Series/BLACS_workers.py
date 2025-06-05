@@ -1,5 +1,3 @@
-import threading
-
 from blacs.tab_base_classes import Worker
 from labscript import LabscriptError
 from .logger_config import logger
@@ -9,37 +7,29 @@ import numpy as np
 from labscript_utils import properties
 from zprocess import rich_print
 from datetime import datetime
+import threading
+from .utils import _get_channel_num, _ao_to_CH
 
-class BS_341AWorker(Worker):
+class BS_Worker(Worker):
     def init(self):
         """Initialises communication with the device. When BLACS (re)starts"""
-        self.thread = None
-        # self.thread_stop_event = threading.Event()
-
-        self.final_values = {}  # [[channel_nums(ints)],[voltages(floats)]]
+        self.final_values = {}  # [[channel_nums(ints)],[voltages(floats)]] to update GUI after shot
         self.verbose = True
+
+        # for running the buffered experiment in a separate thread:
+        self.thread = None
+        self._stop_event = threading.Event()
+        self._finished_event = threading.Event()
 
         try:
             # Try to establish a serial connection
             from .voltage_source import VoltageSource
             self.voltage_source = VoltageSource(self.port, self.baud_rate)
 
-            # Get device information
-            self.device_serial = self.voltage_source.device_serial  # For example, 'HV023'
-            self.device_voltage_range = self.voltage_source.device_voltage_range # For example, '50'
-            self.device_channels = self.voltage_source.device_channels  # For example, '10'
-            self.device_output_type = self.voltage_source.device_output_type  # For example, 'b' (bipolar, unipolar, quadrupole, steerer supply)
-
-            logger.info(
-                f"Connected to BS-34-1A on {self.port} with baud rate {self.baud_rate}\n"
-                f"Device Serial: {self.device_serial}, Voltage Range: {self.device_voltage_range}, "
-                f"Channels: {self.device_channels}, Output Type: {self.device_output_type}"
-            )
-
         except LabscriptError as e:
-            raise RuntimeError(f"BS-1-10 identification failed: {e}")
+            raise RuntimeError(f"BS-34-1A identification failed: {e}")
         except Exception as e:
-            raise RuntimeError(f"An error occurred during BS_341AWorker initialization: {e}")
+            raise RuntimeError(f"An error occurred during BS_Worker initialization: {e}")
         
         
     def shutdown(self):
@@ -51,31 +41,31 @@ class BS_341AWorker(Worker):
         setting outputs to the values set in the BLACS_tab widgets. 
         Runs at the end of the shot."""
 
-        rich_print(f"---------- Manual MODE start: ----------", color=PINK)
+        rich_print(f"---------- Manual MODE start: ----------", color=BLUE)
         self.front_panel_values = front_panel_values
 
-        if self.verbose is True:
-            print("Front panel values (before shot):")
-            for ch_name, voltage in front_panel_values.items():
-                print(f"  {ch_name}: {voltage:.2f} V")
+        if not getattr(self, 'restored_from_final_values', False):
+            if self.verbose is True:
+                print("Front panel values (before shot):")
+                for ch_name, voltage in front_panel_values.items():
+                    print(f"  {ch_name}: {voltage:.2f} V")
 
-        # Restore final values from previous shot, if available
-        if self.final_values and not getattr(self, 'restored_from_final_values', False):
-            for ch_num, value in self.final_values.items():
-                front_panel_values[f'channel {int(ch_num)}'] = value
+            # Restore final values from previous shot, if available
+            if self.final_values:
+                for ch_num, value in self.final_values.items():
+                    front_panel_values[f'CH0{int(ch_num)}'] = value
+
+            if self.verbose is True:
+                print("\nFront panel values (after shot):")
+                for ch_num, voltage in self.final_values.items():
+                    print(f"  {ch_num}: {voltage:.2f} V")
+
+            self.final_values = {}  # Empty after restoring
             self.restored_from_final_values = True
-
-        if self.verbose is True:
-            print("\nFront panel values (after shot):")
-            for ch_num, voltage in self.final_values.items():
-                print(f"  {ch_num}: {voltage:.2f} V")
-
-        self.final_values = {}  # Empty after restoring
 
         return front_panel_values
 
-    def check_remote_values(self): # reads the current settings of the device, updating the BLACS_tab widgets 
-
+    def check_remote_values(self):
         return
 
     def transition_to_buffered(self, device_name, h5_file, initial_values, fresh): 
@@ -84,6 +74,7 @@ class BS_341AWorker(Worker):
         labscript_device.generate_code and sending the appropriate commands 
         to the hardware. 
         Runs at the start of each shot."""
+
         rich_print(f"---------- Begin transition to Buffered: ----------", color=BLUE)
         self.restored_from_final_values = False  # Drop flag
         self.initial_values = initial_values  # Store the initial values in case we have to abort and restore them
@@ -94,10 +85,8 @@ class BS_341AWorker(Worker):
         with h5py.File(h5_file, 'r') as hdf5_file:
             group = hdf5_file['devices'][device_name]
             AO_data = group['AO_buffered'][:]
-            # self.device_prop = properties.get(hdf5_file, device_name, 'device_properties')
-            # print("======== Device Properties : ", self.device_prop, "=========")
 
-        # prepare events
+        # Prepare events
         events = []
         for row in AO_data:
             t = row['time']
@@ -105,22 +94,44 @@ class BS_341AWorker(Worker):
             events.append((t, voltages))
 
         # Create and launch thread
-        # self.thread_stop_event.clear()
-        self.thread = threading.Thread(target=self._playback_thread, args=(events,))
+        self._stop_event.clear()
+        self._finished_event.clear()
+        self.thread = threading.Thread(target=self._run_experiment_sequence, args=(events,))
         self.thread.start()
 
-        rich_print(f"---------- End transition to Buffered: ----------", color=BLUE)
         return
-        
+
+    def _run_experiment_sequence(self, events):
+        try:
+            if self._stop_event.is_set():
+                return
+
+            for t, voltages in events:
+                time.sleep(t)
+                for conn_name, voltage in voltages.items():
+                    channel_num = _get_channel_num(conn_name)  # 'ao 1' --> 1
+                    self.voltage_source.set_voltage(channel_num, voltage)
+                    self.final_values[channel_num] = voltage
+                    if self.verbose:
+                        print(f"[{t:.3f}s] --> Set {conn_name} (#{channel_num}) = {voltage}")
+                    if self._stop_event.is_set():
+                        return
+        finally:
+            self._finished_event.set()
+            print(f"[Thread] finished all events !")
 
     def transition_to_manual(self): 
         """transitions the device from buffered to manual mode to read/save measurements from hardware
         to the shot h5 file as results. 
-        Runs at the end of the shot."""
+        Ensure background thread has finished before exiting the shot."""
         #Stop the thread
         rich_print(f"---------- Begin transition to Manual: ----------", color=BLUE)
+
         self.thread.join()
-        rich_print(f"---------- End transition to Manual: ----------", color=BLUE)
+        if not self._finished_event.is_set():
+            print("WARNING: experiment sequence did not finish properly.")
+        else:
+            print("Experiment sequence completed successfully.")
         return True
     
     def abort_transition_to_buffered(self):
@@ -128,39 +139,27 @@ class BS_341AWorker(Worker):
 
     def _program_manual(self, front_panel_values):
         """Sends voltage values to the device for all channels using VoltageSource.
+        Parameters:
+           - front_panel_values (dict): Dictionary of voltages keyed by channel name (e.g., 'CH01', 'CH02', ...).
         """
         if self.verbose is True:
             print("\nProgramming the device with the following values:")
             logger.info("Programming the device from manual with the following values:")
 
         for channel_num in range(1, int(self.num_AO) + 1):
-            channel_name = f'channel {channel_num}'
-            voltage = front_panel_values.get(channel_name, 0.0)
-            if self.verbose is True:
+            channel_name = f'CH0{channel_num}' # 'CH01'
+            try:
+                voltage = front_panel_values[channel_name]
+            except Exception as e:
+                raise ValueError(f"Error accessing front panel values for channel '{channel_name}': {e}")
+            if self.verbose:
                 print(f"→ {channel_name}: {voltage:.2f} V")
-                # logger.info(f"Setting {channel_name} to {voltage:.2f} V (manual mode)")
+            logger.info(f"Setting {channel_name} to {voltage:.2f} V (manual mode)")
+
             self.voltage_source.set_voltage(channel_num, voltage)
 
-    def _get_channel_num(self, channel):
-        """Gets channel number with leading zeros 'XX' from strings like 'AOX' or 'channel X'.
-        Args:
-            channel (str): The name of the channel, e.g. 'AO0', 'AO12', or 'channel 3'.
-
-        Returns:
-            str: Two-digit channel number as string, e.g. '01', '12'."""
-        ch_lower = channel.lower()
-        if ch_lower.startswith("ao"):
-            channel_num = channel[2:]  # 'ao3' -> '3'
-        elif ch_lower.startswith("channel"):
-            _, channel_num = channel.split()  # 'channel 1' -> '1'
-        else:
-            raise LabscriptError(f"Unexpected channel name format: '{channel}'")
-
-        channel_int = int(channel_num)
-        return f"{channel_int:02d}"
-
     def send_to_BS(self, kwargs):
-        """Sends manual values from the front panel to the BS-1-10 device.
+        """Sends manual values from the front panel to the BS-series device.
             This function is executed in the worker process. It uses the current
             front panel values to reprogram the device in manual mode by clicking the button 'send to device'.
             Args:
@@ -182,7 +181,7 @@ class BS_341AWorker(Worker):
             Parameters
             ----------
             front_panel_values : dict
-                Dictionary mapping channel names (e.g., 'channel 1') to voltage values (float).
+                Dictionary mapping channel names (e.g., 'CH01') to voltage values (float).
             current_time : str
                 The timestamp (formatted as a string) when the values were recorded
 
@@ -201,62 +200,21 @@ class BS_341AWorker(Worker):
 
         with h5py.File(self.h5file, 'r+') as hdf5_file:
             group = hdf5_file['devices'][self.device_name]
-            # print("Keys in group:", list(group.keys()))
-
             dset = group['AO_manual']
             old_shape = dset.shape[0]
             dtype = dset.dtype
-            connections = [name for name in dset.dtype.names if name != 'time'] #'ao1'
+            connections = [name for name in dset.dtype.names if name != 'time'] #'ao 1'
 
             # Create new data row
             new_row = np.zeros((1,), dtype=dtype)
             new_row['time'] = current_time
             for conn in connections:
-                channel_name = self._ao_to_channel_name(conn)
+                channel_name = _ao_to_CH(conn) # 'CH01'
                 new_row[conn] = front_panel_values.get(channel_name, 0.0)
 
             # Add new row to table
             dset.resize(old_shape + 1, axis=0)
             dset[old_shape] = new_row[0]
 
-    @staticmethod
-    def _ao_to_channel_name(ao_name: str) -> str:
-        """ Convert 'ao0' to 'channel 0' """
-        try:
-            channel_index = int(ao_name.replace('ao', ''))
-            return f'channel {channel_index}'
-        except ValueError:
-            raise ValueError(f"Impossible to convert from '{ao_name}'")
-
-    @staticmethod
-    def _channel_name_to_ao(channel_name: str) -> str:
-        """ Convert 'channel 1' to 'ao1' """
-        try:
-            channel_index = int(channel_name.replace('channel ', ''))
-            return f'ao{channel_index}'
-        except ValueError:
-            raise ValueError(f"Impossible to convert from '{channel_name}'")
-
-    def _playback_thread(self, events):
-        for t, voltages in events:
-            if self.verbose:
-                # print(f"stop event flag: {self.thread_stop_event.is_set()}")
-                print(f"time: {t} \t voltage: {voltages} \n")
-            #if self.thread_stop_event.is_set():
-                #break
-
-            time.sleep(t)
-
-            for ch_name, voltage in voltages.items():
-                ch_num = self._get_channel_num(ch_name) # 'ao1' --> '01'
-                self.voltage_source.set_voltage(ch_num, voltage)
-                self.final_values[ch_num] = voltage
-                if self.verbose:
-                    print(f"[{t:.3f}s] --> Set {ch_num} (#{ch_num}) = {voltage}")
-
-        print(f"[Thread] finished all events !")
-
-
 # --------------------contants
-PINK = 'ff52fa'
 BLUE = '#66D9EF'

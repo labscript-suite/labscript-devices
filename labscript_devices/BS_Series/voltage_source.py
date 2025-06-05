@@ -4,7 +4,7 @@ from labscript.labscript import LabscriptError
 from .logger_config import logger
 
 class VoltageSource:
-    """ Voltage Source for ST BS 34-1/BS 1-8 class to establish and maintain the communication with the connection.
+    """ Voltage Source class to establish and maintain the communication with the connection.
     """
     def __init__(self,
                  port,
@@ -17,7 +17,7 @@ class VoltageSource:
         self.baud_rate = baud_rate
 
         # connecting to connectionice
-        self.connection = serial.Serial(self.port, self.baud_rate, timeout=1)
+        self.connection = serial.Serial(self.port, self.baud_rate, timeout=0.05)
         device_info = self.identify_query()
         self.device_serial = device_info[0]  # For example, 'HV023'
         self.device_voltage_range = device_info[1]  # For example, '50'
@@ -44,16 +44,16 @@ class VoltageSource:
                 f"Raw identity: {raw_response!r}\n"
                 f"Parsed identity: {identity!r}\n"
                 f"Expected format: ['HVXXX', 'RRR', 'CC', 'b']\n"
-                f"Device: at port {self.port!r}\n"
+                f"Device: BS at port {self.port!r}\n"
             )
 
     def set_voltage(self, channel_num, value):
         """ Send set voltage command to device.
         Args:
-            channel_num (str): Channel number '01'.
+            channel_num (int): Channel number.
             value (float): Voltage value to set.
         Raises:
-            LabscriptError: If the response from BS-341A is incorrect.
+            LabscriptError: If the response from device is incorrect.
         """
         try:
             channel = f"CH{int(channel_num):02d}"
@@ -72,7 +72,7 @@ class VoltageSource:
                     f"Sent command: {send_str.strip()!r}\n"
                     f"Expected response: {expected_response!r}\n"
                     f"Actual response: {response!r}\n"
-                    f"Device: BS-1-10 at port {self.port!r}"
+                    f"Device at port {self.port!r}"
                 )
         except Exception as e:
             raise LabscriptError(f"Error in set_voltage: {e}")

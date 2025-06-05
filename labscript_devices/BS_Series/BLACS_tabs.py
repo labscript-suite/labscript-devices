@@ -3,26 +3,24 @@ from blacs.tab_base_classes import Worker, define_state
 from blacs.device_base_class import DeviceTab
 from .logger_config import logger
 from blacs.tab_base_classes import MODE_MANUAL
+from .utils import _create_button
 
-class BS_341ATab(DeviceTab):
+class BS_Tab(DeviceTab):
     def initialise_GUI(self):
-
-        connection_table = self.settings['connection_table']
-        properties = connection_table.find_by_name(self.device_name).properties
 
         # Capabilities
         self.base_units = 'V'
-        self.base_min = -24
-        self.base_max = 24
+        self.base_min = -24 # Depends on channel
+        self.base_max = 24 # Depends on channel
         self.base_step = 1
         self.base_decimals = 3
-        self.num_AO = 8 # or properties['num_AO']
+        self.num_AO = 8
                 
         # Create AO Output objects
         ao_prop = {}
         for i in range(1, int(self.num_AO) + 1):
             if i == 1:
-                ao_prop['channel %d' % i] = {
+                ao_prop['CH0%d' % i] = {
                     'base_unit': self.base_units,
                     'min': self.base_min,
                     'max': self.base_max,
@@ -30,41 +28,23 @@ class BS_341ATab(DeviceTab):
                     'decimals': self.base_decimals,
                 }
             else:
-                ao_prop['channel %d' % i] = {
+                ao_prop['CH0%d' % i] = {
                     'base_unit': self.base_units,
-                    'min': -34.560, #workaround defect
+                    'min': -34.560, # workaround defect
                     'max': 34.560,
                     'step': self.base_step,
                     'decimals': self.base_decimals,
                 }
             
-        # Create the output objects
+        # Create and save AO objects
         self.create_analog_outputs(ao_prop)
         
-        # Create widgets for output objects
+        # Create widgets for AO objects
         widgets, ao_widgets,_ = self.auto_create_widgets()
         self.auto_place_widgets(("Analog Outputs", ao_widgets))
 
-        # Add button to reprogramm device from manual mode
-        self.send_button = QPushButton("Send to device")
-        self.send_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.send_button.adjustSize()
-        self.send_button.setStyleSheet("""
-                    QPushButton {
-                        border: 1px solid #B8B8B8;
-                        border-radius: 3px;
-                        background-color: #F0F0F0;
-                        padding: 4px 10px;
-                        font-weight: light;
-                    }
-                    QPushButton:hover {
-                        background-color: #E0E0E0;
-                    }
-                    QPushButton:pressed {
-                        background-color: #D0D0D0;
-                    }
-                """)
-        self.send_button.clicked.connect(lambda: self.send_to_BS())
+        # Create buttons to send-to-device
+        self.send_button = _create_button("Send to device", self.send_to_BS)
 
         # Add centered layout to center the button
         center_layout = QHBoxLayout()
@@ -98,7 +78,7 @@ class BS_341ATab(DeviceTab):
         # Start a worker process 
         self.create_worker(
             'main_worker',
-            'labscript_devices.BS_341A.BLACS_workers.BS_341AWorker',
+            'labscript_devices.BS_Series.BLACS_workers.BS_Worker',
             worker_kwargs,
         )
         self.primary_worker = "main_worker"
@@ -108,10 +88,10 @@ class BS_341ATab(DeviceTab):
         """Queue a manual send-to-device operation from the GUI.
 
             This function is triggered from the BLACS tab (by pressing a button)
-            and runs in the main thread. It queues the `send2BS()` function to be
+            and runs in the main thread. It queues the `send_to_BS()` function to be
             executed by the worker.
 
-            Used to reprogram the BS-1-10 device based on current front panel values.
+            Used to reprogram the device based on current front panel values.
             """
         try:
             yield(self.queue_work(self.primary_worker, 'send_to_BS', []))

@@ -6,7 +6,7 @@ You will create a virtual serial port using this script. This script will act as
 The virtual serial port should stay open while the simulation is running, so other code that expects to interact with the serial device can do so just as if the actual device were connected.
 
 Run following command in the corresponding folder.
-    python3 -m BS_341A.testing.emulateSerPort
+    python3 -m BS_Series.testing.emulateSerPort
 """
 
 import os, pty, threading, time

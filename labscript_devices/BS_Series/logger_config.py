@@ -3,10 +3,10 @@ import logging
 
 # Configure the logger
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOG_FILE = os.path.join(BASE_DIR, 'logs.log')
+LOG_FILE = os.path.join(BASE_DIR, 'device.log')
 
 # Create logger
-logger = logging.getLogger("logs")
+logger = logging.getLogger("BS_34")
 logger.setLevel(logging.DEBUG)
 
 # Create file handler and set level to debug
