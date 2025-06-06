@@ -24,7 +24,7 @@ class BS_Worker(Worker):
         try:
             # Try to establish a serial connection
             from .voltage_source import VoltageSource
-            self.voltage_source = VoltageSource(self.port, self.baud_rate)
+            self.voltage_source = VoltageSource(self.port, self.baud_rate, self.supports_custom_voltages_per_channel, self.default_voltage_range, self.AO_ranges)
 
         except LabscriptError as e:
             raise RuntimeError(f"BS-34-1A identification failed: {e}")

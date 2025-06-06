@@ -9,12 +9,18 @@ class VoltageSource:
     def __init__(self,
                  port,
                  baud_rate,
+                 supports_custom_voltages_per_channel,
+                 default_voltage_range,
+                 AO_ranges,
                  verbose=False
                  ):
         logger.debug(f"<initialising Voltage Source>")
         self.verbose = verbose
         self.port = port
         self.baud_rate = baud_rate
+        self.supports_custom_voltages_per_channel = supports_custom_voltages_per_channel
+        self.default_voltage_range = default_voltage_range
+        self.AO_ranges = AO_ranges
 
         # connecting to connectionice
         self.connection = serial.Serial(self.port, self.baud_rate, timeout=0.05)
@@ -57,7 +63,10 @@ class VoltageSource:
         """
         try:
             channel = f"CH{int(channel_num):02d}"
-            voltage_range = float(self.device_voltage_range) if channel == 'CH01' else 34.560  # dirty workaround
+            if self.supports_custom_voltages_per_channel:
+                voltage_range = float(self.AO_ranges[channel_num - 1]['voltage_range'][1])
+            else:
+                voltage_range = float(self.default_voltage_range[1])
             scaled_voltage = self._scale_to_normalized(float(value), float(voltage_range))
             send_str = f"{self.device_serial} {channel} {scaled_voltage:.5f}\r"
 

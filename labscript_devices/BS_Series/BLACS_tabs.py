@@ -7,31 +7,41 @@ from .utils import _create_button
 
 class BS_Tab(DeviceTab):
     def initialise_GUI(self):
+        # Get properties from connection table
+        connection_table = self.settings['connection_table']
+        properties = connection_table.find_by_name(self.device_name).properties
 
-        # Capabilities
+        logger.info(f"properties: {properties}")
+
+        self.supports_custom_voltages_per_channel = properties['supports_custom_voltages_per_channel']
+        self.num_AO = properties['num_AO']
+        if self.supports_custom_voltages_per_channel:
+            self.AO_ranges = properties['AO_ranges']
+        else:
+            self.default_voltage_range = properties['default_voltage_range']
+
+        # GUI Capabilities
         self.base_units = 'V'
-        self.base_min = -24 # Depends on channel
-        self.base_max = 24 # Depends on channel
         self.base_step = 1
         self.base_decimals = 3
-        self.num_AO = 8
                 
         # Create AO Output objects
         ao_prop = {}
         for i in range(1, int(self.num_AO) + 1):
-            if i == 1:
+            if self.supports_custom_voltages_per_channel:
+                voltage_range = self.AO_ranges[i-1]['voltage_range']
                 ao_prop['CH0%d' % i] = {
                     'base_unit': self.base_units,
-                    'min': self.base_min,
-                    'max': self.base_max,
+                    'min': voltage_range[0],
+                    'max': voltage_range[1],
                     'step': self.base_step,
                     'decimals': self.base_decimals,
                 }
             else:
                 ao_prop['CH0%d' % i] = {
                     'base_unit': self.base_units,
-                    'min': -34.560, # workaround defect
-                    'max': 34.560,
+                    'min': self.default_voltage_range[0],
+                    'max': self.default_voltage_range[1],
                     'step': self.base_step,
                     'decimals': self.base_decimals,
                 }
@@ -61,18 +71,15 @@ class BS_Tab(DeviceTab):
     
     def initialise_workers(self):
         # Get properties from connection table.
-        device = self.settings['connection_table'].find_by_name(self.device_name)
-        if device is None:
-            raise ValueError(f"Device '{self.device_name}' not found in the connection table.")
-           
-        # look up the port and baud in the connection table
-        port = device.properties["port"]
-        baud_rate = device.properties["baud_rate"]
-        num_AO = device.properties['num_AO']
+        properties = self.settings['connection_table'].find_by_name(self.device_name).properties
+
         worker_kwargs = {"name": self.device_name + '_main',
-                         "port": port,
-                         "baud_rate": baud_rate,
-                         "num_AO": num_AO
+                         "port": properties['port'],
+                         "baud_rate": properties['baud_rate'],
+                         "num_AO": properties['num_AO'],
+                         "supports_custom_voltages_per_channel": properties['supports_custom_voltages_per_channel'],
+                         "AO_ranges": properties['AO_ranges'],
+                         "default_voltage_range": properties['default_voltage_range'],
                          }
 
         # Start a worker process 

@@ -6,12 +6,70 @@ import numpy as np
 from labscript_devices.NI_DAQmx.utils import split_conn_DO, split_conn_AO
 from .logger_config import logger
 
-class BS_341A(IntermediateDevice):
+class BS_(IntermediateDevice):
     description = 'BS_Series'
     
-    @set_passed_properties({"connection_table_properties": ["port", "baud_rate", "num_AO"]})
-    def __init__(self, name, port='', baud_rate=9600, parent_device=None, num_AO=0, **kwargs):
+    @set_passed_properties(
+        property_names={
+            "connection_table_properties": [
+                "static_AO",
+                "baud_rate",
+                "port",
+                "num_AO",
+                "AO_ranges",
+                "default_voltage_range",
+                "supports_custom_voltages_per_channel",
+            ],
+        }
+    )
+    def __init__(
+            self,
+            name,
+            port='',
+            baud_rate=9600,
+            parent_device=None,
+            num_AO=0,
+            static_AO = None,
+            AO_ranges = [],
+            default_voltage_range = [],
+            supports_custom_voltages_per_channel = False,
+            **kwargs
+    ):
+        """Initialize a generic BS-series analog output device.
+
+        This constructor supports both devices that share a global analog output
+        voltage range, and those that allow custom voltage ranges per channel.
+
+        Args:
+           name (str): Name to assign to the created labscript device.
+           port (str): Serial port used to connect to the device (e.g. COM3, /dev/ttyUSB0)
+           baud_rate (int):
+           parent_device (clockline): Parent clockline device that will
+               clock the outputs of this device
+           num_AO (int): Number of analog output channels.
+           AO_ranges (list of dict, optional): A list specifying the voltage range for each AO channel,
+            used only if `supports_custom_voltages_per_channel` is True.
+            Each item should be a dict of the form:
+                {
+                    "channel": <int>,  # Channel index
+                    "voltage_range": [<float>, <float>]  # Min and max voltage
+                }
+           static_AO (int, optional): Number of static analog output channels.
+           default_voltage_range (iterable): A `[Vmin, Vmax]` pair that sets the analog
+                output voltage range for all analog outputs.
+           supports_custom_voltages_per_channel (bool): Whether this device supports specifying
+            individual voltage ranges for each AO channel.
+        """
         self.num_AO = num_AO
+        if supports_custom_voltages_per_channel:
+            if len(AO_ranges) < num_AO:
+                raise ValueError(
+                    "AO_ranges must contain at least num_AO entries when custom voltage ranges are enabled.")
+            else:
+                self.AO_ranges = AO_ranges
+        else:
+            self.default_voltage_range = default_voltage_range
+
         IntermediateDevice.__init__(self, name, parent_device, **kwargs)
         self.BLACS_connection = '%s,%s' % (port, str(baud_rate))
     
@@ -76,8 +134,7 @@ class BS_341A(IntermediateDevice):
 
         str_dtype = h5py.string_dtype(encoding='utf-8', length=19)
 
-        connections = sorted(analogs, key=split_conn_AO)  # sorted channel names
-        dtypes = [('time', str_dtype)] + [(c, np.float32) for c in connections]
+        dtypes = [('time', str_dtype)] + [(c, np.float32) for c in analogs]
 
         analog_out_table = np.empty(0, dtype=dtypes)
         return analog_out_table
