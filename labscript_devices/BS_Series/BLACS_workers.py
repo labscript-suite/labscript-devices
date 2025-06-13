@@ -33,7 +33,6 @@ class BS_Worker(Worker):
         
         
     def shutdown(self):
-        # Should be done when Blacs is closed
         self.connection.close()
         
     def program_manual(self, front_panel_values): 
@@ -103,13 +102,15 @@ class BS_Worker(Worker):
 
     def _run_experiment_sequence(self, events):
         try:
-            if self._stop_event.is_set():
-                return
-
+            start_time = time.time()
             for t, voltages in events:
-                time.sleep(t)
+                now = time.time()
+                wait_time = t - (now - start_time)
+                if wait_time > 0:
+                    time.sleep(wait_time)
+                print(f"[Time: {datetime.now()}] \n")
                 for conn_name, voltage in voltages.items():
-                    channel_num = _get_channel_num(conn_name)  # 'ao 1' --> 1
+                    channel_num = _get_channel_num(conn_name)
                     self.voltage_source.set_voltage(channel_num, voltage)
                     self.final_values[channel_num] = voltage
                     if self.verbose:
@@ -178,17 +179,14 @@ class BS_Worker(Worker):
             It assumes that `self.h5file` and `self.device_name` have been set
             (in `transition_to_buffered`). If not, a RuntimeError is raised.
 
-            Parameters
-            ----------
-            front_panel_values : dict
+            Args:
+            front_panel_values (dict):
                 Dictionary mapping channel names (e.g., 'CH01') to voltage values (float).
-            current_time : str
+            current_time (str):
                 The timestamp (formatted as a string) when the values were recorded
 
-            Raises
-            ------
-            RuntimeError
-                If `self.h5file` is not set (i.e., manual values are being saved before
+            Raises:
+                RuntimeError: If `self.h5file` is not set (i.e., manual values are being saved before
                 the system is in buffered mode).
             """
         # Check if h5file is set (transition_to_buffered must be called first)

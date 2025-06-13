@@ -23,7 +23,7 @@ class VoltageSource:
         self.AO_ranges = AO_ranges
 
         # connecting to connectionice
-        self.connection = serial.Serial(self.port, self.baud_rate, timeout=0.05)
+        self.connection = serial.Serial(self.port, self.baud_rate, timeout=0.04)
         device_info = self.identify_query()
         self.device_serial = device_info[0]  # For example, 'HV023'
         self.device_voltage_range = device_info[1]  # For example, '50'
