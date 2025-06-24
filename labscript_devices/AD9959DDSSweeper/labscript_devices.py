@@ -240,6 +240,12 @@ class AD9959DDSSweeper(IntermediateDevice):
         if not dyn_DDSs and not stat_DDSs:
             return
 
+        # Ensure data table is constructed in correct order
+        if dyn_DDSs:
+            dyn_DDSs = dict(sorted(dyn_DDSs.items()))
+        if stat_DDSs:
+            stat_DDSs = dict(sorted(stat_DDSs.items()))
+
         for connection in dyn_DDSs:
             dds = dyn_DDSs[connection]   
             dds.frequency.raw_output = self.quantise_freq(dds.frequency.raw_output, dds)
