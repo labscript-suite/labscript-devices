@@ -23,7 +23,7 @@ class VoltageSource:
         self.AO_ranges = AO_ranges
 
         # connecting to connectionice
-        self.connection = serial.Serial(self.port, self.baud_rate, timeout=0.04)
+        self.connection = serial.Serial(self.port, self.baud_rate, timeout=1)
         device_info = self.identify_query()
         self.device_serial = device_info[0]  # For example, 'HV023'
         self.device_voltage_range = device_info[1]  # For example, '50'
@@ -38,7 +38,7 @@ class VoltageSource:
                LabscriptError: If identity format is incorrect.
            """
         self.connection.write("IDN\r".encode())
-        raw_response = self.connection.readline().decode()
+        raw_response = self.connection.read_until(b'\r').decode()
         identity = raw_response.split()
 
         if len(identity) == 4:
@@ -71,7 +71,7 @@ class VoltageSource:
             send_str = f"{self.device_serial} {channel} {scaled_voltage:.5f}\r"
 
             self.connection.write(send_str.encode())
-            response = self.connection.readline().decode().strip() #'CHXX Y.YYYYY'
+            response = self.connection.read_until(b'\r').decode().strip() #'CHXX Y.YYYYY'
             logger.debug(f"Sent to BS-34: {send_str!r} with {value} | Received: {response!r}")
 
             expected_response = f"{channel} {scaled_voltage:.5f}"
@@ -97,7 +97,7 @@ class VoltageSource:
         send_str = f"{self.device_serial} TEMP\r"
         self.connection.write(send_str.encode())
 
-        response = self.connection.readline().decode().strip() #'TEMP XXX.X°C'
+        response = self.connection.read_until(b'\r').decode().strip() #'TEMP XXX.X°C'
 
         if response.endswith("°C"):
             try:
@@ -129,7 +129,7 @@ class VoltageSource:
         send_str = f"{self.device_serial} U{channel}\r" # 'DDDDD UXX'
         self.connection.write(send_str.encode())
 
-        response = self.connection.readline().decode().strip()  # '+/-yy,yyy V'
+        response = self.connection.read_until(b'\r').decode().strip()  # '+/-yy,yyy V'
 
         if response.endswith("V"):
             try:
@@ -160,7 +160,7 @@ class VoltageSource:
         send_str = f"{self.device_serial} I{channel}\r"
         self.connection.write(send_str.encode())
 
-        response = self.connection.readline().decode().strip()  # '+/-yy,yyy mA'
+        response = self.connection.read_until(b'\r').decode().strip()  # '+/-yy,yyy mA'
 
         if response.endswith("mA"):
             try:
@@ -192,7 +192,7 @@ class VoltageSource:
         send_str = f"{self.device_serial} Q{channel}\r"  # 'DDDDD QXX'
         self.connection.write(send_str.encode())
 
-        response = self.connection.readline().decode().strip()  # '+/-yy,yyy V +/-z,zzz mA'
+        response = self.connection.read_until(b'\r').decode().strip()  # '+/-yy,yyy V +/-z,zzz mA'
 
         if response.endswith("mA"):
             try:
