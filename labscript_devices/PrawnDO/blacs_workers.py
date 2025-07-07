@@ -32,22 +32,39 @@ class PrawnDOInterface(object):
 
         version = self.get_version()
         print(f'Connected to version: {version}')
+
         # ensure firmware is compatible
         assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
-
+        
+        board = self.get_board()
+        print(f'Connected to board: {board}')
+        
         current_status = self.status()
         print(f'Current status is {current_status}')
 
     def get_version(self):
+        '''Sends 'ver' command, which retrieves the Pico firmware version.
 
-        self.conn.write(b'ver\r\n')
-        version_str = self.conn.readline().decode()
+        Returns: (int, int, int): Tuple representing semantic version number.'''
+
+        version_str = self.send_command('ver')
         assert version_str.startswith("Version: ")
         version = tuple(int(i) for i in version_str[9:].split('.'))
         assert len(version) == 3
 
         return version
     
+    def get_board(self):
+        '''Responds with pico board version.
+
+        Returns:
+            (str): Either "pico1" for a Pi Pico 1 board or "pico2" for a Pi Pico 2 board.'''
+        resp = self.send_command('brd')
+        assert resp.startswith('board:'), f'Board command failed, got: {resp}'
+        pico_str = resp.split(':')[-1].strip()
+
+        return pico_str
+
     def _read_full_buffer(self):
         '''Used to get any extra lines from device after a failed send_command'''
 
@@ -142,12 +159,14 @@ class PrawnDOInterface(object):
             pulse_program (numpy.ndarray): Structured array of program to send.
                 Must have first column as bit sets (<u2) and second as reps (<u4).
         '''
-        self.conn.write('adm 0 {:x}\n'.format(len(pulse_program)).encode())
+        # self.conn.write('adm 0 {:x}\n'.format(len(pulse_program)).encode())
+        self.send_command('adm 0 {:x}\n'.format(len(pulse_program)))
         resp = self.conn.readline().decode()
         if resp != 'ready\r\n':
             resp += self._read_full_buffer()
             raise LabscriptError(f'adm command failed, got response {repr(resp)}')
         self.conn.write(pulse_program.tobytes())
+        # self.send_command(pulse_program.tobytes()) # check this one
         resp = self.conn.readline().decode()
         if resp != 'ok\r\n':
             resp += self._read_full_buffer()

@@ -15,6 +15,7 @@ import labscript_utils.h5_lock
 import h5py
 import numpy as np
 from blacs.tab_base_classes import Worker
+from labscript import LabscriptError
 from labscript_utils.connections import _ensure_str
 import labscript_utils.properties as properties
 
@@ -57,27 +58,80 @@ class PrawnBlasterWorker(Worker):
         self.h5_file = None
         self.started = False
 
-        self.prawnblaster = serial.Serial(self.com_port, 115200, timeout=1)
+        self.conn = serial.Serial(self.com_port, 115200, timeout=1)
         self.check_status()
 
         # configure number of pseudoclocks
-        self.prawnblaster.write(b"setnumpseudoclocks %d\r\n" % self.num_pseudoclocks)
-        assert self.prawnblaster.readline().decode() == "ok\r\n"
+        self.conn.write(b"setnumpseudoclocks %d\r\n" % self.num_pseudoclocks)
+        assert self.conn.readline().decode() == "ok\r\n"
 
         # Configure pins
         for i, (out_pin, in_pin) in enumerate(zip(self.out_pins, self.in_pins)):
-            self.prawnblaster.write(b"setoutpin %d %d\r\n" % (i, out_pin))
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
-            self.prawnblaster.write(b"setinpin %d %d\r\n" % (i, in_pin))
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            self.conn.write(b"setoutpin %d %d\r\n" % (i, out_pin))
+            assert self.conn.readline().decode() == "ok\r\n"
+            self.conn.write(b"setinpin %d %d\r\n" % (i, in_pin))
+            assert self.conn.readline().decode() == "ok\r\n"
+
+        version, _ = self.get_version()
+        print(f'Connected to version: {version}')
 
         # Check if fast serial is available
-        version, _ = self.get_version()
         self.fast_serial = version >= (1, 1, 0)
+        print(f'Fast serial available: {self.fast_serial}')
 
+        board = self.get_board()
+        print(f'Connected to board: {board}')
+
+    def _read_full_buffer(self):
+        '''Used to get any extra lines from device after a failed send_command'''
+
+        resp = self.conn.readlines()
+        str_resp = ''.join([st.decode() for st in resp])
+
+        return str_resp
+    
+    def send_command(self, command, readlines=False):
+        '''Sends the supplied string command and checks for a response.
+        
+        Automatically applies the correct termination characters.
+        
+        Args:
+            command (str): Command to send. Termination and encoding is done automatically.
+            readlines (bool, optional): Use pyserial's readlines functionality to read multiple
+                response lines. Slower as it relies on timeout to terminate reading.
+
+        Returns:
+            str: String response from the PrawnBlaster
+        '''
+        command += '\r\n'
+        self.conn.write(command.encode())
+
+        if readlines:
+            str_resp = self._read_full_buffer()
+        else:
+            str_resp = self.conn.readline().decode()
+
+        return str_resp
+    
+    def send_command_ok(self, command):
+        '''Sends the supplied string command and confirms 'ok' response.
+
+        Args:
+            command (str): String command to send.
+
+        Raises:
+            LabscriptError: If response is not `ok\\r\\n`
+        '''
+
+        resp = self.send_command(command)
+        if resp != 'ok\r\n':
+            # get complete error message
+            resp += self._read_full_buffer()
+            raise LabscriptError(f"Command '{command:s}' failed. Got response '{repr(resp)}'")
+    
     def get_version(self):
-        self.prawnblaster.write(b"version\r\n")
-        version_str = self.prawnblaster.readline().decode()
+        self.conn.write(b"version\r\n")
+        version_str = self.conn.readline().decode()
         assert version_str.startswith("version: ")
         version = version_str[9:].strip()
 
@@ -91,6 +145,17 @@ class PrawnBlasterWorker(Worker):
         assert len(version) == 3
 
         return version, overclock
+    
+    def get_board(self):
+        '''Responds with pico board version.
+
+        Returns:
+            (str): Either "pico1" for a Pi Pico 1 board or "pico2" for a Pi Pico 2 board.'''
+        resp = self.send_command('board')
+        assert resp.startswith('board:'), f'Board command failed, got: {resp}'
+        pico_str = resp.split(':')[-1].strip()
+
+        return pico_str
 
     def check_status(self):
         """Checks the operational status of the PrawnBlaster.
@@ -128,8 +193,8 @@ class PrawnBlasterWorker(Worker):
         ):
             # Try to read out wait. For now, we're only reading out waits from
             # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
-            self.prawnblaster.write(b"getwait %d %d\r\n" % (0, self.current_wait))
-            response = self.prawnblaster.readline().decode()
+            self.conn.write(b"getwait %d %d\r\n" % (0, self.current_wait))
+            response = self.conn.readline().decode()
             if response != "wait not yet available\r\n":
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
@@ -202,8 +267,8 @@ class PrawnBlasterWorker(Worker):
                 - **clock-status** (int): Clock status code
         """
 
-        self.prawnblaster.write(b"status\r\n")
-        response = self.prawnblaster.readline().decode()
+        self.conn.write(b"status\r\n")
+        response = self.conn.readline().decode()
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
             return int(match.group(1)), int(match.group(2))
@@ -231,11 +296,11 @@ class PrawnBlasterWorker(Worker):
             pin = int(channel.split()[1])
             pseudoclock = self.out_pins.index(pin)
             if value:
-                self.prawnblaster.write(b"go high %d\r\n" % pseudoclock)
+                self.conn.write(b"go high %d\r\n" % pseudoclock)
             else:
-                self.prawnblaster.write(b"go low %d\r\n" % pseudoclock)
+                self.conn.write(b"go low %d\r\n" % pseudoclock)
 
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            assert self.conn.readline().decode() == "ok\r\n"
 
         return values
 
@@ -309,8 +374,8 @@ class PrawnBlasterWorker(Worker):
         clock_frequency = self.device_properties["clock_frequency"]
 
         # Now set the clock details
-        self.prawnblaster.write(b"setclock %d %d\r\n" % (clock_mode, clock_frequency))
-        response = self.prawnblaster.readline().decode()
+        self.conn.write(b"setclock %d %d\r\n" % (clock_mode, clock_frequency))
+        response = self.conn.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
 
         # Program instructions
@@ -339,15 +404,15 @@ class PrawnBlasterWorker(Worker):
 
             if (fresh or self.smart_cache[pseudoclock] is None) and self.fast_serial:
                 print('binary programming')
-                self.prawnblaster.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
-                response = self.prawnblaster.readline().decode()
+                self.conn.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
+                response = self.conn.readline().decode()
                 assert (
                     response == "ready\r\n"
                 ), f"PrawnBlaster said '{response}', expected 'ready'"
                 program_array = np.array([pulse_program['half_period'],
                                           pulse_program['reps']], dtype='<u4').T
-                self.prawnblaster.write(program_array.tobytes())
-                response = self.prawnblaster.readline().decode()
+                self.conn.write(program_array.tobytes())
+                response = self.conn.readline().decode()
                 assert (
                     response == "ok\r\n"
                 ), f"PrawnBlaster said '{response}', expected 'ok'"
@@ -361,7 +426,7 @@ class PrawnBlasterWorker(Worker):
 
                     # Only program instructions that differ from what's in the smart cache:
                     if self.smart_cache[pseudoclock][i] != instruction:
-                        self.prawnblaster.write(
+                        self.conn.write(
                             b"set %d %d %d %d\r\n"
                             % (
                                 pseudoclock,
@@ -370,7 +435,7 @@ class PrawnBlasterWorker(Worker):
                                 instruction["reps"],
                             )
                         )
-                        response = self.prawnblaster.readline().decode()
+                        response = self.conn.readline().decode()
                         assert (
                             response == "ok\r\n"
                         ), f"PrawnBlaster said '{response}', expected 'ok'"
@@ -392,8 +457,8 @@ class PrawnBlasterWorker(Worker):
 
         # Start in software:
         self.logger.info("sending start")
-        self.prawnblaster.write(b"start\r\n")
-        response = self.prawnblaster.readline().decode()
+        self.conn.write(b"start\r\n")
+        response = self.conn.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
 
         # set started = True
@@ -405,8 +470,8 @@ class PrawnBlasterWorker(Worker):
 
         # Set to wait for trigger:
         self.logger.info("sending hwstart")
-        self.prawnblaster.write(b"hwstart\r\n")
-        response = self.prawnblaster.readline().decode()
+        self.conn.write(b"hwstart\r\n")
+        response = self.conn.readline().decode()
         assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
 
         running = False
@@ -477,7 +542,7 @@ class PrawnBlasterWorker(Worker):
     def shutdown(self):
         """Cleanly shuts down the connection to the PrawnBlaster hardware."""
 
-        self.prawnblaster.close()
+        self.conn.close()
 
     def abort_buffered(self):
         """Aborts a currently running buffered execution.
@@ -489,8 +554,8 @@ class PrawnBlasterWorker(Worker):
             # Only need to send abort signal if we have told the PrawnBlaster to wait
             # for a hardware trigger. Otherwise it's just been programmed with
             # instructions and there is nothing we need to do to abort.
-            self.prawnblaster.write(b"abort\r\n")
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            self.conn.write(b"abort\r\n")
+            assert self.conn.readline().decode() == "ok\r\n"
             # loop until abort complete
             while self.read_status()[0] != 5:
                 time.sleep(0.5)
