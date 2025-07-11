@@ -159,14 +159,12 @@ class PrawnDOInterface(object):
             pulse_program (numpy.ndarray): Structured array of program to send.
                 Must have first column as bit sets (<u2) and second as reps (<u4).
         '''
-        # self.conn.write('adm 0 {:x}\n'.format(len(pulse_program)).encode())
-        self.send_command('adm 0 {:x}\n'.format(len(pulse_program)))
+        self.conn.write('adm 0 {:x}\n'.format(len(pulse_program)).encode())
         resp = self.conn.readline().decode()
         if resp != 'ready\r\n':
             resp += self._read_full_buffer()
             raise LabscriptError(f'adm command failed, got response {repr(resp)}')
         self.conn.write(pulse_program.tobytes())
-        # self.send_command(pulse_program.tobytes()) # check this one
         resp = self.conn.readline().decode()
         if resp != 'ok\r\n':
             resp += self._read_full_buffer()

@@ -62,15 +62,12 @@ class PrawnBlasterWorker(Worker):
         self.check_status()
 
         # configure number of pseudoclocks
-        self.conn.write(b"setnumpseudoclocks %d\r\n" % self.num_pseudoclocks)
-        assert self.conn.readline().decode() == "ok\r\n"
+        self.send_command_ok(f"setnumpseudoclocks {self.num_pseudoclocks}")
 
         # Configure pins
         for i, (out_pin, in_pin) in enumerate(zip(self.out_pins, self.in_pins)):
-            self.conn.write(b"setoutpin %d %d\r\n" % (i, out_pin))
-            assert self.conn.readline().decode() == "ok\r\n"
-            self.conn.write(b"setinpin %d %d\r\n" % (i, in_pin))
-            assert self.conn.readline().decode() == "ok\r\n"
+            self.send_command_ok(f"setoutpin {i} {out_pin}")
+            self.send_command_ok(f"setinpin {i} {in_pin}")
 
         version, _ = self.get_version()
         print(f'Connected to version: {version}')
@@ -130,8 +127,7 @@ class PrawnBlasterWorker(Worker):
             raise LabscriptError(f"Command '{command:s}' failed. Got response '{repr(resp)}'")
     
     def get_version(self):
-        self.conn.write(b"version\r\n")
-        version_str = self.conn.readline().decode()
+        version_str = self.send_command('version', readlines=True)
         assert version_str.startswith("version: ")
         version = version_str[9:].strip()
 
@@ -193,8 +189,7 @@ class PrawnBlasterWorker(Worker):
         ):
             # Try to read out wait. For now, we're only reading out waits from
             # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
-            self.conn.write(b"getwait %d %d\r\n" % (0, self.current_wait))
-            response = self.conn.readline().decode()
+            response = self.send_command(f'getwait {0}, {self.current_wait}')
             if response != "wait not yet available\r\n":
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
@@ -267,8 +262,7 @@ class PrawnBlasterWorker(Worker):
                 - **clock-status** (int): Clock status code
         """
 
-        self.conn.write(b"status\r\n")
-        response = self.conn.readline().decode()
+        response = self.send_command("status", readlines=True)
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
             return int(match.group(1)), int(match.group(2))
@@ -296,11 +290,9 @@ class PrawnBlasterWorker(Worker):
             pin = int(channel.split()[1])
             pseudoclock = self.out_pins.index(pin)
             if value:
-                self.conn.write(b"go high %d\r\n" % pseudoclock)
+                self.send_command_ok(f"go high {pseudoclock}")
             else:
-                self.conn.write(b"go low %d\r\n" % pseudoclock)
-
-            assert self.conn.readline().decode() == "ok\r\n"
+                self.send_command_ok(f"go low {pseudoclock}")
 
         return values
 
@@ -374,9 +366,7 @@ class PrawnBlasterWorker(Worker):
         clock_frequency = self.device_properties["clock_frequency"]
 
         # Now set the clock details
-        self.conn.write(b"setclock %d %d\r\n" % (clock_mode, clock_frequency))
-        response = self.conn.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        response = self.send_command_ok(f"setclock {clock_mode} {clock_frequency}")
 
         # Program instructions
         for pseudoclock, pulse_program in enumerate(pulse_programs):
@@ -457,9 +447,7 @@ class PrawnBlasterWorker(Worker):
 
         # Start in software:
         self.logger.info("sending start")
-        self.conn.write(b"start\r\n")
-        response = self.conn.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        self.send_command_ok("start")
 
         # set started = True
         self.started = True
@@ -470,9 +458,7 @@ class PrawnBlasterWorker(Worker):
 
         # Set to wait for trigger:
         self.logger.info("sending hwstart")
-        self.conn.write(b"hwstart\r\n")
-        response = self.conn.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        self.send_command_ok("hwstart")
 
         running = False
         while not running:
