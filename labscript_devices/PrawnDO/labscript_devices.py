@@ -114,14 +114,19 @@ class PrawnDO(PseudoclockDevice):
     "Minimum required duration of hardware trigger. A fairly large over-estimate."
 
     allowed_children = [_PrawnDOPseudoclock]
+    allowed_boards = ['pico1', 'pico2']
+    
+    max_instructions_map = {'pico1' : 30000, 'pico2' : 60000}
+    """Maximum number of instructions for each pico board. Set by zmq timeout when sending the commands."""
+    
+    max_frequency_map = {'pico1' : 133e6, 'pico2' : 150e6}
 
-    max_instructions = 30000
-    """Maximum number of instructions. Set by zmq timeout when sending the commands."""
 
     @set_passed_properties(
         property_names={
             'connection_table_properties': [
                 'com_port',
+                'pico_board',
             ],
             'device_properties': [
                 'clock_frequency',
@@ -141,6 +146,7 @@ class PrawnDO(PseudoclockDevice):
                  trigger_connection = None,
                  clock_line = None,
                  com_port = 'COM1',
+                 pico_board = 'pico1',
                  clock_frequency = 100e6,
                  external_clock = False,
                 ):
@@ -169,14 +175,22 @@ class PrawnDO(PseudoclockDevice):
                 Not required if using a trigger device.
             com_port (str): COM port assinged to the PrawnDO by the OS.
                 Takes the form of `COMd` where `d` is an integer.
+            pico_board (str): The version of pico board used, pico1 or pico2.
             clock_frequency (float, optional): System clock frequency, in Hz.
-                Must be less than 133 MHz. Default is `100e6`.
+                Must be less than 133 MHz for pico1, 150 MHz for pico2. Default is `100e6`.
             external_clock (bool, optional): Whether to use an external clock.
                 Default is `False`.
         """
+        if pico_board in self.allowed_boards:
+            self.pico_board = pico_board
+        else:
+            raise LabscriptError(f'Pico board specified not in {self.allowed_boards}')
+        
+        self.max_instructions = self.max_instructions_map[self.pico_board]
+        self.max_frequency = self.max_frequency_map[self.pico_board]
 
-        if clock_frequency > 133e6:
-            raise ValueError('Clock frequency must be less than 133 MHz')
+        if clock_frequency > self.max_frequency:
+            raise ValueError(f'Clock frequency must be less than {int(self.max_frequency * 10**-6)} MHz')
         
         self.external_clock = external_clock
         self.clock_frequency = clock_frequency

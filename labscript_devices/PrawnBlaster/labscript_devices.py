@@ -144,14 +144,16 @@ class PrawnBlaster(PseudoclockDevice):
     """Minimum required length of a wait before retrigger can be detected.
     Corresponds to 4 instructions."""
     allowed_children = [_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock]
-    max_instructions = 30000
-    """Maximum numaber of instructions per pseudoclock. Max is 30,000 for a single
-    pseudoclock."""
+    allowed_boards = ['pico1', 'pico2']
+    max_instructions_map = {'pico1' : 30000, 'pico2' : 60000}
+    """Maximum number of instructions per pseudoclock for each pico board. """
+    max_frequency_map = {'pico1' : 133e6, 'pico2' : 150e6}
 
     @set_passed_properties(
         property_names={
             "connection_table_properties": [
                 "com_port",
+                'pico_board',
                 "in_pins",
                 "out_pins",
                 "num_pseudoclocks",
@@ -175,6 +177,7 @@ class PrawnBlaster(PseudoclockDevice):
         trigger_device=None,
         trigger_connection=None,
         com_port="COM1",
+        pico_board = 'pico1',
         num_pseudoclocks=1,
         out_pins=None,
         in_pins=None,
@@ -191,6 +194,7 @@ class PrawnBlaster(PseudoclockDevice):
             name (str): python variable name to assign to the PrawnBlaster
             com_port (str): COM port assigned to the PrawnBlaster by the OS. Takes 
                 the form of `'COMd'`, where `d` is an integer.
+            pico_board (str): The version of pico board used, pico1 or pico2.
             num_pseudoclocks (int): Number of pseudoclocks to create. Ranges from 1-4.
             trigger_device (:class:`~labscript.IntermediateDevice`, optional): Device
                 that will send the hardware start trigger when using the PrawnBlaster
@@ -203,8 +207,8 @@ class PrawnBlaster(PseudoclockDevice):
                 triggering. Must have length of at least `num_pseudoclocks`. 
                 Defaults to `[0,0,0,0]`
             clock_frequency (float, optional): Frequency of clock. Standard range
-                accepts up to 133 MHz. An experimental overclocked firmware is 
-                available that allows higher frequencies.
+                accepts up to 133 MHz for pico1, 150 MHz for pico2. An experimental overclocked 
+                firmware is available that allows higher frequencies.
             external_clock_pin (int, optional): If not `None` (the default), 
                 the PrawnBlaster uses an external clock on the provided pin. Valid
                 options are `20` and `22`. The external frequency must be defined
@@ -214,14 +218,26 @@ class PrawnBlaster(PseudoclockDevice):
 
         """
 
+        if pico_board in self.allowed_boards:
+            self.pico_board = pico_board
+        else:
+            raise LabscriptError(f'Pico board specified not in {self.allowed_boards}')
+        
         # Check number of pseudoclocks is within range
         if num_pseudoclocks < 1 or num_pseudoclocks > 4:
             raise LabscriptError(
                 f"The PrawnBlaster {name} only supports between 1 and 4 pseudoclocks"
             )
-
+        
+        # Set max instructions based on board
+        self.max_instructions = self.max_instructions_map[self.pico_board]
         # Update the specs based on the number of pseudoclocks
         self.max_instructions = self.max_instructions // num_pseudoclocks
+
+        self.max_frequency = self.max_frequency_map[self.pico_board]
+
+        if clock_frequency > self.max_frequency:
+            raise ValueError(f'Clock frequency must be less than {int(self.max_frequency * 10**-6)} MHz')
         # Update the specs based on the clock frequency
         if self.clock_resolution != 2 / clock_frequency:
             factor = (2 / clock_frequency) / self.clock_resolution
