@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=source
 set BUILDDIR=build
-set AUTOSUMMARYDIR=source\api\_autosummary
+set AUTOSUMMARYDIR=source\devices\_apidoc
 
 if "%1" == "" goto help
 if "%1" == "clean" goto clean

@@ -32,4 +32,4 @@ Please direct any questions regarding these repositories to their respective own
 * `NAQS Lab <https://github.com/naqslab/naqslab_devices>`__
 * `Vladan Vuletic Group Rb Lab, MIT <https://github.com/zakv/RbLab_user_devices>`__
 
-If you would like to add your repository to this list, :doc:`please contact us or make a pull request<labscript-suite:contributing>`.
+If you would like to add your repository to this list, :doc:`please contact us or make a pull request<labscript-suite:project/contributing>`.
