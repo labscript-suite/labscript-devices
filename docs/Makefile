@@ -7,14 +7,14 @@ SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
-AUTOSUMMARYDIR = source/api/_autosummary
+AUTOSUMMARYDIR = source/devices/_apidoc
 
 # Put it first so that "make" without argument is like "make help".
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 clean:
-	@echo "Removing autosummary directory"
+	@echo "Removing apidoc directory"
 	@rm -rf $(AUTOSUMMARYDIR)
 	@$(SPHINXBUILD) -M clean "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
