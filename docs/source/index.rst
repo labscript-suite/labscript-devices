@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-labscript-devices
-=================
+labscript-devices |version|
+===========================
 
 This portion of the **labscript-suite** contains the plugin architecture for controlling experimental hardware.
 In particular, this code provides the interface between **labscript** high-level instructions and hardware-specific instructions, the communication interface to send those instructions to the hardware, and the **BLACS** instrument control interface.
