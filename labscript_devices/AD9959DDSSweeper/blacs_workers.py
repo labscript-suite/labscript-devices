@@ -440,9 +440,9 @@ class AD9959DDSSweeperWorker(Worker):
 
                 changed_indices = np.where(changed_mask)[0]
                 # Handle potential row count difference
-                if len(cache) != len(dds_data):
-                    self.logger.debug(f"Length mismatch: cache has {len(cache)}, dds_data has {len(dds_data)}")
-                    changed_indices = np.union1d(changed_indices, np.arange(len(dds_data), len(cache)))
+                if n_cache != len(dds_data):
+                    self.logger.debug(f"Length mismatch: cache has {n_cache}, dds_data has {len(dds_data)}")
+                    changed_indices = np.union1d(changed_indices, np.arange(len(dds_data), n_cache))
                 self.logger.debug(f"Changed rows: {changed_indices}")
 
                 # Iterate only over changed rows
