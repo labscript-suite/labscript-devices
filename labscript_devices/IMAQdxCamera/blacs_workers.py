@@ -480,9 +480,9 @@ class IMAQdxCameraWorker(Worker):
                     frametype, data=data, dtype='uint16', compression='gzip'
                 )
                 # Specify this dataset should be viewed as an image
-                dset.attrs['CLASS'] = np.string_('IMAGE')
-                dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
-                dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
+                dset.attrs['CLASS'] = np.bytes_('IMAGE')
+                dset.attrs['IMAGE_VERSION'] = np.bytes_('1.2')
+                dset.attrs['IMAGE_SUBCLASS'] = np.bytes_('IMAGE_GRAYSCALE')
                 dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
 
         # If the images are all the same shape, send them to the GUI for display:
