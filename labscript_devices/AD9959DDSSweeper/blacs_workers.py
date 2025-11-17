@@ -414,18 +414,21 @@ class AD9959DDSSweeperWorker(Worker):
             else:
                 self.intf.set_channels(len(dyn_chans))
                 self.logger.debug('Comparing changed instructions')
-                cache = self.smart_cache['dds_data']
+                cache = self.smart_cache['dds_data'].copy() # avoid overwriting smart_cache entries too early
                 n_cache = len(cache)
 
+                # Boolean mask of each rows
+                changed_mask = np.zeros(len(dds_data), dtype=bool)
+                
                 # Extend cache if necessary
                 if len(dds_data) > n_cache:
                     new_cache = np.empty(len(dds_data), dtype=dds_data.dtype)
                     new_cache[:n_cache] = cache
+                    changed_mask[n_cache:] = True # ensure new rows are programmed
                     self.smart_cache['dds_data'] = new_cache
                     cache = new_cache
 
-                # Boolean mask of each rows
-                changed_mask = np.zeros(len(dds_data), dtype=bool)
+                # check line-by-line for rows that need to be programmed
                 for name in dds_data.dtype.names:
 
                     # need to check field-by-field, both vals and dtypes
@@ -439,10 +442,6 @@ class AD9959DDSSweeperWorker(Worker):
                         changed_mask |= cache[:len(dds_data)][name] != dds_data[name]
 
                 changed_indices = np.where(changed_mask)[0]
-                # Handle potential row count difference
-                if n_cache != len(dds_data):
-                    self.logger.debug(f"Length mismatch: cache has {n_cache}, dds_data has {len(dds_data)}")
-                    changed_indices = np.union1d(changed_indices, np.arange(len(dds_data), n_cache))
                 self.logger.debug(f"Changed rows: {changed_indices}")
 
                 # Iterate only over changed rows

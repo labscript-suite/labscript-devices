@@ -110,7 +110,7 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     @property
     def clock_limit(self):
-        '''Dynamically computs clock limit based off of number of dynamic 
+        '''Dynamically computes clock limit based off of number of dynamic 
         channels and reference clock frequency.'''
         if self.dynamic_channels == 0:
             # No clock limit
