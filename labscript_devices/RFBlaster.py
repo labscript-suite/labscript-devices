@@ -183,7 +183,7 @@ class RFBlaster(PseudoclockDevice):
                 # contain embedded nulls'. Presumably our binary data
                 # must contain nulls sometimes. So this crashes if we
                 # don't convert to a numpy 'fixes length' string:
-                binary_group.create_dataset('DDS%d'%dds, data=np.string_(binary_data))
+                binary_group.create_dataset('DDS%d'%dds, data=np.bytes_(binary_data))
             finally:
                 # Delete the temporary files:
                 os.remove(temp_assembly_filepath)
