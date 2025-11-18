@@ -23,7 +23,6 @@ class WindfreakSynthHDTab(DeviceTab):
 
     def initialise_GUI(self):
 
-        print(self.settings)
         conn_obj = self.settings['connection_table'].find_by_name(self.device_name).properties
 
         self.allowed_chans = conn_obj.get('allowed_chans',None)
