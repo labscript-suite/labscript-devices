@@ -558,7 +558,7 @@ class GuilessWorker(Worker):
 
     def to_volts(self, zeroToFullScale, buf):
         offset = float(2**(self.bitsPerSample-1))
-        return (np.asfarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001
+        return (np.asarray(buf, np.float32)-offset)/offset * zeroToFullScale * 0.001
 
     # This helper function waits for the acquisition_loop thread to finish the acquisition,
     # either successfully or after an exception.

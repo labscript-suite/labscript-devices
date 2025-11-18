@@ -39,7 +39,7 @@ def _ensure_str(s):
     """
     if isinstance(s, bytes):
         return s.decode()
-    elif isinstance(s, np.string_):
+    elif isinstance(s, np.bytes_):
         return str(s)
     else:
         return s
@@ -390,9 +390,9 @@ class IMAQdxCameraServer(CameraServer):
                                                     dtype='uint16', compression='gzip')
                         if self.imageify:
                             # Specify this dataset should be viewed as an image
-                            dset.attrs['CLASS'] = np.string_('IMAGE')
-                            dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
-                            dset.attrs['IMAGE_SUBCLASS'] = np.string_(
+                            dset.attrs['CLASS'] = np.bytes_('IMAGE')
+                            dset.attrs['IMAGE_VERSION'] = np.bytes_('1.2')
+                            dset.attrs['IMAGE_SUBCLASS'] = np.bytes_(
                                 'IMAGE_GRAYSCALE')
                             dset.attrs['IMAGE_WHITE_IS_ZERO'] = np.uint8(0)
                         print('Saved frame {:}'.format(exposure['frametype']))
