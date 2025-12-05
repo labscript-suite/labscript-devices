@@ -258,19 +258,35 @@ class SpinnakerCameraWorker(IMAQdxCameraWorker):
     Inherits from IMAQdxCameraWorker."""
     interface_class = Spinnaker_Camera
 
-    #def continuous_loop(self, dt):
-    #    """Acquire continuously in a loop, with minimum repetition interval dt"""
-    #    self.camera.trigger()
-    #    while True:
-    #        if dt is not None:
-    #            t = perf_counter()
-    #        image = self.camera.grab()
-    #        self.camera.trigger()
-    #        self._send_image_to_parent(image)
-    #        if dt is None:
-    #            timeout = 0
-    #        else:
-    #            timeout = t + dt - perf_counter()
-    #        if self.continuous_stop.wait(timeout):
-    #            self.continuous_stop.clear()
-    #            break
+    def init(self):
+        print("Spinnaker Worker Called")
+        try:
+            self.camera = self.interface_class(self.serial_number)
+            self.camera.configure_acquisition()
+            print(f"Successfully initialized camera {self.serial_number}")
+        except Exception as e:
+            print(f"Error initializing camera: {e}")
+            raise
+    
+    def shutdown(self):
+        try:
+            self.camera.close()
+        except Exception as e:
+            print(f"Error shutting down camera: {e}")
+
+    def continuous_loop(self, dt):
+       """Acquire continuously in a loop, with minimum repetition interval dt"""
+       self.camera.trigger()
+       while True:
+           if dt is not None:
+               t = perf_counter()
+           image = self.camera.grab()
+           self.camera.trigger()
+           self._send_image_to_parent(image)
+           if dt is None:
+               timeout = 0
+           else:
+               timeout = t + dt - perf_counter()
+           if self.continuous_stop.wait(timeout):
+               self.continuous_stop.clear()
+               break
