@@ -74,10 +74,6 @@ class PrawnBlasterWorker(Worker):
         print(f'Connected to version: {version}')
         assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
         
-        # Check if fast serial is available
-        self.fast_serial = version >= (1, 1, 0)
-        print(f'Fast serial available: {self.fast_serial}')
-
         if version >= (1, 2, 0):
             board = self.get_board()
             print(f'Connected to board: {board}')
@@ -378,7 +374,7 @@ class PrawnBlasterWorker(Worker):
         for pseudoclock, pulse_program in enumerate(pulse_programs):
             total_inst = len(pulse_program)
             # check if it is more efficient to fully refresh
-            if not fresh and self.smart_cache[pseudoclock] is not None and self.fast_serial:
+            if not fresh and self.smart_cache[pseudoclock] is not None:
                 # get more convenient handles to smart cache arrays
                 curr_inst = self.smart_cache[pseudoclock]
 
@@ -398,7 +394,7 @@ class PrawnBlasterWorker(Worker):
                 if new_inst / total_inst > 0.1:
                     fresh = True
 
-            if (fresh or self.smart_cache[pseudoclock] is None) and self.fast_serial:
+            if (fresh or self.smart_cache[pseudoclock] is None):
                 print('binary programming')
                 self.conn.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
                 response = self.conn.readline().decode()
