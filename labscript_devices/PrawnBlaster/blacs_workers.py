@@ -72,6 +72,8 @@ class PrawnBlasterWorker(Worker):
 
         version, _ = self.get_version()
         print(f'Connected to version: {version}')
+        assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
+        
         # Check if fast serial is available
         self.fast_serial = version >= (1, 1, 0)
         print(f'Fast serial available: {self.fast_serial}')
