@@ -77,9 +77,10 @@ class PrawnBlasterWorker(Worker):
         if version >= (1, 2, 0):
             board = self.get_board()
             print(f'Connected to board: {board}')
+            assert board.strip() == self.pico_board.strip(), f'firmware thinks {board} attached, labscript thinks {self.pico_board}'
         else:
             board = 'pico1'
-            print(f'Version v{version} too low to use pico2 firmware, consider upgrading firmware')
+            print(f'Version {version} too low to use pico2 firmware, consider upgrading firmware')
 
     def _read_full_buffer(self):
         '''Used to get any extra lines from device after a failed send_command'''

@@ -23,13 +23,14 @@ class PrawnDOInterface(object):
     min_version = (1, 2, 0)
     """Minimum compatible firmware version tuple"""
 
-    def __init__(self, com_port):
+    def __init__(self, com_port, pico_board):
         global serial; import serial
         global struct; import struct
 
         self.timeout = 0.2
         self.conn = serial.Serial(com_port, 10000000, timeout=self.timeout)
-
+        self.pico_board = pico_board
+        
         version = self.get_version()
         print(f'Connected to version: {version}')
 
@@ -39,9 +40,11 @@ class PrawnDOInterface(object):
         if version >= (1, 3, 0):
             board = self.get_board()
             print(f'Connected to board: {board}')
+            print(board, self.pico_board)
+            assert board.strip() == self.pico_board.strip(), f'firmware thinks {board} attached, labscript thinks {self.pico_board}'
         else:
             board = 'pico1'
-            print(f'Version v{version} too low to use pico2 firmware, consider upgrading firmware')
+            print(f'Version {version} too low to use pico2 firmware, consider upgrading firmware')
         
         current_status = self.status()
         print(f'Current status is {current_status}')
@@ -179,7 +182,7 @@ class PrawnDOInterface(object):
 
 class PrawnDOWorker(Worker):
     def init(self):
-        self.intf = PrawnDOInterface(self.com_port)        
+        self.intf = PrawnDOInterface(self.com_port, self.pico_board)        
 
         self.smart_cache = {'do_table':None, 'reps':None}
 
