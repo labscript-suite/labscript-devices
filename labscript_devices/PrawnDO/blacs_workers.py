@@ -36,8 +36,12 @@ class PrawnDOInterface(object):
         # ensure firmware is compatible
         assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
         
-        board = self.get_board()
-        print(f'Connected to board: {board}')
+        if version >= (1, 3, 0):
+            board = self.get_board()
+            print(f'Connected to board: {board}')
+        else:
+            board = 'pico1'
+            print(f'Version v{version} too low to use pico2 firmware, consider upgrading firmware')
         
         current_status = self.status()
         print(f'Current status is {current_status}')

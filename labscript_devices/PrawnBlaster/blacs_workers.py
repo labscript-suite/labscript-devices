@@ -57,7 +57,8 @@ class PrawnBlasterWorker(Worker):
         self.wait_timeout = None
         self.h5_file = None
         self.started = False
-
+        self.min_version = (1, 1, 0)
+        
         self.conn = serial.Serial(self.com_port, 115200, timeout=1)
         self.check_status()
 
@@ -71,13 +72,16 @@ class PrawnBlasterWorker(Worker):
 
         version, _ = self.get_version()
         print(f'Connected to version: {version}')
-
         # Check if fast serial is available
         self.fast_serial = version >= (1, 1, 0)
         print(f'Fast serial available: {self.fast_serial}')
 
-        board = self.get_board()
-        print(f'Connected to board: {board}')
+        if version >= (1, 2, 0):
+            board = self.get_board()
+            print(f'Connected to board: {board}')
+        else:
+            board = 'pico1'
+            print(f'Version v{version} too low to use pico2 firmware, consider upgrading firmware')
 
     def _read_full_buffer(self):
         '''Used to get any extra lines from device after a failed send_command'''
