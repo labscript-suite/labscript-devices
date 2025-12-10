@@ -84,6 +84,9 @@ class PrawnBlasterWorker(Worker):
         if board.strip() != self.pico_board.strip():
             raise LabscriptError(f'firmware reports {board} attached, labscript expects {self.pico_board}')
 
+        current_status = self.read_status()
+        print(f'Current status is {current_status}')
+
     def _read_full_buffer(self):
         '''Used to get any extra lines from device after a failed send_command'''
 
