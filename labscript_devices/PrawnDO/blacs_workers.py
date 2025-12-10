@@ -39,12 +39,13 @@ class PrawnDOInterface(object):
         
         if version >= (1, 3, 0):
             board = self.get_board()
-            print(f'Connected to board: {board}')
-            print(board, self.pico_board)
-            assert board.strip() == self.pico_board.strip(), f'firmware thinks {board} attached, labscript thinks {self.pico_board}'
         else:
             board = 'pico1'
             print(f'Version {version} too low to use pico2 firmware, consider upgrading firmware')
+            
+        print(f'Connected to board: {board}')
+        if board.strip() != self.pico_board.strip():
+            raise LabscriptError(f'firmware reports {board} attached, labscript expects {self.pico_board}')
         
         current_status = self.status()
         print(f'Current status is {current_status}')
