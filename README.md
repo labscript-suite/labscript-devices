@@ -4,7 +4,7 @@
 
 ### Plugin architecture for controlling experiment hardware
 
-[![Actions Status](https://github.com/labscript-suite/labscript-devices/workflows/Build%20and%20Release/badge.svg?branch=maintenance%2F3.0.x)](https://github.com/labscript-suite/labscript-devices/actions)
+[![Actions Status](https://github.com/labscript-suite/labscript-devices/workflows/Build%20and%20Release/badge.svg)](https://github.com/labscript-suite/labscript-devices/actions)
 [![License](https://img.shields.io/pypi/l/labscript-devices.svg)](https://github.com/labscript-suite/labscript-devices/raw/master/LICENSE.txt)
 [![Python Version](https://img.shields.io/pypi/pyversions/labscript-devices.svg)](https://python.org)
 [![PyPI](https://img.shields.io/pypi/v/labscript-devices.svg)](https://pypi.org/project/labscript-devices)
@@ -48,6 +48,7 @@ The following devices have been implemented in the _labscript suite_:<sup>†</s
 * [OpalKelly XEM3001](https://opalkelly.com/products/xem3001/) FPGA Boards used by the Cicero control system (PR [#50](https://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices/pull-requests/50))
 * [PineBlaster](http://labscriptsuite.org/hardware/pineblaster) Open-source Digital Pattern Generator
 * [PrawnBlaster](https://github.com/labscript-suite/prawnblaster/) Open-source pseudoclock based on the $4 Raspberry Pi Pico
+* [PrawnDO](https://github.com/labscript-suite/prawn_digital_output/) Open-source digital pulse generator based on the $4 Raspberry Pi Pico
 * [SpinCore](https://www.spincore.com/products/#pulsegeneration) Programmable Pulse Generators and Direct Digital Synthesis
   * [PulseBlasterDDS-II-300-AWG](http://www.spincore.com/products/PulseBlasterDDS-II-300/)
   * [PulseBlasterESR-PRO](https://www.spincore.com/products/PulseBlasterESR-PRO/)

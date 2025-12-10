@@ -27,7 +27,8 @@ class TekScopeWorker(Worker):
             self.scope_params = labscript_utils.properties.get(
                 hdf5_file, device_name, 'device_properties'
             )
-            self.scope.dev.timeout = 1000 * self.scope_params.get('timeout', 5)
+
+        self.scope.dev.timeout = 1000 * self.scope_params.get('timeout', 5)
 
         self.scope.unlock()
         self.scope.set_acquire_state(True)
@@ -61,10 +62,11 @@ class TekScopeWorker(Worker):
 
         # Open the file after download so as not to hog the file lock
         with h5py.File(self.h5file, 'r+') as hdf_file:
-            grp = hdf_file.create_group('/data/traces')
+            grp = hdf_file.require_group('/data/traces')
             print('Saving traces...')
             dset = grp.create_dataset(self.device_name, data=data)
             dset.attrs.update(wfmp[ch])
+        
         print('Done!')
         return True
 

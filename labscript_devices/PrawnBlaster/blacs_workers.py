@@ -13,7 +13,9 @@
 import time
 import labscript_utils.h5_lock
 import h5py
+import numpy as np
 from blacs.tab_base_classes import Worker
+from labscript import LabscriptError
 from labscript_utils.connections import _ensure_str
 import labscript_utils.properties as properties
 
@@ -38,6 +40,7 @@ class PrawnBlasterWorker(Worker):
         global time; import time
         global re; import re
         global numpy; import numpy
+        global struct; import struct
         global zprocess; import zprocess
         self.smart_cache = {}
         self.cached_pll_params = {}
@@ -54,20 +57,109 @@ class PrawnBlasterWorker(Worker):
         self.wait_timeout = None
         self.h5_file = None
         self.started = False
-
-        self.prawnblaster = serial.Serial(self.com_port, 115200, timeout=1)
+        self.min_version = (1, 1, 0)
+        
+        self.conn = serial.Serial(self.com_port, 115200, timeout=1)
         self.check_status()
 
         # configure number of pseudoclocks
-        self.prawnblaster.write(b"setnumpseudoclocks %d\r\n" % self.num_pseudoclocks)
-        assert self.prawnblaster.readline().decode() == "ok\r\n"
+        self.send_command_ok(f"setnumpseudoclocks {self.num_pseudoclocks}")
 
         # Configure pins
         for i, (out_pin, in_pin) in enumerate(zip(self.out_pins, self.in_pins)):
-            self.prawnblaster.write(b"setoutpin %d %d\r\n" % (i, out_pin))
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
-            self.prawnblaster.write(b"setinpin %d %d\r\n" % (i, in_pin))
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            self.send_command_ok(f"setoutpin {i} {out_pin}")
+            self.send_command_ok(f"setinpin {i} {in_pin}")
+
+        version, _ = self.get_version()
+        print(f'Connected to version: {version}')
+        assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
+        
+        if version >= (1, 2, 0):
+            board = self.get_board()
+        else:
+            board = 'pico1'
+            print(f'Version {version} too low to use pico2 firmware, consider upgrading firmware')
+        
+        print(f'Connected to board: {board}')
+        if board.strip() != self.pico_board.strip():
+            raise LabscriptError(f'firmware reports {board} attached, labscript expects {self.pico_board}')
+
+        current_status = self.read_status()
+        print(f'Current status is {current_status}')
+
+    def _read_full_buffer(self):
+        '''Used to get any extra lines from device after a failed send_command'''
+
+        resp = self.conn.readlines()
+        str_resp = ''.join([st.decode() for st in resp])
+
+        return str_resp
+    
+    def send_command(self, command, readlines=False):
+        '''Sends the supplied string command and checks for a response.
+        
+        Automatically applies the correct termination characters.
+        
+        Args:
+            command (str): Command to send. Termination and encoding is done automatically.
+            readlines (bool, optional): Use pyserial's readlines functionality to read multiple
+                response lines. Slower as it relies on timeout to terminate reading.
+
+        Returns:
+            str: String response from the PrawnBlaster
+        '''
+        command += '\r\n'
+        self.conn.write(command.encode())
+
+        if readlines:
+            str_resp = self._read_full_buffer()
+        else:
+            str_resp = self.conn.readline().decode()
+
+        return str_resp
+    
+    def send_command_ok(self, command):
+        '''Sends the supplied string command and confirms 'ok' response.
+
+        Args:
+            command (str): String command to send.
+
+        Raises:
+            LabscriptError: If response is not `ok\\r\\n`
+        '''
+
+        resp = self.send_command(command)
+        if resp != 'ok\r\n':
+            # get complete error message
+            resp += self._read_full_buffer()
+            raise LabscriptError(f"Command '{command:s}' failed. Got response '{repr(resp)}'")
+    
+    def get_version(self):
+        version_str = self.send_command('version', readlines=True)
+        assert version_str.startswith("version: ")
+        version = version_str[9:].strip()
+
+        version_overclock_list = version.split('-')
+        overclock = False
+        if len(version_overclock_list) == 2:
+            if version_overclock_list[1] == 'overclock':
+                overclock = True
+
+        version = tuple(int(v) for v in version_overclock_list[0].split('.'))
+        assert len(version) == 3
+
+        return version, overclock
+    
+    def get_board(self):
+        '''Responds with pico board version.
+
+        Returns:
+            (str): Either "pico1" for a Pi Pico 1 board or "pico2" for a Pi Pico 2 board.'''
+        resp = self.send_command('board')
+        assert resp.startswith('board:'), f'Board command failed, got: {resp}'
+        pico_str = resp.split(':')[-1].strip()
+
+        return pico_str
 
     def check_status(self):
         """Checks the operational status of the PrawnBlaster.
@@ -105,8 +197,7 @@ class PrawnBlasterWorker(Worker):
         ):
             # Try to read out wait. For now, we're only reading out waits from
             # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
-            self.prawnblaster.write(b"getwait %d %d\r\n" % (0, self.current_wait))
-            response = self.prawnblaster.readline().decode()
+            response = self.send_command(f'getwait {0}, {self.current_wait}')
             if response != "wait not yet available\r\n":
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
@@ -179,8 +270,7 @@ class PrawnBlasterWorker(Worker):
                 - **clock-status** (int): Clock status code
         """
 
-        self.prawnblaster.write(b"status\r\n")
-        response = self.prawnblaster.readline().decode()
+        response = self.send_command("status", readlines=True)
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
             return int(match.group(1)), int(match.group(2))
@@ -208,11 +298,9 @@ class PrawnBlasterWorker(Worker):
             pin = int(channel.split()[1])
             pseudoclock = self.out_pins.index(pin)
             if value:
-                self.prawnblaster.write(b"go high %d\r\n" % pseudoclock)
+                self.send_command_ok(f"go high {pseudoclock}")
             else:
-                self.prawnblaster.write(b"go low %d\r\n" % pseudoclock)
-
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+                self.send_command_ok(f"go low {pseudoclock}")
 
         return values
 
@@ -286,33 +374,70 @@ class PrawnBlasterWorker(Worker):
         clock_frequency = self.device_properties["clock_frequency"]
 
         # Now set the clock details
-        self.prawnblaster.write(b"setclock %d %d\r\n" % (clock_mode, clock_frequency))
-        response = self.prawnblaster.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        response = self.send_command_ok(f"setclock {clock_mode} {clock_frequency}")
 
         # Program instructions
         for pseudoclock, pulse_program in enumerate(pulse_programs):
-            for i, instruction in enumerate(pulse_program):
-                if i == len(self.smart_cache[pseudoclock]):
-                    # Pad the smart cache out to be as long as the program:
-                    self.smart_cache[pseudoclock].append(None)
+            total_inst = len(pulse_program)
+            # check if it is more efficient to fully refresh
+            if not fresh and self.smart_cache[pseudoclock] is not None:
+                # get more convenient handles to smart cache arrays
+                curr_inst = self.smart_cache[pseudoclock]
 
-                # Only program instructions that differ from what's in the smart cache:
-                if self.smart_cache[pseudoclock][i] != instruction:
-                    self.prawnblaster.write(
-                        b"set %d %d %d %d\r\n"
-                        % (
-                            pseudoclock,
-                            i,
-                            instruction["half_period"],
-                            instruction["reps"],
+                # if arrays aren't of same shape, only compare up to smaller array size
+                n_curr = len(curr_inst)
+                n_new = len(pulse_program)
+                if n_curr > n_new:
+                    # technically don't need to reprogram current elements beyond end of new elements
+                    new_inst = np.sum(curr_inst[:n_new] != pulse_program)
+                elif n_curr < n_new:
+                    n_diff = n_new - n_curr
+                    val_diffs = np.sum(curr_inst != pulse_program[:n_curr])
+                    new_inst = val_diffs + n_diff
+                else:
+                    new_inst = np.sum(curr_inst != pulse_program)
+
+                if new_inst / total_inst > 0.1:
+                    fresh = True
+
+            if (fresh or self.smart_cache[pseudoclock] is None):
+                print('binary programming')
+                self.conn.write(b"setb %d %d %d\r\n" % (pseudoclock, 0, len(pulse_program)))
+                response = self.conn.readline().decode()
+                assert (
+                    response == "ready\r\n"
+                ), f"PrawnBlaster said '{response}', expected 'ready'"
+                program_array = np.array([pulse_program['half_period'],
+                                          pulse_program['reps']], dtype='<u4').T
+                self.conn.write(program_array.tobytes())
+                response = self.conn.readline().decode()
+                assert (
+                    response == "ok\r\n"
+                ), f"PrawnBlaster said '{response}', expected 'ok'"
+                self.smart_cache[pseudoclock] = pulse_program
+            else:
+                print('incremental programming')
+                for i, instruction in enumerate(pulse_program):
+                    if i == len(self.smart_cache[pseudoclock]):
+                        # Pad the smart cache out to be as long as the program:
+                        self.smart_cache[pseudoclock].append(None)
+
+                    # Only program instructions that differ from what's in the smart cache:
+                    if self.smart_cache[pseudoclock][i] != instruction:
+                        self.conn.write(
+                            b"set %d %d %d %d\r\n"
+                            % (
+                                pseudoclock,
+                                i,
+                                instruction["half_period"],
+                                instruction["reps"],
+                            )
                         )
-                    )
-                    response = self.prawnblaster.readline().decode()
-                    assert (
-                        response == "ok\r\n"
-                    ), f"PrawnBlaster said '{response}', expected 'ok'"
-                    self.smart_cache[pseudoclock][i] = instruction
+                        response = self.conn.readline().decode()
+                        assert (
+                            response == "ok\r\n"
+                        ), f"PrawnBlaster said '{response}', expected 'ok'"
+                        self.smart_cache[pseudoclock][i] = instruction
 
         if not self.is_master_pseudoclock:
             # Start the Prawnblaster and have it wait for a hardware trigger
@@ -330,9 +455,7 @@ class PrawnBlasterWorker(Worker):
 
         # Start in software:
         self.logger.info("sending start")
-        self.prawnblaster.write(b"start\r\n")
-        response = self.prawnblaster.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        self.send_command_ok("start")
 
         # set started = True
         self.started = True
@@ -343,9 +466,7 @@ class PrawnBlasterWorker(Worker):
 
         # Set to wait for trigger:
         self.logger.info("sending hwstart")
-        self.prawnblaster.write(b"hwstart\r\n")
-        response = self.prawnblaster.readline().decode()
-        assert response == "ok\r\n", f"PrawnBlaster said '{response}', expected 'ok'"
+        self.send_command_ok("hwstart")
 
         running = False
         while not running:
@@ -415,7 +536,7 @@ class PrawnBlasterWorker(Worker):
     def shutdown(self):
         """Cleanly shuts down the connection to the PrawnBlaster hardware."""
 
-        self.prawnblaster.close()
+        self.conn.close()
 
     def abort_buffered(self):
         """Aborts a currently running buffered execution.
@@ -427,8 +548,8 @@ class PrawnBlasterWorker(Worker):
             # Only need to send abort signal if we have told the PrawnBlaster to wait
             # for a hardware trigger. Otherwise it's just been programmed with
             # instructions and there is nothing we need to do to abort.
-            self.prawnblaster.write(b"abort\r\n")
-            assert self.prawnblaster.readline().decode() == "ok\r\n"
+            self.conn.write(b"abort\r\n")
+            assert self.conn.readline().decode() == "ok\r\n"
             # loop until abort complete
             while self.read_status()[0] != 5:
                 time.sleep(0.5)
