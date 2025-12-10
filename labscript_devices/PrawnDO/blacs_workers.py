@@ -23,31 +23,56 @@ class PrawnDOInterface(object):
     min_version = (1, 2, 0)
     """Minimum compatible firmware version tuple"""
 
-    def __init__(self, com_port):
+    def __init__(self, com_port, pico_board):
         global serial; import serial
         global struct; import struct
 
         self.timeout = 0.2
         self.conn = serial.Serial(com_port, 10000000, timeout=self.timeout)
-
+        self.pico_board = pico_board
+        
         version = self.get_version()
         print(f'Connected to version: {version}')
+
         # ensure firmware is compatible
         assert version >= self.min_version, f'Incompatible firmware, must be >= {self.min_version}'
-
+        
+        if version >= (1, 3, 0):
+            board = self.get_board()
+        else:
+            board = 'pico1'
+            print(f'Version {version} too low to use pico2 firmware, consider upgrading firmware')
+            
+        print(f'Connected to board: {board}')
+        if board.strip() != self.pico_board.strip():
+            raise LabscriptError(f'firmware reports {board} attached, labscript expects {self.pico_board}')
+        
         current_status = self.status()
         print(f'Current status is {current_status}')
 
     def get_version(self):
+        '''Sends 'ver' command, which retrieves the Pico firmware version.
 
-        self.conn.write(b'ver\r\n')
-        version_str = self.conn.readline().decode()
+        Returns: (int, int, int): Tuple representing semantic version number.'''
+
+        version_str = self.send_command('ver')
         assert version_str.startswith("Version: ")
         version = tuple(int(i) for i in version_str[9:].split('.'))
         assert len(version) == 3
 
         return version
     
+    def get_board(self):
+        '''Responds with pico board version.
+
+        Returns:
+            (str): Either "pico1" for a Pi Pico 1 board or "pico2" for a Pi Pico 2 board.'''
+        resp = self.send_command('brd')
+        assert resp.startswith('board:'), f'Board command failed, got: {resp}'
+        pico_str = resp.split(':')[-1].strip()
+
+        return pico_str
+
     def _read_full_buffer(self):
         '''Used to get any extra lines from device after a failed send_command'''
 
@@ -158,7 +183,7 @@ class PrawnDOInterface(object):
 
 class PrawnDOWorker(Worker):
     def init(self):
-        self.intf = PrawnDOInterface(self.com_port)        
+        self.intf = PrawnDOInterface(self.com_port, self.pico_board)        
 
         self.smart_cache = {'do_table':None, 'reps':None}
 
