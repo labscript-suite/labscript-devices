@@ -19,6 +19,11 @@ import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
 from time import sleep, perf_counter
+import threading
+import time
+from blacs.tab_base_classes import ImageWorker
+import PySpin
+
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
 
@@ -251,42 +256,149 @@ class Spinnaker_Camera(object):
         self.camList.Clear()
         self.system.ReleaseInstance()
 
-
-class SpinnakerCameraWorker(IMAQdxCameraWorker):
-    """Spinnaker API Camera Worker.
-
-    Inherits from IMAQdxCameraWorker."""
-    interface_class = Spinnaker_Camera
-
-    def init(self):
-        print("Spinnaker Worker Called")
-        try:
-            self.camera = self.interface_class(self.serial_number)
-            self.camera.configure_acquisition()
-            print(f"Successfully initialized camera {self.serial_number}")
-        except Exception as e:
-            print(f"Error initializing camera: {e}")
-            raise
+class SpinnakerCameraWorker(ImageWorker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.continuous_thread = None
+        self._stop_event = threading.Event()
+        self.camera = None
     
-    def shutdown(self):
-        try:
-            self.camera.close()
-        except Exception as e:
-            print(f"Error shutting down camera: {e}")
+    def init(self):
+        """Initialize the camera object"""
+        system = PySpin.System.GetInstance()
+        cam_list = system.GetCameras()
+        if cam_list.GetSize() == 0:
+            raise RuntimeError("No cameras detected")
+        self.camera = cam_list[0]  # choose the first camera
+        self.camera.Init()
+        self.system = system
+        self.cam_list = cam_list
 
-    def continuous_loop(self, dt):
-       """Acquire continuously in a loop, with minimum repetition interval dt"""
-       self.camera.trigger()
-       while True:
-           if dt is not None:
-               t = perf_counter()
-           image = self.camera.grab()
-           self.camera.trigger()
-           self._send_image_to_parent(image)
-           if dt is None:
-               timeout = 0
-           else:
-               timeout = t + dt - perf_counter()
-           if self.continuous_stop.wait(timeout):
-               self.continuous_stop.clear()
-               break
+
+    def init_camera(self, cam):
+        """Initialize the camera object"""
+        self.camera = cam
+        self.camera.Init()
+
+    def start_continuous(self, *args, **kwargs):
+        """Start continuous acquisition in a separate thread"""
+        if self.camera.IsStreaming():
+            print("Camera already streaming. Skipping start_continuous.")
+            return
+
+        if self.continuous_thread is not None:
+            # Thread already running
+            return
+
+        self._stop_event.clear()
+        self.continuous_thread = threading.Thread(target=self._continuous_acquisition)
+        self.continuous_thread.start()
+
+    def _continuous_acquisition(self):
+        try:
+            self.camera.BeginAcquisition()
+            while not self._stop_event.is_set():
+                image = self.camera.GetNextImage(1000)
+                if not image.IsIncomplete():
+                    img_array = image.GetNDArray()
+                    # Send live frame to BLACS GUI
+                    self.send_image(img_array)
+                image.Release()
+        except PySpin.SpinnakerException as ex:
+            print(f"Spinnaker exception: {ex}")
+        finally:
+            try:
+                if self.camera.IsStreaming():
+                    self.camera.EndAcquisition()
+            except PySpin.SpinnakerException:
+                pass
+
+    def stop_continuous(self):
+        """Stop continuous acquisition"""
+        if self.continuous_thread is not None:
+            self._stop_event.set()
+            self.continuous_thread.join()
+            self.continuous_thread = None
+
+    def snap(self, *args, **kwargs):
+        if self.camera is None:
+            raise RuntimeError("Camera not initialized")
+
+        try:
+            if self.camera.IsStreaming():
+                self.camera.EndAcquisition()
+            self.camera.BeginAcquisition()
+
+            image = self.camera.GetNextImage(1000)
+            if not image.IsIncomplete():
+                img_array = image.GetNDArray()
+                # Send to BLACS GUI
+                self.send_image(img_array)
+            image.Release()
+
+            self.camera.EndAcquisition()
+        except PySpin.SpinnakerException as ex:
+            print(f"Spinnaker exception during snap: {ex}")
+
+    def shutdown(self):
+        """Clean up camera on BLACS exit"""
+        try:
+            self.stop_continuous()
+            if self.camera is not None:
+                if self.camera.IsStreaming():
+                    self.camera.EndAcquisition()
+                self.camera.DeInit()
+                del self.camera
+        except PySpin.SpinnakerException as ex:
+            print(f"Spinnaker exception during shutdown: {ex}")
+    def program_manual(self, *args, **kwargs):
+        """
+        Called by BLACS when switching to manual mode.
+        For now, this can be a no-op since we handle snapping via snap().
+        """
+        pass
+
+    def abort(self):
+        """Called by BLACS when aborting an experiment."""
+        self.stop_continuous()
+
+
+# class SpinnakerCameraWorker(IMAQdxCameraWorker):
+#     """Spinnaker API Camera Worker.
+
+#     Inherits from IMAQdxCameraWorker."""
+#     interface_class = Spinnaker_Camera
+
+#     def init(self):
+#         self.continuous_thread = None
+#         print("Spinnaker Worker Called")
+#         try:
+#             self.camera = self.interface_class(self.serial_number)
+#             self.camera.configure_acquisition()
+#             print(f"Successfully initialized camera {self.serial_number}")
+#         except Exception as e:
+#             print(f"Error initializing camera: {e}")
+#             raise
+    
+#     def shutdown(self):
+#         try:
+#             self.camera.close()
+#         except Exception as e:
+#             print(f"Error shutting down camera: {e}")
+
+#     def continuous_loop(self, dt):
+#        """Acquire continuously in a loop, with minimum repetition interval dt"""
+#        self.camera.trigger()
+#        while True:
+#            if dt is not None:
+#                t = perf_counter()
+#            image = self.camera.grab()
+#            self.camera.trigger()
+#            self._send_image_to_parent(image)
+#            if dt is None:
+#                timeout = 0
+#            else:
+#                timeout = t + dt - perf_counter()
+#            if self.continuous_stop.wait(timeout):
+#                self.continuous_stop.clear()
+#                break
