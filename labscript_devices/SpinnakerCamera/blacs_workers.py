@@ -21,8 +21,8 @@ from enum import IntEnum
 from time import sleep, perf_counter
 import threading
 import time
-from blacs.tab_base_classes import ImageWorker
 import PySpin
+import imageio
 
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
@@ -256,7 +256,7 @@ class Spinnaker_Camera(object):
         self.camList.Clear()
         self.system.ReleaseInstance()
 
-class SpinnakerCameraWorker(ImageWorker):
+class SpinnakerCameraWorker(IMAQdxCameraWorker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.continuous_thread = None
@@ -302,7 +302,8 @@ class SpinnakerCameraWorker(ImageWorker):
                 if not image.IsIncomplete():
                     img_array = image.GetNDArray()
                     # Send live frame to BLACS GUI
-                    self.send_image(img_array)
+                    #self.send_image(img_array)
+                    imageio.imwrite('camera_test/live.png', img_array)
                 image.Release()
         except PySpin.SpinnakerException as ex:
             print(f"Spinnaker exception: {ex}")
@@ -333,7 +334,8 @@ class SpinnakerCameraWorker(ImageWorker):
             if not image.IsIncomplete():
                 img_array = image.GetNDArray()
                 # Send to BLACS GUI
-                self.send_image(img_array)
+                #self.send_image(img_array)
+                imageio.imwrite('camera_test/snap.png', img_array)
             image.Release()
 
             self.camera.EndAcquisition()
