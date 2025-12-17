@@ -19,10 +19,17 @@ import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
 from time import sleep, perf_counter
+from blacs.tab_base_classes import Worker
 import threading
 import time
 import PySpin
 import imageio
+import zmq
+
+from labscript_utils.ls_zprocess import Context
+from labscript_utils.shared_drive import path_to_local
+from labscript_utils.properties import set_attributes
+
 
 
 from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
@@ -256,12 +263,30 @@ class Spinnaker_Camera(object):
         self.camList.Clear()
         self.system.ReleaseInstance()
 
-class SpinnakerCameraWorker(IMAQdxCameraWorker):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.continuous_thread = None
-        self._stop_event = threading.Event()
-        self.camera = None
+class SpinnakerCameraWorker(Worker):
+    # def __init__(self, *args, **kwargs):
+    #     # self.camera = self.get_camera()
+    #     # print("Setting attributes...")
+    #     # self.smart_cache = {}
+    #     # self.set_attributes_smart(self.camera_attributes)
+    #     # self.set_attributes_smart(self.manual_mode_camera_attributes)
+    #     # print("Initialisation complete")
+    #     # self.images = None
+    #     # self.n_images = None
+    #     # self.attributes_to_save = None
+    #     # self.exposures = None
+    #     # self.acquisition_thread = None
+    #     # self.h5_filepath = None
+    #     # self.stop_acquisition_timeout = None
+    #     # self.exception_on_failed_shot = None
+    #     # self.continuous_stop = threading.Event()
+    #     # self.continuous_thread = None
+    #     # self.continuous_dt = None
+    #     # self.image_socket = Context().socket(zmq.REQ)
+    #     # self.image_socket.connect(
+    #     #     f'tcp://{self.parent_host}:{self.image_receiver_port}'
+    #     # )
+    #     super.__init__(*args,)
     
     def init(self):
         """Initialize the camera object"""
@@ -273,6 +298,13 @@ class SpinnakerCameraWorker(IMAQdxCameraWorker):
         self.camera.Init()
         self.system = system
         self.cam_list = cam_list
+        self.continuous_stop = threading.Event()
+        self.continuous_thread = None
+        self.continuous_dt = None
+        self.image_socket = Context().socket(zmq.REQ)
+        self.image_socket.connect(
+            f'tcp://{self.parent_host}:{self.image_receiver_port}'
+        )
 
 
     def init_camera(self, cam):
@@ -280,46 +312,120 @@ class SpinnakerCameraWorker(IMAQdxCameraWorker):
         self.camera = cam
         self.camera.Init()
 
-    def start_continuous(self, *args, **kwargs):
-        """Start continuous acquisition in a separate thread"""
-        if self.camera.IsStreaming():
-            print("Camera already streaming. Skipping start_continuous.")
-            return
+    # def start_continuous(self, dt):
+    #     self.continuous_stop.set()
+    #     if self.camera.IsStreaming():
+    #         self.camera.EndAcquisition()
+    #     self.camera.BeginAcquisition() 
+        
+    #     time.sleep(0.05)
+    #     assert self.continuous_thread is None
+    #     # self.camera.configure_acquisition()
+    #     self.continuous_thread = threading.Thread(
+    #         target=self.continuous_loop, args=(dt,), daemon=True
+    #     )
+    #     self.continuous_thread.start()
+    #     self.continuous_dt = dt
+    def start_continuous(self, dt):
+        # Ensure fully stopped
+        self.stop_continuous()
 
-        if self.continuous_thread is not None:
-            # Thread already running
-            return
+        self.continuous_stop.clear()
+        self.continuous_dt = dt
 
-        self._stop_event.clear()
-        self.continuous_thread = threading.Thread(target=self._continuous_acquisition)
+        assert self.continuous_thread is None
+
+        # Start thread FIRST
+        self.continuous_thread = threading.Thread(
+            target=self.continuous_loop,
+            args=(dt,),
+            daemon=True,
+        )
         self.continuous_thread.start()
 
-    def _continuous_acquisition(self):
+        # Give thread a moment to start blocking on GetNextImage
+        time.sleep(0.01)
+
+        # THEN start acquisition
+        self.camera.BeginAcquisition()
+
+    
+    # def continuous_loop(self, dt):
+    #     """Acquire continuously in a loop, with minimum repetition interval dt"""
+    #     while True:
+    #         if dt is not None:
+    #             t = perf_counter()
+    #         try:
+    #             image = self.camera.GetNextImage(1000)
+    #             img_array = image.GetNDArray()
+    #             self._send_image_to_parent(img_array)
+    #             image.Release()
+    #         except:
+    #             pass
+    #         if dt is None:
+    #             timeout = 0
+    #         else:
+    #             timeout = t + dt - perf_counter()
+    #         if self.continuous_stop.wait(timeout):
+    #             self.continuous_stop.clear()
+    #             break
+
+        
+    #     self.stop_continuous()
+
+    def continuous_loop(self, dt):
         try:
-            self.camera.BeginAcquisition()
-            while not self._stop_event.is_set():
-                image = self.camera.GetNextImage(1000)
-                if not image.IsIncomplete():
-                    img_array = image.GetNDArray()
-                    # Send live frame to BLACS GUI
-                    #self.send_image(img_array)
-                    imageio.imwrite('camera_test/live.png', img_array)
+            while not self.continuous_stop.is_set():
+                if dt is not None:
+                    t = perf_counter()
+
+                try:
+                    image = self.camera.GetNextImage(1000)
+                except PySpin.SpinnakerException:
+                    continue
+
+                if image.IsIncomplete():
+                    image.Release()
+                    continue
+
+                img_array = image.GetNDArray()
+                self._send_image_to_parent(img_array)
                 image.Release()
-        except PySpin.SpinnakerException as ex:
-            print(f"Spinnaker exception: {ex}")
+
+                if dt is not None:
+                    timeout = max(0, t + dt - perf_counter())
+                    self.continuous_stop.wait(timeout)
+
         finally:
+            # Stop acquisition HERE, in the acquisition thread
             try:
-                if self.camera.IsStreaming():
-                    self.camera.EndAcquisition()
+                self.camera.EndAcquisition()
             except PySpin.SpinnakerException:
                 pass
 
+
+    # def stop_continuous(self):
+    #     self.continuous_stop.set()
+    #     try:
+    #         self.continuous_thread.join()
+    #     except:
+    #         pass
+    #     self.continuous_thread = None
+    #     if self.camera.IsStreaming():
+    #         self.camera.EndAcquisition()
+
     def stop_continuous(self):
-        """Stop continuous acquisition"""
-        if self.continuous_thread is not None:
-            self._stop_event.set()
+        self.continuous_stop.set()
+
+        if (
+            self.continuous_thread is not None
+            and self.continuous_thread.is_alive()
+            and threading.current_thread() is not self.continuous_thread
+        ):
             self.continuous_thread.join()
-            self.continuous_thread = None
+
+        self.continuous_thread = None
+
 
     def snap(self, *args, **kwargs):
         if self.camera is None:
@@ -335,7 +441,8 @@ class SpinnakerCameraWorker(IMAQdxCameraWorker):
                 img_array = image.GetNDArray()
                 # Send to BLACS GUI
                 #self.send_image(img_array)
-                imageio.imwrite('camera_test/snap.png', img_array)
+                #imageio.imwrite('camera_test/snap.png', img_array)
+                self._send_image_to_parent(img_array)
             image.Release()
 
             self.camera.EndAcquisition()
@@ -363,6 +470,13 @@ class SpinnakerCameraWorker(IMAQdxCameraWorker):
     def abort(self):
         """Called by BLACS when aborting an experiment."""
         self.stop_continuous()
+    
+    def _send_image_to_parent(self, image):
+        metadata = dict(dtype=str(image.dtype), shape=image.shape)
+        self.image_socket.send_json(metadata, zmq.SNDMORE)
+        self.image_socket.send(image, copy=False)
+        response = self.image_socket.recv()
+        assert response == b'ok', response
 
 
 # class SpinnakerCameraWorker(IMAQdxCameraWorker):
