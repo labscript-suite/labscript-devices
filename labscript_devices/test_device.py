@@ -14,7 +14,7 @@ class test_device(Device):
             raise LabscriptError('test_device does nothing, but kwarg DoSomething was not passed False')
 
 
-        Device.__init(self, name, None, None, **kwargs)
+        Device.__init__(self, name, None, None, **kwargs)
 
 @BLACS_tab
 class Tab(object):

@@ -197,7 +197,7 @@ class PrawnBlasterWorker(Worker):
         ):
             # Try to read out wait. For now, we're only reading out waits from
             # pseudoclock 0 since they should all be the same (requirement imposed by labscript)
-            response = self.send_command(f'getwait {0}, {self.current_wait}')
+            response = self.send_command(f'getwait {0} {self.current_wait}')
             if response != "wait not yet available\r\n":
                 # Parse the response from the PrawnBlaster
                 wait_remaining = int(response)
