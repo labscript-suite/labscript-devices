@@ -15,7 +15,7 @@
 
 A modular and extensible plugin architecture to control experiment hardware using the [*labscript suite*](https://github.com/labscript-suite/labscript-suite).
 
-The *labscript suite* supports a range of commercial and open-source hardware, and is modular by design. Adding support for new devices involves writing Python functions for a well-defined set of primitives to program instructions, and transition between buffered I/O and manual states. See the [documentation](http://labscriptsuite.org/documentation) for more details on adding new devices.
+The *labscript suite* supports a range of commercial and open-source hardware, and is modular by design. Adding support for new devices involves writing Python functions for a well-defined set of primitives to program instructions, and transition between buffered I/O and manual states. See the [documentation](https://docs.labscriptsuite.org/projects/labscript-devices/en/latest/user_devices/) for more details on adding new devices.
 
 
 ## Supported hardware
