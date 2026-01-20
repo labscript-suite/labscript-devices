@@ -169,12 +169,39 @@ class IMAQdxCameraTab(DeviceTab):
         self.supports_smart_programming(self.use_smart_programming) 
 
     def get_save_data(self):
-        return {
+        save_data = {
             'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
             'acquiring': self.acquiring,
             'max_rate': self.ui.doubleSpinBox_maxrate.value(),
             'colormap': repr(self.image.ui.histogram.gradient.saveState())
         }
+
+        # Save info about plot settings if an image is plotted.
+        image = self.image.image
+        if image is not None:
+            # Save the shape and dtype of the image.
+            save_data['image_shape'] = repr(image.shape)
+            save_data['image_dtype'] = str(image.dtype)
+
+            # Get the view_box to access its settings.
+            view_box = self.image.getImageItem().getViewBox()
+
+            # Save x and y ranges.
+            targetRange_x, targetRange_y = view_box.targetRange()
+            save_data['targetRange_x'] = targetRange_x
+            save_data['targetRange_y'] = targetRange_y
+
+            # Save whether the x and y ranges are automatically adjusted.
+            autoRange_x, autoRange_y = view_box.autoRangeEnabled()
+            save_data['autoRange_x'] = autoRange_x
+            save_data['autoRange_y'] = autoRange_y
+
+            # Save color scale limits.
+            color_scale_min, color_scale_max = self.image.getLevels()
+            save_data['color_scale_min'] = color_scale_min
+            save_data['color_scale_max'] = color_scale_max
+
+        return save_data
 
     def restore_save_data(self, save_data):
         self.attributes_dialog.comboBox.setCurrentText(
@@ -188,6 +215,52 @@ class IMAQdxCameraTab(DeviceTab):
             self.image.ui.histogram.gradient.restoreState(
                 ast.literal_eval(save_data['colormap'])
             )
+
+        # Restore plot settings if they were saved.
+        if 'image_shape' in save_data and 'image_dtype' in save_data:
+            # Some image must be displayed now, otherwise the plot settings will
+            # be overwritten once the first image is displayed. We'll display a
+            # mostly blank image of the saved size and data type.
+            image_shape = ast.literal_eval(save_data['image_shape'])
+            image_dtype = np.dtype(save_data['image_dtype'])
+            dummy_image = np.zeros(image_shape, dtype=image_dtype)
+            # Make one pixel nonzero to avoid a histogram binning error. This is
+            # fixed by in pyqtgraph 0.11 by
+            # https://github.com/pyqtgraph/pyqtgraph/pull/767 but this
+            # workaround is retained for compatibility with older versions.
+            if dummy_image.ndim == 2:
+                dummy_image[0, 0] = 1
+            if dummy_image.ndim == 3:
+                dummy_image[:, 0, 0] = 1
+            self.image.setImage(dummy_image)
+
+            # Restore x and y ranges.
+            try:
+                view_box = self.image.getImageItem().getViewBox()
+                view_box.setRange(
+                    xRange=save_data['targetRange_x'],
+                    yRange=save_data['targetRange_y'],
+                )
+            except KeyError:
+                pass
+
+            # Restore whether the x and y ranges are automatically adjusted.
+            try:
+                view_box.enableAutoRange(
+                    x=save_data['autoRange_x'],
+                    y=save_data['autoRange_y'],
+                )
+            except KeyError:
+                pass
+
+            # Restore color scale range.
+            try:
+                self.image.setLevels(
+                    save_data['color_scale_min'],
+                    save_data['color_scale_max'],
+                )
+            except KeyError:
+                pass
 
 
     def initialise_workers(self):
