@@ -149,6 +149,7 @@ class PrawnDO(PseudoclockDevice):
                  pico_board = 'pico1',
                  clock_frequency = 100e6,
                  external_clock = False,
+                 **kwargs
                 ):
         """PrawnDO digital output device.
         
@@ -212,10 +213,10 @@ class PrawnDO(PseudoclockDevice):
             # make internal Intermediate device and trigger to connect it
             self.__intermediate = _PrawnDOIntermediateDevice(f'{name:s}__intermediate',
                                                              clock_line)
-            PseudoclockDevice.__init__(self, name, self.__intermediate, 'internal')
+            PseudoclockDevice.__init__(self, name, self.__intermediate, 'internal', **kwargs)
         else:
             # normal pseudoclock device triggering
-            PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection)
+            PseudoclockDevice.__init__(self, name, trigger_device, trigger_connection, **kwargs)
 
         # set up internal connections to allow digital outputs
         self.__pseudoclock = _PrawnDOPseudoclock(f'{name:s}__pseudoclock', self, '_')
