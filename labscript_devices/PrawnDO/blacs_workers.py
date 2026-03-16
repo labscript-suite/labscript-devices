@@ -28,7 +28,7 @@ class PrawnDOInterface(object):
         global struct; import struct
 
         self.timeout = 0.2
-        self.conn = serial.Serial(com_port, 10000000, timeout=self.timeout)
+        self.conn = serial.Serial(com_port, 1000000, timeout=self.timeout)
         self.pico_board = pico_board
         
         version = self.get_version()
