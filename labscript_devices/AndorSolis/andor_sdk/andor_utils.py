@@ -601,7 +601,7 @@ class AndorCam(object):
             attrs['height'] + attrs['bottom_start'] - 1,
         )
 
-    def acquire(self):
+    def acquire(self,semaphore=None):
         """ Carries down the acquisition, if the camera is armed and
         waits for an acquisition event for acquisition timeout (has to be
         in milliseconds), default to 5 seconds """
@@ -622,7 +622,7 @@ class AndorCam(object):
                         color='firebrick',
                     )
                     break
-                time.sleep(0.05)
+                time.sleep(0.001)
             if self.chatty:
                 rich_print(
                     f"Leaving homemade_wait with status {self.acquisition_status} ",
@@ -639,11 +639,16 @@ class AndorCam(object):
             self.acquisition_status = GetStatus()
             if 'DRV_IDLE' in self.acquisition_status:
                 StartAcquisition()
+                #print(f'StartAcquisition finished at time {time.time()}')
+                #this semaphore we passed around from the IMAQdx worker should now be released because the actual acquisition has started
+                if semaphore is not None:
+                    semaphore.release() 
                 if self.chatty:
                     rich_print(
                         f"Waiting for {acquisition_timeout} ms for timeout ...",
                         color='yellow',
                     )
+                
                 homemade_wait_for_acquisition()
             
             # Last chance, check if the acquisition is finished, update

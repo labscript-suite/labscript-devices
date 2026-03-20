@@ -14,6 +14,7 @@ from zprocess import rich_print
 from labscript_devices.IMAQdxCamera.blacs_workers import MockCamera, IMAQdxCameraWorker
 
 class AndorCamera(object):
+    supportSemaphore = True
 
     def __init__(self):
         global AndorCam
@@ -56,7 +57,7 @@ class AndorCamera(object):
         # Consider using run til abort acquisition mode...
         return img
 
-    def grab_multiple(self, n_images, images, waitForNextBuffer=True):
+    def grab_multiple(self, n_images, images, acquisitionSemaphore=None, waitForNextBuffer=True):
         """Grab n_images into images array during buffered acquistion."""
     
         # TODO: Catch timeout errors, check if abort, else keep trying.
@@ -76,7 +77,8 @@ class AndorCamera(object):
 
         if 'single' in self.camera.acquisition_mode:
             for image_number in range(n_images):
-                self.camera.acquire()
+                self.camera.acquire(acquisitionSemaphore)
+                acquisitionSemaphore = None #once we've done one acquisition we don't need this anymore
                 print(f"    {image_number}: Acquire complete")
                 downloaded = self.camera.download_acquisition()
                 print(f"    {image_number}: Download complete")
