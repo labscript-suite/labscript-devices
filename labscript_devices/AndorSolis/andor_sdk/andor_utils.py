@@ -286,6 +286,24 @@ class AndorCam(object):
         # Get actual horizontal shifting (i.e. digitization) speed
         self.horizontal_shift_speed = GetHSSpeed(ad_number, 0, self.index_hs_speed)
      
+    def setup_acquisition_fast(self, added_attributes=None):
+        #should only be called if the normal setup_Acquisition has already been done
+        #I tried pairing this down to just the essentials that gets reset when reverting to manual
+        #although your mileage may vary
+        if added_attributes is None:
+            added_attributes = {}
+
+        # Override default acquisition attrs with added ones
+        self.acquisition_attributes = self.default_acquisition_attrs.copy()
+        self.acquisition_attributes.update(added_attributes)
+
+        # We setup trigger and shutter since they are likely to be set for manual mode
+        self.setup_trigger(**self.acquisition_attributes)
+        print(f'full attrs: {self.acquisition_attributes}')
+        self.setup_shutter(**self.acquisition_attributes)
+         # Arm sensor
+        self.armed = True
+
     def setup_acquisition(self, added_attributes=None):
         """ Main acquisition configuration method. Available acquisition modes are
         below. The relevant methods are called with the corresponding acquisition 

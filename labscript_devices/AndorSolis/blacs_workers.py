@@ -21,6 +21,7 @@ class AndorCamera(object):
         self.camera = AndorCam()
         self.attributes = self.camera.default_acquisition_attrs
         self.exception_on_failed_shot = True
+        self.conf_attributes = {}
 
     def set_attributes(self, attr_dict):
         self.attributes.update(attr_dict)
@@ -43,7 +44,11 @@ class AndorCamera(object):
         return images # This may be a 3D array of several images
 
     def configure_acquisition(self, continuous=False, bufferCount=None):
-        self.camera.setup_acquisition(self.attributes)
+        if self.attributes == self.conf_attributes: #this is still very crude but it should help a lot
+            self.camera.setup_acquisition_fast(self.attributes)
+        else:
+            self.camera.setup_acquisition(self.attributes)
+            self.conf_attributes = self.attributes.copy() #cache the latest configured attributes
 
     def grab(self):
         """ Grab last/single image """
