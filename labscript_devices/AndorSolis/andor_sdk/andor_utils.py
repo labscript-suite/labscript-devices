@@ -14,6 +14,7 @@ class AndorCam(object):
         'acquisition': 'single',
         'emccd': False,
         'emccd_gain': 50,
+        'em_gain_mode': 0,
         'preamp': False,
         'preamp_gain': 1.0,
         'exposure_time': 20 * ms,
@@ -42,6 +43,8 @@ class AndorCam(object):
         'cooldown': False,
         'water_cooling': False,
         'temperature': 20,
+        'wait_until_cool': True,
+        'wait_until_stable': True,
     }
 
     def __init__(self, name='andornymous'):
@@ -128,7 +131,7 @@ class AndorCam(object):
             rich_print(f"   emgain_caps: {self.emgain_caps}", color='lightsteelblue')
 
     def enable_cooldown(
-        self, temperature_setpoint=20, water_cooling=False, wait_until_stable=False
+        self, temperature_setpoint=20, water_cooling=False, wait_until_stable=False, wait_until_cool=True,
     ):
         """ Calls all the functions relative to temperature control
         and stabilization. Enables cooling down, waits for stabilization
@@ -162,12 +165,13 @@ class AndorCam(object):
         self.temperature, self.temperature_status = GetTemperatureF()
 
         # Wait until stable
-        if wait_until_stable:
+        if wait_until_cool:
             while 'TEMP_NOT_REACHED' in self.temperature_status:
                 if self.chatty:
                     print(f"Temperature not reached: T = {self.temperature}")
                 time.sleep(thermal_timeout)
                 self.temperature, self.temperature_status = GetTemperatureF()
+        if wait_until_stable:
             while 'TEMP_STABILIZED' not in self.temperature_status:
                 if self.chatty:
                     print(f"Temperature not stable: T = {self.temperature}")
@@ -201,7 +205,7 @@ class AndorCam(object):
         """ Calls all the functions relative to the 
         emccd gain control. """
 
-        if not emccd_gain in self.emccd_gain_range:
+        if not (emccd_gain > self.emccd_gain_range[0] and emccd_gain <self.emccd_gain_range[1]):
             raise ValueError(
                 f"""Invalid emccd gain value, valid range is {self.emccd_gain_range}"""
             )
@@ -297,15 +301,14 @@ class AndorCam(object):
 
         if self.acquisition_attributes['preamp']:
             self.enable_preamp(self.acquisition_attributes['preamp_gain'])
-        
-        if self.acquisition_attributes['emccd']:
-            self.enable_emccd(self.acquisition_attributes['emccd_gain'])
 
+        #we need to do cooldown before emccd gain
         if self.acquisition_attributes['cooldown']:
             self.enable_cooldown(
                 self.acquisition_attributes['temperature'],
                 self.acquisition_attributes['water_cooling'],
-                wait_until_stable = True,
+                wait_until_stable = self.acquisition_attributes['wait_until_stable'],
+                wait_until_cool= self.acquisition_attributes['wait_until_cool'],
             )
 
             # Get current temperature and temperature status
@@ -316,6 +319,17 @@ class AndorCam(object):
                     {self.temperature}; with status {self.temperature_status}""",
                     color='magenta',
                 )
+
+        if self.acquisition_attributes['emccd']:
+            #set the emccd gain mode so the gain range is correct
+            print(f'setting em gain mode to {self.acquisition_attributes['em_gain_mode']}')
+            print(GetEMGainRange())
+            SetEMGainMode(self.acquisition_attributes['em_gain_mode'])
+            self.emccd_gain_range = GetEMGainRange()
+            print(GetEMGainRange())
+            self.enable_emccd(self.acquisition_attributes['emccd_gain'])
+
+        
 
         # Available modes
         modes = {
@@ -362,7 +376,13 @@ class AndorCam(object):
         # Arm sensor
         self.armed = True
 
-        self.keepClean_time = GetKeepCleanTime()
+        #on the ixon 855 in the caf lab this does not seem to work somehow
+        try:
+            self.keepClean_time = GetKeepCleanTime()
+        except AndorException:
+            print('could not get keepClean time, defaulting to 1s')
+            self.keepClean_time = 1
+        
         # Note: The GetReadOutTime call breaks in FK mode for unknown reasons
         if 'fast_kinetics' not in self.acquisition_mode:
             self.readout_time = GetReadOutTime()
@@ -516,8 +536,29 @@ class AndorCam(object):
             if self.acquisition_attributes['crop']:
                 SetOutputAmplifier(0)
                 SetFrameTransferMode(1)
-                SetIsolatedCropModeEx(
-                    int(1),
+                if self.model[0]=='IXION ULTRA': #only impolemented with IXON ultra cams
+                    SetIsolatedCropModeEx(#only impolemented with IXON ultra cams
+                        int(1),
+                        int(attrs['height']),
+                        int(attrs['width']),
+                        attrs['ybin'],
+                        attrs['xbin'],
+                        attrs['left_start'],
+                        attrs['bottom_start'],
+                    )
+                else:
+                    SetIsolatedCropMode(
+                        int(1),
+                        int(attrs['height']),
+                        int(attrs['width']),
+                        attrs['ybin'],
+                        attrs['xbin'],
+                    )
+        else:
+            SetFrameTransferMode(0)
+            if self.model[0]=='IXON ULTRA':
+                SetIsolatedCropModeEx( #only impolemented with IXON ultra cams
+                    int(0),
                     int(attrs['height']),
                     int(attrs['width']),
                     attrs['ybin'],
@@ -525,17 +566,14 @@ class AndorCam(object):
                     attrs['left_start'],
                     attrs['bottom_start'],
                 )
-        else:
-            SetFrameTransferMode(0)
-            SetIsolatedCropModeEx(
-                int(0),
-                int(attrs['height']),
-                int(attrs['width']),
-                attrs['ybin'],
-                attrs['xbin'],
-                attrs['left_start'],
-                attrs['bottom_start'],
-            )
+            else:
+                SetIsolatedCropMode(
+                    int(0),
+                    int(attrs['height']),
+                    int(attrs['width']),
+                    attrs['ybin'],
+                    attrs['xbin'],
+                )
         SetImage(
             attrs['xbin'],
             attrs['ybin'],
