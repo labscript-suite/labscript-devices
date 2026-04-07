@@ -260,6 +260,12 @@ class IMAQdxCameraWorker(Worker):
 
     def init(self):
         self.camera = self.get_camera()
+        # Check if the camera supports semaphores for acquisition start, and if so use them to avoid missing shots. 
+        # If not, we just hope the camera is fast enough.
+        if hasattr(self.camera, 'supportSemaphore'):
+            self.supportSemaphore = self.camera.supportSemaphore
+        else:
+            self.supportSemaphore = False
         print("Setting attributes...")
         self.smart_cache = {}
         self.set_attributes_smart(self.camera_attributes)
@@ -410,12 +416,25 @@ class IMAQdxCameraWorker(Worker):
         print(f"Configuring camera for {self.n_images} images.")
         self.camera.configure_acquisition(continuous=False, bufferCount=self.n_images)
         self.images = []
-        self.acquisition_thread = threading.Thread(
-            target=self.camera.grab_multiple,
-            args=(self.n_images, self.images),
-            daemon=True,
-        )
-        self.acquisition_thread.start()
+
+        #if the camera supports semaphores, we pass it, if not, we don't.
+        #this is done to remain backwards compatible
+        if self.supportSemaphore:
+            aquisitionSemaphore = threading.Semaphore(0)
+            self.acquisition_thread = threading.Thread(
+                target=self.camera.grab_multiple,
+                args=(self.n_images, self.images,aquisitionSemaphore),
+                daemon=True,
+            )
+            self.acquisition_thread.start()
+            aquisitionSemaphore.acquire()
+        else:
+            self.acquisition_thread = threading.Thread(
+                target=self.camera.grab_multiple,
+                args=(self.n_images, self.images),
+                daemon=True,
+            )
+            self.acquisition_thread.start()
         return {}
 
     def transition_to_manual(self):

@@ -14,6 +14,7 @@ from zprocess import rich_print
 from labscript_devices.IMAQdxCamera.blacs_workers import MockCamera, IMAQdxCameraWorker
 
 class AndorCamera(object):
+    supportSemaphore = True
 
     def __init__(self):
         global AndorCam
@@ -21,6 +22,7 @@ class AndorCamera(object):
         self.camera = AndorCam()
         self.attributes = self.camera.default_acquisition_attrs
         self.exception_on_failed_shot = True
+        self.conf_attributes = {}
 
     def set_attributes(self, attr_dict):
         self.attributes.update(attr_dict)
@@ -43,7 +45,11 @@ class AndorCamera(object):
         return images # This may be a 3D array of several images
 
     def configure_acquisition(self, continuous=False, bufferCount=None):
-        self.camera.setup_acquisition(self.attributes)
+        if self.attributes == self.conf_attributes: #this is still very crude but it should help a lot
+            self.camera.setup_acquisition_fast(self.attributes)
+        else:
+            self.camera.setup_acquisition(self.attributes)
+            self.conf_attributes = self.attributes.copy() #cache the latest configured attributes
 
     def grab(self):
         """ Grab last/single image """
@@ -51,7 +57,7 @@ class AndorCamera(object):
         # Consider using run til abort acquisition mode...
         return img
 
-    def grab_multiple(self, n_images, images, waitForNextBuffer=True):
+    def grab_multiple(self, n_images, images, acquisitionSemaphore=None, waitForNextBuffer=True):
         """Grab n_images into images array during buffered acquistion."""
     
         # TODO: Catch timeout errors, check if abort, else keep trying.
@@ -71,11 +77,12 @@ class AndorCamera(object):
 
         if 'single' in self.camera.acquisition_mode:
             for image_number in range(n_images):
-                self.camera.acquire()
+                self.camera.acquire(acquisitionSemaphore)
+                acquisitionSemaphore = None #once we've done one acquisition we don't need this anymore
                 print(f"    {image_number}: Acquire complete")
                 downloaded = self.camera.download_acquisition()
                 print(f"    {image_number}: Download complete")
-                images.append(downloaded)
+                images.append(downloaded[0])
                 self.camera.armed = True
             self.camera.armed = False
             print(f"Got {len(images)} of {n_images} acquisition(s).")
