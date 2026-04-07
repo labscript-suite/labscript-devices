@@ -270,7 +270,7 @@ class PrawnBlasterWorker(Worker):
                 - **clock-status** (int): Clock status code
         """
 
-        response = self.send_command("status", readlines=True)
+        response = self.send_command("status", readlines=False)
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
             return int(match.group(1)), int(match.group(2))
