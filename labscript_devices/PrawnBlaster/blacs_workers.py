@@ -274,13 +274,10 @@ class PrawnBlasterWorker(Worker):
         match = re.match(r"run-status:(\d) clock-status:(\d)(\r\n)?", response)
         if match:
             return int(match.group(1)), int(match.group(2))
-        elif response:
+        else:
+            response += self._read_full_buffer()
             raise Exception(
                 f"PrawnBlaster is confused: saying '{response}' instead of 'run-status:<int> clock-status:<int>'"
-            )
-        else:
-            raise Exception(
-                f"PrawnBlaster is returning a invalid status '{response}'. Maybe it needs a reboot."
             )
 
     def program_manual(self, values):
