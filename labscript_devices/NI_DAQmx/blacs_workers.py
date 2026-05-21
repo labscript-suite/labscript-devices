@@ -33,7 +33,7 @@ from labscript_utils.connections import _ensure_str
 
 from blacs.tab_base_classes import Worker
 
-from .utils import split_conn_port, split_conn_DO, split_conn_AI, split_conn_CI
+from .utils import split_conn_port, split_conn_DO, split_conn_AI
 from .daqmx_utils import incomplete_sample_detection
 
 import json
@@ -882,18 +882,6 @@ class NI_DAQmxCounterWorker(Worker):
     def program_manual(self, values):
         return {}
 
-    def _declared_counter_connections(self):
-        return {
-            counter['connection']
-            for counter in getattr(self, 'declared_counters', [])
-        }
-
-    def _declared_counter_numbers(self):
-        return {
-            split_conn_CI(connection.lower())
-            for connection in self._declared_counter_connections()
-        }
-
     def _counter_internal_output_terminal(self, counter_connection):
         if '/' in counter_connection:
             return '/' + counter_connection.lstrip('/') + 'InternalOutput'
@@ -948,11 +936,16 @@ class NI_DAQmxCounterWorker(Worker):
                     raise RuntimeError(
                         "Counter input '%s' is already in use" % connection
                     )
+                if state['sample_clock'].lower() == connection.lower():
+                    raise RuntimeError(
+                        "Counter input '%s' is already in use as a manual sample "
+                        "clock" % connection
+                    )
 
             sample_clock = config['sample_clock']
             rate = float(config['rate'])
             buffer_size = int(config['buffer_size'])
-            fetch_interval = max(0.02, float(config['fetch_interval']))
+            fetch_interval = max(0.02, float(config['polling_interval']))
             multiplication_factor = float(config['multiplication_factor'])
             average_count = int(config['average_count'])
             udp_host = config.get('udp_host', '')
@@ -969,14 +962,16 @@ class NI_DAQmxCounterWorker(Worker):
                 sample_clock_rate = None
                 co_task = None
             else:
-                sample_clock_num = split_conn_CI(sample_clock.lower())
-                if sample_clock_num in self._declared_counter_numbers():
-                    raise RuntimeError(
-                        "Sample clock counter '%s' is declared as a counter input"
-                        % sample_clock
-                    )
+                sample_clock = sample_clock.lower()
                 for state in self.manual_counters.values():
-                    if state['sample_clock'] == sample_clock:
+                    active_input = state['counter']['connection'].lower()
+                    active_output = state['sample_clock'].lower()
+                    if active_input == sample_clock:
+                        raise RuntimeError(
+                            "Sample clock counter '%s' is already running as a "
+                            "manual counter input" % sample_clock
+                        )
+                    if active_output == sample_clock:
                         raise RuntimeError(
                             "Sample clock counter '%s' is already in use" % sample_clock
                         )

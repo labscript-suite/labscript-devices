@@ -17,10 +17,23 @@ from labscript_utils import dedent
 from blacs.device_base_class import DeviceTab
 from blacs.tab_base_classes import define_state, MODE_MANUAL
 from qtutils.qt import QtWidgets
-from .utils import split_conn_AO, split_conn_DO, split_conn_CI
+from .utils import split_conn_AO, split_conn_DO
 from . import models
 import warnings
 import time
+
+
+DEFAULT_MANUAL_COUNTER_CONFIG = {
+    'enabled': True,
+    'sample_clock': 'connection_table',
+    'rate': 10.0,
+    'buffer_size': 1024,
+    'polling_interval': 0.1,
+    'multiplication_factor': 1.0,
+    'average_count': 10,
+    'udp_host': '127.0.0.1',
+    'udp_port': 9000,
+}
 
 
 def _ensure_str(value):
@@ -31,11 +44,63 @@ def _ensure_str(value):
     return str(value)
 
 
+def _row_get(row, name, default):
+    if name not in row.dtype.names:
+        return default
+    return row[name]
+
+
 def _read_counter_declarations(group):
     if group is None or 'COUNTERS' not in group:
         return []
     counters = []
     for row in group['COUNTERS'][:]:
+        manual_config = dict(DEFAULT_MANUAL_COUNTER_CONFIG)
+        manual_config.update(
+            {
+                'enabled': bool(
+                    _row_get(row, 'manual enabled', manual_config['enabled'])
+                ),
+                'sample_clock': _ensure_str(
+                    _row_get(
+                        row,
+                        'manual sample clock',
+                        manual_config['sample_clock'],
+                    )
+                ),
+                'rate': float(_row_get(row, 'manual rate', manual_config['rate'])),
+                'buffer_size': int(
+                    _row_get(row, 'manual buffer size', manual_config['buffer_size'])
+                ),
+                'polling_interval': float(
+                    _row_get(
+                        row,
+                        'manual polling interval',
+                        manual_config['polling_interval'],
+                    )
+                ),
+                'multiplication_factor': float(
+                    _row_get(
+                        row,
+                        'manual multiplication factor',
+                        manual_config['multiplication_factor'],
+                    )
+                ),
+                'average_count': int(
+                    _row_get(
+                        row,
+                        'manual average count',
+                        manual_config['average_count'],
+                    )
+                ),
+                'udp_host': _ensure_str(
+                    _row_get(row, 'manual udp host', manual_config['udp_host'])
+                ),
+                'udp_port': int(
+                    _row_get(row, 'manual udp port', manual_config['udp_port'])
+                ),
+            }
+        )
         counters.append(
             {
                 'name': _ensure_str(row['name']),
@@ -43,13 +108,10 @@ def _read_counter_declarations(group):
                 'edge': _ensure_str(row['edge terminal']),
                 'gate': _ensure_str(row['gate terminal']),
                 'sample': _ensure_str(row['sample terminal']),
+                'manual': manual_config,
             }
         )
     return counters
-
-
-def _counter_number(connection):
-    return split_conn_CI(connection.lower())
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -201,20 +263,7 @@ class NI_DAQmxTab(DeviceTab):
         self.manual_counter_active = set()
         self.manual_counter_last_fetch = {}
         if counter_declarations:
-            declared_ctr_nums = {
-                _counter_number(counter['connection'])
-                for counter in counter_declarations
-            }
-            if wait_acq_device == self.device_name and wait_acq_connection:
-                declared_ctr_nums.add(_counter_number(_ensure_str(wait_acq_connection)))
-            spare_counters = [
-                'ctr%d' % i
-                for i in range(num_CI)
-                if i not in declared_ctr_nums
-            ]
-            self._create_manual_counter_widgets(
-                counter_declarations, spare_counters
-            )
+            self._create_manual_counter_widgets(counter_declarations)
 
         # Create and set the primary worker
         self.create_worker(
@@ -305,49 +354,18 @@ class NI_DAQmxTab(DeviceTab):
         self.supports_remote_value_check(False)
         self.supports_smart_programming(False)
 
-    def _create_manual_counter_widgets(self, counter_declarations, spare_counters):
+    def _create_manual_counter_widgets(self, counter_declarations):
         group = QtWidgets.QGroupBox("Manual counters")
         outer_layout = QtWidgets.QVBoxLayout(group)
 
         for counter in counter_declarations:
+            config = counter['manual']
+            if not config.get('enabled', True):
+                continue
             panel = QtWidgets.QGroupBox(
                 "%s (%s)" % (counter['name'], counter['connection'])
             )
             grid = QtWidgets.QGridLayout(panel)
-
-            sample_clock = QtWidgets.QComboBox()
-            sample_clock.addItem("As connection table", "connection_table")
-            for ctr in spare_counters:
-                sample_clock.addItem("%s output" % ctr, ctr)
-
-            rate = QtWidgets.QDoubleSpinBox()
-            rate.setRange(1e-6, 1e9)
-            rate.setDecimals(6)
-            rate.setValue(10.0)
-            rate.setSuffix(" Hz")
-
-            buffer_size = QtWidgets.QSpinBox()
-            buffer_size.setRange(1, 2**31 - 1)
-            buffer_size.setValue(1024)
-
-            fetch_interval = QtWidgets.QSpinBox()
-            fetch_interval.setRange(20, 3600000)
-            fetch_interval.setValue(100)
-            fetch_interval.setSuffix(" ms")
-
-            factor = QtWidgets.QDoubleSpinBox()
-            factor.setRange(-1e12, 1e12)
-            factor.setDecimals(6)
-            factor.setValue(1.0)
-
-            average_count = QtWidgets.QSpinBox()
-            average_count.setRange(1, 1000000)
-            average_count.setValue(10)
-
-            udp_host = QtWidgets.QLineEdit("127.0.0.1")
-            udp_port = QtWidgets.QSpinBox()
-            udp_port.setRange(1, 65535)
-            udp_port.setValue(9000)
 
             start_button = QtWidgets.QPushButton("Start")
             stop_button = QtWidgets.QPushButton("Stop")
@@ -360,14 +378,7 @@ class NI_DAQmxTab(DeviceTab):
 
             widgets = {
                 'counter': counter,
-                'sample_clock': sample_clock,
-                'rate': rate,
-                'buffer_size': buffer_size,
-                'fetch_interval': fetch_interval,
-                'factor': factor,
-                'average_count': average_count,
-                'udp_host': udp_host,
-                'udp_port': udp_port,
+                'config': config,
                 'start': start_button,
                 'stop': stop_button,
                 'formula': formula,
@@ -378,18 +389,23 @@ class NI_DAQmxTab(DeviceTab):
             self.manual_counter_widgets[counter['name']] = widgets
 
             row = 0
-            for label, widget in [
-                ("Sample clock", sample_clock),
-                ("Output counter rate", rate),
-                ("Buffer length", buffer_size),
-                ("Fetch interval", fetch_interval),
-                ("Multiplication factor", factor),
-                ("Averaging points", average_count),
-                ("qtconsole IP", udp_host),
-                ("qtconsole UDP port", udp_port),
+            sample_clock = config['sample_clock']
+            sample_clock_text = (
+                "As connection table"
+                if sample_clock == 'connection_table'
+                else "%s output" % sample_clock
+            )
+            for label, text in [
+                ("Sample clock", sample_clock_text),
+                ("Output counter rate", "%.6g Hz" % config['rate']),
+                ("Buffer length", "%d" % config['buffer_size']),
+                ("Fetch interval", "%.6g ms" % (1000 * config['polling_interval'])),
+                ("Multiplication factor", "%.6g" % config['multiplication_factor']),
+                ("Averaging points", "%d" % config['average_count']),
+                ("qtconsole", "%s:%d" % (config['udp_host'], config['udp_port'])),
             ]:
                 grid.addWidget(QtWidgets.QLabel(label), row, 0)
-                grid.addWidget(widget, row, 1)
+                grid.addWidget(QtWidgets.QLabel(text), row, 1)
                 row += 1
             grid.addWidget(start_button, row, 0)
             grid.addWidget(stop_button, row, 1)
@@ -402,15 +418,6 @@ class NI_DAQmxTab(DeviceTab):
             row += 1
             grid.addWidget(status, row, 0, 1, 2)
 
-            sample_clock.currentIndexChanged.connect(
-                lambda _=None, name=counter['name']: self._update_counter_formula(name)
-            )
-            rate.valueChanged.connect(
-                lambda _=None, name=counter['name']: self._update_counter_formula(name)
-            )
-            factor.valueChanged.connect(
-                lambda _=None, name=counter['name']: self._update_counter_formula(name)
-            )
             start_button.clicked.connect(
                 lambda _=None, name=counter['name']: self.start_manual_counter(name)
             )
@@ -424,42 +431,26 @@ class NI_DAQmxTab(DeviceTab):
 
     def _manual_counter_config(self, counter_name):
         widgets = self.manual_counter_widgets[counter_name]
-        return {
-            'sample_clock': widgets['sample_clock'].currentData(),
-            'rate': widgets['rate'].value(),
-            'buffer_size': widgets['buffer_size'].value(),
-            'fetch_interval': widgets['fetch_interval'].value() / 1000.0,
-            'multiplication_factor': widgets['factor'].value(),
-            'average_count': widgets['average_count'].value(),
-            'udp_host': widgets['udp_host'].text().strip(),
-            'udp_port': widgets['udp_port'].value(),
-        }
+        return dict(widgets['config'])
 
     def _set_counter_running(self, counter_name, running):
         widgets = self.manual_counter_widgets[counter_name]
         widgets['start'].setEnabled(not running)
         widgets['stop'].setEnabled(running)
-        for key in (
-            'sample_clock',
-            'rate',
-            'buffer_size',
-            'fetch_interval',
-            'factor',
-            'average_count',
-            'udp_host',
-            'udp_port',
-        ):
-            widgets[key].setEnabled(not running)
 
     def _update_counter_formula(self, counter_name):
         widgets = self.manual_counter_widgets[counter_name]
-        sample_clock = widgets['sample_clock'].currentData()
-        factor = widgets['factor'].value()
+        config = widgets['config']
+        sample_clock = config['sample_clock']
+        factor = config['multiplication_factor']
         if sample_clock == 'connection_table':
             text = "latest = diff * %.6g" % factor
         else:
-            rate = widgets['rate'].value()
-            text = "latest = diff * %.6g Hz * %.6g" % (rate, factor)
+            rate = config['rate']
+            text = (
+                "latest = diff / (1 / %.6g Hz) * %.6g = diff * %.6g * %.6g"
+                % (rate, factor, rate, factor)
+            )
         widgets['formula'].setText(text)
 
     def _ensure_manual_counter_monitor(self):
@@ -485,8 +476,9 @@ class NI_DAQmxTab(DeviceTab):
                 )
             )
         except Exception as exc:
-            widgets['status'].setText("error: %s" % exc)
-            raise
+            widgets['status'].setText("start failed: %s" % exc)
+            self._set_counter_running(counter_name, False)
+            return
         self.manual_counter_active.add(counter_name)
         self.manual_counter_last_fetch[counter_name] = 0.0
         self._set_counter_running(counter_name, True)
@@ -514,7 +506,7 @@ class NI_DAQmxTab(DeviceTab):
         active = list(self.manual_counter_active)
         for counter_name in active:
             widgets = self.manual_counter_widgets[counter_name]
-            interval = widgets['fetch_interval'].value() / 1000.0
+            interval = widgets['config']['polling_interval']
             last_fetch = self.manual_counter_last_fetch.get(counter_name, 0.0)
             if now - last_fetch < interval:
                 continue

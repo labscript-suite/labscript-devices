@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+import threading
 
 os.environ.setdefault('READTHEDOCS', 'True')
 
@@ -66,6 +67,31 @@ class TestCounterPFIReservations(unittest.TestCase):
         self.assertEqual(table['edge terminal'][0], b'PFI0')
         self.assertEqual(table['gate terminal'][0], b'')
         self.assertEqual(table['sample terminal'][0], b'PFI1')
+        self.assertTrue(table['manual enabled'][0])
+        self.assertEqual(table['manual sample clock'][0], b'connection_table')
+        self.assertEqual(table['manual rate'][0], 10.0)
+        self.assertEqual(table['manual buffer size'][0], 1024)
+        self.assertEqual(table['manual polling interval'][0], 0.1)
+
+    def test_buffered_counter_acquisitions_cannot_duplicate_ctr(self):
+        device = self.make_device()
+        counter = CounterStub(name='counts', edge='PFI0', sample='PFI1')
+        counter.acquisitions = [
+            {
+                'label': 'first',
+                'max_sampling_rate': 10.0,
+                'buffer_size': 10,
+                'polling_interval': 0.1,
+            },
+            {
+                'label': 'second',
+                'max_sampling_rate': 10.0,
+                'buffer_size': 10,
+                'polling_interval': 0.1,
+            },
+        ]
+        with self.assertRaises(LabscriptError):
+            device._make_counter_input_table({'ctr0': counter})
 
 
 def import_counter_worker():
@@ -108,6 +134,58 @@ class TestManualCounterProcessing(unittest.TestCase):
         )
         self.assertEqual(values.tolist(), [60.0, 60.0])
         self.assertEqual(previous, 11)
+
+    def test_manual_counter_start_rejects_active_sample_clock_as_input(self):
+        worker_class = import_counter_worker()
+        worker = object.__new__(worker_class)
+        worker.tasklock = threading.RLock()
+        worker.manual_counters = {
+            'existing': {
+                'counter': {'connection': 'ctr1'},
+                'sample_clock': 'connection_table',
+            }
+        }
+        with self.assertRaises(RuntimeError):
+            worker.start_manual_counter(
+                'new',
+                {'connection': 'ctr0', 'edge': 'PFI0', 'gate': '', 'sample': ''},
+                {
+                    'sample_clock': 'ctr1',
+                    'rate': 10.0,
+                    'buffer_size': 1024,
+                    'polling_interval': 0.1,
+                    'multiplication_factor': 1.0,
+                    'average_count': 10,
+                    'udp_host': '127.0.0.1',
+                    'udp_port': 9000,
+                },
+            )
+
+    def test_manual_counter_start_rejects_active_sample_clock_as_output(self):
+        worker_class = import_counter_worker()
+        worker = object.__new__(worker_class)
+        worker.tasklock = threading.RLock()
+        worker.manual_counters = {
+            'existing': {
+                'counter': {'connection': 'ctr0'},
+                'sample_clock': 'ctr1',
+            }
+        }
+        with self.assertRaises(RuntimeError):
+            worker.start_manual_counter(
+                'new',
+                {'connection': 'ctr1', 'edge': 'PFI0', 'gate': '', 'sample': 'PFI1'},
+                {
+                    'sample_clock': 'connection_table',
+                    'rate': 10.0,
+                    'buffer_size': 1024,
+                    'polling_interval': 0.1,
+                    'multiplication_factor': 1.0,
+                    'average_count': 10,
+                    'udp_host': '127.0.0.1',
+                    'udp_port': 9000,
+                },
+            )
 
 
 if __name__ == '__main__':

@@ -604,6 +604,7 @@ class NI_DAQmx(IntermediateDevice):
         reserved_dio_lines = reserved_dio_lines or {}
         pfies_used_in_counters = []
         acquisitions = []
+        used_counter_inputs = {}
         for connection, counter in counters.items():
             edge = counter.edge_terminal
             gate = counter.gate_terminal
@@ -612,6 +613,20 @@ class NI_DAQmx(IntermediateDevice):
                 if term and 'PFI' in term and term not in pfies_used_in_counters:
                     pfies_used_in_counters.append(term)
             for acq in counter.acquisitions:
+                if connection in used_counter_inputs:
+                    msg = (
+                        "Counter input {connection} is used by multiple buffered "
+                        "counter acquisitions ({first!r} and {second!r}). NI-DAQmx "
+                        "cannot arm duplicate buffered tasks for the same ctrX."
+                    )
+                    raise LabscriptError(
+                        msg.format(
+                            connection=connection,
+                            first=used_counter_inputs[connection],
+                            second=acq['label'],
+                        )
+                    )
+                used_counter_inputs[connection] = acq['label']
                 acquisitions.append(
                     (
                         connection,
@@ -647,21 +662,125 @@ class NI_DAQmx(IntermediateDevice):
         """Collect declared counter inputs for BLACS manual mode."""
         if not counters:
             return None
+
+        def normalise_manual_config(counter, connection):
+            manual_defaults = getattr(counter, 'manual_acquisition_defaults', {})
+            manual_config = dict(manual_defaults)
+            if hasattr(counter, 'get_property'):
+                manual_config.update(counter.get_property(
+                    'manual_acquisition',
+                    'connection_table_properties',
+                    default={},
+                ))
+            sample_clock = str(
+                manual_config.get('sample_clock', 'connection_table')
+            ).strip()
+            sample_clock_lower = sample_clock.lower()
+            if sample_clock_lower == 'connection_table':
+                sample_clock = 'connection_table'
+            elif (
+                sample_clock_lower.startswith('ctr')
+                and sample_clock_lower[3:].isdigit()
+            ):
+                sample_clock = 'ctr%d' % int(sample_clock_lower[3:])
+            else:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s has invalid sample_clock "
+                    "%r; use 'connection_table' or 'ctr<N>'."
+                    % (connection, sample_clock)
+                )
+            try:
+                rate = float(manual_config.get('rate', 10.0))
+                polling_interval = float(
+                    manual_config.get('polling_interval', 0.1)
+                )
+                multiplication_factor = float(
+                    manual_config.get('multiplication_factor', 1.0)
+                )
+                buffer_size = int(manual_config.get('buffer_size', 1024))
+                average_count = int(manual_config.get('average_count', 10))
+                udp_port = int(manual_config.get('udp_port', 9000))
+            except (TypeError, ValueError):
+                raise LabscriptError(
+                    "Manual counter acquisition for %s has non-numeric settings"
+                    % connection
+                )
+            if not np.isfinite(rate) or rate <= 0:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires rate > 0"
+                    % connection
+                )
+            if not np.isfinite(polling_interval) or polling_interval < 0.02:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires polling_interval "
+                    ">= 0.02 s" % connection
+                )
+            if not np.isfinite(multiplication_factor):
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires a finite "
+                    "multiplication_factor" % connection
+                )
+            if buffer_size < 1:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires buffer_size >= 1"
+                    % connection
+                )
+            if average_count < 1:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires average_count >= 1"
+                    % connection
+                )
+            if not 1 <= udp_port <= 65535:
+                raise LabscriptError(
+                    "Manual counter acquisition for %s requires udp_port in "
+                    "1..65535" % connection
+                )
+            return {
+                'enabled': bool(manual_config.get('enabled', True)),
+                'sample_clock': sample_clock,
+                'rate': rate,
+                'buffer_size': buffer_size,
+                'polling_interval': polling_interval,
+                'multiplication_factor': multiplication_factor,
+                'average_count': average_count,
+                'udp_host': str(manual_config.get('udp_host', '127.0.0.1')),
+                'udp_port': udp_port,
+            }
+
         counter_dtypes = [
             ('name', 'S256'),
             ('connection', 'S256'),
             ('edge terminal', 'S256'),
             ('gate terminal', 'S256'),
             ('sample terminal', 'S256'),
+            ('manual enabled', '?'),
+            ('manual sample clock', 'S256'),
+            ('manual rate', 'f8'),
+            ('manual buffer size', 'u4'),
+            ('manual polling interval', 'f8'),
+            ('manual multiplication factor', 'f8'),
+            ('manual average count', 'u4'),
+            ('manual udp host', 'S256'),
+            ('manual udp port', 'u4'),
         ]
         counter_table = np.empty(len(counters), dtype=counter_dtypes)
         for i, (connection, counter) in enumerate(sorted(counters.items())):
+            manual_config = normalise_manual_config(counter, connection)
             counter_table[i] = (
                 counter.name,
                 connection,
                 counter.edge_terminal,
                 counter.gate_terminal if counter.gate_terminal is not None else '',
                 counter.sample_terminal if counter.sample_terminal is not None else '',
+                manual_config.get('enabled', True),
+                manual_config.get('sample_clock', 'connection_table'),
+                manual_config.get('rate', 10.0),
+                manual_config.get('buffer_size', 1024),
+                manual_config.get('polling_interval', 0.1),
+                manual_config.get('multiplication_factor', 1.0),
+                manual_config.get('average_count', 10),
+                manual_config.get('udp_host', '127.0.0.1'),
+                manual_config.get('udp_port', 9000),
             )
         return counter_table
 
