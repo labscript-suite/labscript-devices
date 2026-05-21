@@ -643,6 +643,28 @@ class NI_DAQmx(IntermediateDevice):
         }
         return counter_table, attributes 
 
+    def _make_counter_declaration_table(self, counters):
+        """Collect declared counter inputs for BLACS manual mode."""
+        if not counters:
+            return None
+        counter_dtypes = [
+            ('name', 'S256'),
+            ('connection', 'S256'),
+            ('edge terminal', 'S256'),
+            ('gate terminal', 'S256'),
+            ('sample terminal', 'S256'),
+        ]
+        counter_table = np.empty(len(counters), dtype=counter_dtypes)
+        for i, (connection, counter) in enumerate(sorted(counters.items())):
+            counter_table[i] = (
+                counter.name,
+                connection,
+                counter.edge_terminal,
+                counter.gate_terminal if counter.gate_terminal is not None else '',
+                counter.sample_terminal if counter.sample_terminal is not None else '',
+            )
+        return counter_table
+
     def _check_wait_monitor_timeout_device_config(self):
         """Check that if we are the wait monitor acquisition device and another device
         is the wait monitor timeout device, that a) the other device is a DAQmx device
@@ -737,6 +759,7 @@ class NI_DAQmx(IntermediateDevice):
         CI_table, CI_attr = self._make_counter_input_table(
             counters, counter_reserved_dio_lines
         )
+        counter_table = self._make_counter_declaration_table(counters)
 
         self._check_AI_not_too_fast(AI_table)
         self._check_wait_monitor_timeout_device_config()
@@ -755,6 +778,10 @@ class NI_DAQmx(IntermediateDevice):
             grp.create_dataset('CI', data=CI_table, compression=config.compression)
             for key, val in CI_attr.items():
                 grp['CI'].attrs[key] = val
+        if counter_table is not None:
+            grp.create_dataset(
+                'COUNTERS', data=counter_table, compression=config.compression
+            )
 
 
 from .models import *

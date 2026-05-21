@@ -15,9 +15,12 @@ import h5py
 from labscript_utils import dedent
 
 from blacs.device_base_class import DeviceTab
-from .utils import split_conn_AO, split_conn_DO
+from blacs.tab_base_classes import define_state, MODE_MANUAL
+from qtutils.qt import QtWidgets
+from .utils import split_conn_AO, split_conn_DO, split_conn_CI
 from . import models
 import warnings
+import time
 
 
 def _ensure_str(value):
@@ -26,6 +29,27 @@ def _ensure_str(value):
     if hasattr(value, "decode"):
         return value.decode()
     return str(value)
+
+
+def _read_counter_declarations(group):
+    if group is None or 'COUNTERS' not in group:
+        return []
+    counters = []
+    for row in group['COUNTERS'][:]:
+        counters.append(
+            {
+                'name': _ensure_str(row['name']),
+                'connection': _ensure_str(row['connection']),
+                'edge': _ensure_str(row['edge terminal']),
+                'gate': _ensure_str(row['gate terminal']),
+                'sample': _ensure_str(row['sample terminal']),
+            }
+        )
+    return counters
+
+
+def _counter_number(connection):
+    return split_conn_CI(connection.lower())
 
 
 class NI_DAQmxTab(DeviceTab):
@@ -84,12 +108,24 @@ class NI_DAQmxTab(DeviceTab):
         # And the Measurement and Automation Explorer (MAX) name we will need to
         # communicate with the device:
         self.MAX_name = properties['MAX_name']
+        with h5py.File(connection_table.filepath, 'r') as f:
+            waits = f['waits']
+            wait_acq_device = waits.attrs['wait_monitor_acquisition_device']
+            wait_acq_connection = waits.attrs['wait_monitor_acquisition_connection']
+            wait_timeout_device = waits.attrs['wait_monitor_timeout_device']
+            wait_timeout_connection = waits.attrs['wait_monitor_timeout_connection']
+            try:
+                timeout_trigger_type = waits.attrs['wait_monitor_timeout_trigger_type']
+            except KeyError:
+                timeout_trigger_type = 'rising'
 
         # Check hardware lines connected to PFI ports used as counter inputs.
         counter_reserved_dio_lines = []
+        counter_declarations = []
         try:
             with h5py.File(connection_table.filepath, 'r') as f:
                 group = f.get(f"devices/{self.device_name}")
+                counter_declarations = _read_counter_declarations(group)
                 if group and 'CI' in group:
                     ci_attrs = group['CI'].attrs
                     if 'counter_reserved_dio_lines' in ci_attrs:
@@ -161,18 +197,24 @@ class NI_DAQmxTab(DeviceTab):
             widget_list.append((name, DO_widgets, split_conn_DO))
         self.auto_place_widgets(*widget_list)
 
-        # We only need a wait monitor worker if we are if fact the device with
-        # the wait monitor input.
-        with h5py.File(connection_table.filepath, 'r') as f:
-            waits = f['waits']
-            wait_acq_device = waits.attrs['wait_monitor_acquisition_device']
-            wait_acq_connection = waits.attrs['wait_monitor_acquisition_connection']
-            wait_timeout_device = waits.attrs['wait_monitor_timeout_device']
-            wait_timeout_connection = waits.attrs['wait_monitor_timeout_connection']
-            try:
-                timeout_trigger_type = waits.attrs['wait_monitor_timeout_trigger_type']
-            except KeyError:
-                timeout_trigger_type = 'rising'
+        self.manual_counter_widgets = {}
+        self.manual_counter_active = set()
+        self.manual_counter_last_fetch = {}
+        if counter_declarations:
+            declared_ctr_nums = {
+                _counter_number(counter['connection'])
+                for counter in counter_declarations
+            }
+            if wait_acq_device == self.device_name and wait_acq_connection:
+                declared_ctr_nums.add(_counter_number(_ensure_str(wait_acq_connection)))
+            spare_counters = [
+                'ctr%d' % i
+                for i in range(num_CI)
+                if i not in declared_ctr_nums
+            ]
+            self._create_manual_counter_widgets(
+                counter_declarations, spare_counters
+            )
 
         # Create and set the primary worker
         self.create_worker(
@@ -253,7 +295,8 @@ class NI_DAQmxTab(DeviceTab):
                 "counter_worker",
                 'labscript_devices.NI_DAQmx.blacs_workers.NI_DAQmxCounterWorker',
                 {
-                    'MAX_name': self.MAX_name
+                    'MAX_name': self.MAX_name,
+                    'declared_counters': counter_declarations,
                 },
             )
             self.add_secondary_worker("counter_worker")
@@ -261,3 +304,229 @@ class NI_DAQmxTab(DeviceTab):
         # Set the capabilities of this device
         self.supports_remote_value_check(False)
         self.supports_smart_programming(False)
+
+    def _create_manual_counter_widgets(self, counter_declarations, spare_counters):
+        group = QtWidgets.QGroupBox("Manual counters")
+        outer_layout = QtWidgets.QVBoxLayout(group)
+
+        for counter in counter_declarations:
+            panel = QtWidgets.QGroupBox(
+                "%s (%s)" % (counter['name'], counter['connection'])
+            )
+            grid = QtWidgets.QGridLayout(panel)
+
+            sample_clock = QtWidgets.QComboBox()
+            sample_clock.addItem("As connection table", "connection_table")
+            for ctr in spare_counters:
+                sample_clock.addItem("%s output" % ctr, ctr)
+
+            rate = QtWidgets.QDoubleSpinBox()
+            rate.setRange(1e-6, 1e9)
+            rate.setDecimals(6)
+            rate.setValue(10.0)
+            rate.setSuffix(" Hz")
+
+            buffer_size = QtWidgets.QSpinBox()
+            buffer_size.setRange(1, 2**31 - 1)
+            buffer_size.setValue(1024)
+
+            fetch_interval = QtWidgets.QSpinBox()
+            fetch_interval.setRange(20, 3600000)
+            fetch_interval.setValue(100)
+            fetch_interval.setSuffix(" ms")
+
+            factor = QtWidgets.QDoubleSpinBox()
+            factor.setRange(-1e12, 1e12)
+            factor.setDecimals(6)
+            factor.setValue(1.0)
+
+            average_count = QtWidgets.QSpinBox()
+            average_count.setRange(1, 1000000)
+            average_count.setValue(10)
+
+            udp_host = QtWidgets.QLineEdit("127.0.0.1")
+            udp_port = QtWidgets.QSpinBox()
+            udp_port.setRange(1, 65535)
+            udp_port.setValue(9000)
+
+            start_button = QtWidgets.QPushButton("Start")
+            stop_button = QtWidgets.QPushButton("Stop")
+            stop_button.setEnabled(False)
+
+            formula = QtWidgets.QLabel()
+            latest = QtWidgets.QLabel("latest: --")
+            moving_average = QtWidgets.QLabel("moving average: --")
+            status = QtWidgets.QLabel("idle")
+
+            widgets = {
+                'counter': counter,
+                'sample_clock': sample_clock,
+                'rate': rate,
+                'buffer_size': buffer_size,
+                'fetch_interval': fetch_interval,
+                'factor': factor,
+                'average_count': average_count,
+                'udp_host': udp_host,
+                'udp_port': udp_port,
+                'start': start_button,
+                'stop': stop_button,
+                'formula': formula,
+                'latest': latest,
+                'moving_average': moving_average,
+                'status': status,
+            }
+            self.manual_counter_widgets[counter['name']] = widgets
+
+            row = 0
+            for label, widget in [
+                ("Sample clock", sample_clock),
+                ("Output counter rate", rate),
+                ("Buffer length", buffer_size),
+                ("Fetch interval", fetch_interval),
+                ("Multiplication factor", factor),
+                ("Averaging points", average_count),
+                ("qtconsole IP", udp_host),
+                ("qtconsole UDP port", udp_port),
+            ]:
+                grid.addWidget(QtWidgets.QLabel(label), row, 0)
+                grid.addWidget(widget, row, 1)
+                row += 1
+            grid.addWidget(start_button, row, 0)
+            grid.addWidget(stop_button, row, 1)
+            row += 1
+            grid.addWidget(formula, row, 0, 1, 2)
+            row += 1
+            grid.addWidget(latest, row, 0, 1, 2)
+            row += 1
+            grid.addWidget(moving_average, row, 0, 1, 2)
+            row += 1
+            grid.addWidget(status, row, 0, 1, 2)
+
+            sample_clock.currentIndexChanged.connect(
+                lambda _=None, name=counter['name']: self._update_counter_formula(name)
+            )
+            rate.valueChanged.connect(
+                lambda _=None, name=counter['name']: self._update_counter_formula(name)
+            )
+            factor.valueChanged.connect(
+                lambda _=None, name=counter['name']: self._update_counter_formula(name)
+            )
+            start_button.clicked.connect(
+                lambda _=None, name=counter['name']: self.start_manual_counter(name)
+            )
+            stop_button.clicked.connect(
+                lambda _=None, name=counter['name']: self.stop_manual_counter(name)
+            )
+            self._update_counter_formula(counter['name'])
+            outer_layout.addWidget(panel)
+
+        self.get_tab_layout().addWidget(group)
+
+    def _manual_counter_config(self, counter_name):
+        widgets = self.manual_counter_widgets[counter_name]
+        return {
+            'sample_clock': widgets['sample_clock'].currentData(),
+            'rate': widgets['rate'].value(),
+            'buffer_size': widgets['buffer_size'].value(),
+            'fetch_interval': widgets['fetch_interval'].value() / 1000.0,
+            'multiplication_factor': widgets['factor'].value(),
+            'average_count': widgets['average_count'].value(),
+            'udp_host': widgets['udp_host'].text().strip(),
+            'udp_port': widgets['udp_port'].value(),
+        }
+
+    def _set_counter_running(self, counter_name, running):
+        widgets = self.manual_counter_widgets[counter_name]
+        widgets['start'].setEnabled(not running)
+        widgets['stop'].setEnabled(running)
+        for key in (
+            'sample_clock',
+            'rate',
+            'buffer_size',
+            'fetch_interval',
+            'factor',
+            'average_count',
+            'udp_host',
+            'udp_port',
+        ):
+            widgets[key].setEnabled(not running)
+
+    def _update_counter_formula(self, counter_name):
+        widgets = self.manual_counter_widgets[counter_name]
+        sample_clock = widgets['sample_clock'].currentData()
+        factor = widgets['factor'].value()
+        if sample_clock == 'connection_table':
+            text = "latest = diff * %.6g" % factor
+        else:
+            rate = widgets['rate'].value()
+            text = "latest = diff * %.6g Hz * %.6g" % (rate, factor)
+        widgets['formula'].setText(text)
+
+    def _ensure_manual_counter_monitor(self):
+        if len(self.manual_counter_active) == 1:
+            self.statemachine_timeout_add(20, self.manual_counter_monitor)
+
+    def _remove_manual_counter_monitor_if_idle(self):
+        if not self.manual_counter_active:
+            self.statemachine_timeout_remove(self.manual_counter_monitor)
+
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def start_manual_counter(self, counter_name):
+        widgets = self.manual_counter_widgets[counter_name]
+        config = self._manual_counter_config(counter_name)
+        try:
+            result = yield (
+                self.queue_work(
+                    "counter_worker",
+                    "start_manual_counter",
+                    counter_name,
+                    widgets['counter'],
+                    config,
+                )
+            )
+        except Exception as exc:
+            widgets['status'].setText("error: %s" % exc)
+            raise
+        self.manual_counter_active.add(counter_name)
+        self.manual_counter_last_fetch[counter_name] = 0.0
+        self._set_counter_running(counter_name, True)
+        widgets['status'].setText(result.get('status', 'running'))
+        self._ensure_manual_counter_monitor()
+
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def stop_manual_counter(self, counter_name):
+        widgets = self.manual_counter_widgets[counter_name]
+        result = {'status': 'stopped'}
+        try:
+            result = yield (
+                self.queue_work("counter_worker", "stop_manual_counter", counter_name)
+            )
+        finally:
+            self.manual_counter_active.discard(counter_name)
+            self.manual_counter_last_fetch.pop(counter_name, None)
+            self._set_counter_running(counter_name, False)
+            self._remove_manual_counter_monitor_if_idle()
+        widgets['status'].setText(result.get('status', 'stopped'))
+
+    @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
+    def manual_counter_monitor(self):
+        now = time.monotonic()
+        active = list(self.manual_counter_active)
+        for counter_name in active:
+            widgets = self.manual_counter_widgets[counter_name]
+            interval = widgets['fetch_interval'].value() / 1000.0
+            last_fetch = self.manual_counter_last_fetch.get(counter_name, 0.0)
+            if now - last_fetch < interval:
+                continue
+            self.manual_counter_last_fetch[counter_name] = now
+            result = yield (
+                self.queue_work("counter_worker", "fetch_manual_counter", counter_name)
+            )
+            if result.get('samples_read', 0):
+                widgets['latest'].setText(
+                    "latest: %.6g" % result['latest_value']
+                )
+                widgets['moving_average'].setText(
+                    "moving average: %.6g" % result['moving_average']
+                )
+            widgets['status'].setText(result.get('status', 'running'))

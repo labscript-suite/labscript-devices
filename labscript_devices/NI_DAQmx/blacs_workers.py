@@ -13,6 +13,8 @@
 import sys
 import time
 import threading
+import socket
+from collections import deque
 from PyDAQmx import *
 from PyDAQmx.DAQmxConstants import *
 from PyDAQmx.DAQmxTypes import *
@@ -772,13 +774,20 @@ class NI_DAQmxCounterWorker(Worker):
         self.tasks = []
         self.thread_polling_data = []
         self.event_task_stopped = None
+        self.manual_counters = {}
+        self.manual_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def shutdown(self):
+        for counter_name in list(self.manual_counters):
+            self.stop_manual_counter(counter_name)
+        self.manual_udp_socket.close()
         if len(self.tasks) > 0:
             self._stop_task()
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
+        for counter_name in list(self.manual_counters):
+            self.stop_manual_counter(counter_name)
 
         self.h5_file = h5file
         with h5py.File(h5file, 'r') as f:
@@ -872,6 +881,221 @@ class NI_DAQmxCounterWorker(Worker):
 
     def program_manual(self, values):
         return {}
+
+    def _declared_counter_connections(self):
+        return {
+            counter['connection']
+            for counter in getattr(self, 'declared_counters', [])
+        }
+
+    def _declared_counter_numbers(self):
+        return {
+            split_conn_CI(connection.lower())
+            for connection in self._declared_counter_connections()
+        }
+
+    def _counter_internal_output_terminal(self, counter_connection):
+        if '/' in counter_connection:
+            return '/' + counter_connection.lstrip('/') + 'InternalOutput'
+        return '/%s/%sInternalOutput' % (self.MAX_name, counter_connection)
+
+    def _create_counter_output_task(self, counter_connection, rate):
+        task = PyDAQmx.Task()
+        chan = counter_connection
+        if '/' not in chan:
+            chan = '%s/%s' % (self.MAX_name, chan)
+        task.CreateCOPulseChanFreq(
+            chan,
+            "",
+            PyDAQmx.DAQmxConstants.DAQmx_Val_Hz,
+            PyDAQmx.DAQmxConstants.DAQmx_Val_Low,
+            0.0,
+            rate,
+            0.5,
+        )
+        task.SetCOPulseTerm("", "")
+        task.CfgImplicitTiming(
+            PyDAQmx.DAQmxConstants.DAQmx_Val_ContSamps, 1000
+        )
+        task.TaskControl(PyDAQmx.DAQmxConstants.DAQmx_Val_Task_Commit)
+        return task
+
+    def _manual_counter_values(
+        self,
+        counts,
+        previous_count,
+        scale,
+    ):
+        if len(counts) == 0:
+            return np.array([], dtype=np.float64), previous_count
+        if previous_count is None:
+            if len(counts) < 2:
+                return np.array([], dtype=np.float64), int(counts[-1])
+            diffs = np.diff(counts.astype(np.int64))
+        else:
+            values = np.concatenate(([previous_count], counts.astype(np.int64)))
+            diffs = np.diff(values)
+        return diffs.astype(np.float64) * scale, int(counts[-1])
+
+    def start_manual_counter(self, counter_name, counter, config):
+        with self.tasklock:
+            if counter_name in self.manual_counters:
+                raise RuntimeError("Manual counter '%s' is already running" % counter_name)
+
+            connection = counter['connection']
+            for state in self.manual_counters.values():
+                if state['counter']['connection'] == connection:
+                    raise RuntimeError(
+                        "Counter input '%s' is already in use" % connection
+                    )
+
+            sample_clock = config['sample_clock']
+            rate = float(config['rate'])
+            buffer_size = int(config['buffer_size'])
+            fetch_interval = max(0.02, float(config['fetch_interval']))
+            multiplication_factor = float(config['multiplication_factor'])
+            average_count = int(config['average_count'])
+            udp_host = config.get('udp_host', '')
+            udp_port = int(config.get('udp_port', 0))
+
+            if sample_clock == 'connection_table':
+                sample = counter['sample']
+                if not sample:
+                    raise RuntimeError(
+                        "Counter '%s' has no sample_terminal in the connection table"
+                        % counter_name
+                    )
+                scale = multiplication_factor
+                sample_clock_rate = None
+                co_task = None
+            else:
+                sample_clock_num = split_conn_CI(sample_clock.lower())
+                if sample_clock_num in self._declared_counter_numbers():
+                    raise RuntimeError(
+                        "Sample clock counter '%s' is declared as a counter input"
+                        % sample_clock
+                    )
+                for state in self.manual_counters.values():
+                    if state['sample_clock'] == sample_clock:
+                        raise RuntimeError(
+                            "Sample clock counter '%s' is already in use" % sample_clock
+                        )
+                co_task = self._create_counter_output_task(sample_clock, rate)
+                sample = self._counter_internal_output_terminal(sample_clock)
+                sample_clock_rate = rate
+                scale = rate * multiplication_factor
+
+            inst = {
+                'connection': connection,
+                'edge': counter['edge'],
+                'gate': counter['gate'],
+                'sample': sample,
+                'max_sampling_rate': rate,
+                'buffer_size': buffer_size,
+            }
+            ci_task = PyDAQmx.Task()
+            self._set_count_task(ci_task, inst)
+
+            state = {
+                'counter': counter,
+                'ci_task': ci_task,
+                'co_task': co_task,
+                'sample_clock': sample_clock,
+                'sample_clock_rate': sample_clock_rate,
+                'scale': scale,
+                'buffer': np.zeros((buffer_size,), dtype=np.uint32),
+                'daq_status': {},
+                'last_count': None,
+                'values': deque(maxlen=average_count),
+                'udp_host': udp_host,
+                'udp_port': udp_port,
+                'fetch_interval': fetch_interval,
+            }
+            self.manual_counters[counter_name] = state
+
+            try:
+                ci_task.StartTask()
+                if co_task is not None:
+                    co_task.StartTask()
+            except Exception:
+                self.stop_manual_counter(counter_name)
+                raise
+
+            return {'status': 'running'}
+
+    def stop_manual_counter(self, counter_name):
+        with self.tasklock:
+            state = self.manual_counters.pop(counter_name, None)
+            if state is None:
+                return {'status': 'stopped'}
+            for task_name in ('co_task', 'ci_task'):
+                task = state[task_name]
+                if task is None:
+                    continue
+                try:
+                    task.StopTask()
+                except Exception:
+                    self.logger.debug(
+                        "Ignoring error stopping %s for manual counter %s",
+                        task_name,
+                        counter_name,
+                        exc_info=True,
+                    )
+                task.ClearTask()
+            return {'status': 'stopped'}
+
+    def fetch_manual_counter(self, counter_name):
+        state = self.manual_counters.get(counter_name)
+        if state is None:
+            return {'status': 'stopped', 'samples_read': 0}
+
+        samples_read = self._read_data(
+            state['ci_task'],
+            PyDAQmx.DAQmxConstants.DAQmx_Val_Auto,
+            0,
+            state['buffer'],
+            state['daq_status'],
+        )
+        if samples_read <= 0:
+            return {'status': 'running', 'samples_read': 0}
+
+        counts = np.array(state['buffer'][:samples_read], copy=True)
+        values, state['last_count'] = self._manual_counter_values(
+            counts, state['last_count'], state['scale']
+        )
+        for value in values:
+            state['values'].append(float(value))
+            if state['udp_host'] and state['udp_port']:
+                payload = ("%.12g" % float(value)).encode("utf-8")
+                try:
+                    self.manual_udp_socket.sendto(
+                        payload, (state['udp_host'], state['udp_port'])
+                    )
+                except OSError as exc:
+                    state['daq_status']['udp_error'] = str(exc)
+                    self.logger.warning(
+                        "Manual counter UDP send failed for %s: %s",
+                        counter_name,
+                        exc,
+                    )
+
+        if len(values) == 0:
+            return {'status': 'running', 'samples_read': samples_read}
+
+        latest = float(values[-1])
+        moving_average = float(np.mean(state['values'])) if state['values'] else latest
+        status = 'running'
+        if state['daq_status'].get('has_overflow'):
+            status = 'running (overflow)'
+        if state['daq_status'].get('udp_error'):
+            status = 'running (UDP error: %s)' % state['daq_status']['udp_error']
+        return {
+            'status': status,
+            'samples_read': samples_read,
+            'latest_value': latest,
+            'moving_average': moving_average,
+            'values': [float(value) for value in values],
+        }
 
     def _read_data(self, task, read_samples: int, timeout: float, buffer: np.array, daq_status=None):
         try:
