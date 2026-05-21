@@ -20,6 +20,14 @@ from . import models
 import warnings
 
 
+def _ensure_str(value):
+    if isinstance(value, bytes):
+        return value.decode()
+    if hasattr(value, "decode"):
+        return value.decode()
+    return str(value)
+
+
 class NI_DAQmxTab(DeviceTab):
     def initialise_GUI(self):
         # Get capabilities from connection table properties:
@@ -77,18 +85,27 @@ class NI_DAQmxTab(DeviceTab):
         # communicate with the device:
         self.MAX_name = properties['MAX_name']
 
-        # Check hardware lines connected to PFI ports used as inputs
-        import numpy as np
-        DIO_used_as_inputs = np.empty((0,), dtype=object)
+        # Check hardware lines connected to PFI ports used as counter inputs.
+        counter_reserved_dio_lines = []
         try:
             with h5py.File(connection_table.filepath, 'r') as f:
                 group = f.get(f"devices/{self.device_name}")
                 if group and 'CI' in group:
-                   used_pfies = group['CI'].attrs['used_pfies']
-                   DIO_used_as_inputs = np.union1d(DIO_used_as_inputs, used_pfies)
+                    ci_attrs = group['CI'].attrs
+                    if 'counter_reserved_dio_lines' in ci_attrs:
+                        counter_reserved_dio_lines = [
+                            _ensure_str(line)
+                            for line in ci_attrs['counter_reserved_dio_lines']
+                        ]
+                    elif 'used_pfies' in ci_attrs:
+                        # Backward compatibility for connection tables compiled while
+                        # counter support only recorded PFI terminals.
+                        counter_reserved_dio_lines = [
+                            properties['PFI_connections'][_ensure_str(pfi)]
+                            for pfi in ci_attrs['used_pfies']
+                        ]
         except Exception:
             pass
-        DIO_used_as_inputs = list(map(lambda pfi: properties['PFI_connections'][pfi], DIO_used_as_inputs))
 
         # Create output objects:
         AO_prop = {}
@@ -108,7 +125,7 @@ class NI_DAQmxTab(DeviceTab):
             port_props = {}
             for line in range(ports[port_str]['num_lines']):
                 hardware_name = 'port%d/line%d' % (port_num, line)
-                if hardware_name in DIO_used_as_inputs:
+                if hardware_name in counter_reserved_dio_lines:
                     continue
                 port_props[hardware_name] = {}
                 DO_hardware_names.append(hardware_name)
@@ -173,6 +190,7 @@ class NI_DAQmxTab(DeviceTab):
                 'static_AO': static_AO,
                 'static_DO': static_DO,
                 'DO_hardware_names': DO_hardware_names,
+                'counter_reserved_dio_lines': counter_reserved_dio_lines,
                 'wait_timeout_device': wait_timeout_device,
                 'wait_timeout_connection': wait_timeout_connection,
                 'wait_timeout_rearm_value': int(timeout_trigger_type == 'falling')

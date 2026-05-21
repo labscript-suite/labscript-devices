@@ -44,6 +44,47 @@ from pythonlib.online_monitor import OnlineMonitor
 
 
 class NI_DAQmxOutputWorker(Worker):
+    def _reserved_lines_by_port(self):
+        lines_by_port = {}
+        for connection in getattr(self, 'counter_reserved_dio_lines', []):
+            port, line = split_conn_DO(connection)
+            port_str = 'port%d' % port
+            lines_by_port.setdefault(port_str, set()).add(line)
+        return lines_by_port
+
+    def _do_channel_lines(self, port_str):
+        reserved = self._reserved_lines_by_port().get(port_str, set())
+        return [
+            line
+            for line in range(self.ports[port_str]['num_lines'])
+            if line not in reserved
+        ]
+
+    def _create_DO_channel(self, port_str):
+        lines = self._do_channel_lines(port_str)
+        if not lines:
+            return lines
+        if len(lines) == self.ports[port_str]['num_lines']:
+            con = '%s/%s' % (self.MAX_name, port_str)
+        else:
+            con = ','.join(
+                '%s/%s/line%d' % (self.MAX_name, port_str, line)
+                for line in lines
+            )
+        self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
+        return lines
+
+    def _compact_DO_data(self, DO_table, ports, channel_lines_by_port):
+        data = np.zeros((len(DO_table), len(ports)), dtype=np.uint32)
+        for i, port_str in enumerate(ports):
+            physical_values = DO_table[port_str].astype(np.uint32)
+            compact_values = np.zeros(len(DO_table), dtype=np.uint32)
+            for compact_bit, physical_line in enumerate(channel_lines_by_port[port_str]):
+                bit_values = (physical_values >> physical_line) & 1
+                compact_values |= bit_values << compact_bit
+            data[:, i] = compact_values
+        return np.ascontiguousarray(data)
+
     def init(self):
         self.check_version()
         # Reset Device: clears previously added routes etc. Note: is insufficient for
@@ -86,9 +127,8 @@ class NI_DAQmxOutputWorker(Worker):
         else:
             self.AO_task = None
 
-        if self.ports:
-            self.DO_task = None
-            # self.DO_task = Task() # TODO
+        if self.ports and self.DO_hardware_names:
+            self.DO_task = Task()
         else:
             self.DO_task = None
 
@@ -100,12 +140,15 @@ class NI_DAQmxOutputWorker(Worker):
             )
 
         # Setup DO channels
+        self.manual_DO_ports = []
+        self.manual_DO_channel_lines = {}
         for port_str in sorted(self.ports, key=split_conn_port):
-            if not self.ports[port_str]['num_lines']:
+            if not self.ports[port_str]['num_lines'] or self.DO_task is None:
                 continue
-            # Add each port to the task:
-            con = '%s/%s' % (self.MAX_name, port_str)
-            # self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines) # TODO
+            lines = self._create_DO_channel(port_str)
+            if lines:
+                self.manual_DO_ports.append(port_str)
+                self.manual_DO_channel_lines[port_str] = lines
 
         # Start tasks:
         if self.AO_task is not None:
@@ -133,13 +176,20 @@ class NI_DAQmxOutputWorker(Worker):
             # always works, the additional bits are ignored. This is discussed here:
             # https://forums.ni.com/t5/Multifunction-DAQ
             #     /problem-with-correlated-DIO-on-USB-6341/td-p/3344066
-            DO_data = np.zeros(len(self.ports), dtype=np.uint32)
+            DO_data = np.zeros((1, len(self.manual_DO_ports)), dtype=np.uint32)
             for conn, value in front_panel_values.items():
                 if conn.startswith('port'):
                     port, line = split_conn_DO(conn)
-                    DO_data[port] |= value << line
+                    port_str = 'port%d' % port
+                    if port_str not in self.manual_DO_channel_lines:
+                        continue
+                    if line not in self.manual_DO_channel_lines[port_str]:
+                        continue
+                    compact_line = self.manual_DO_channel_lines[port_str].index(line)
+                    port_index = self.manual_DO_ports.index(port_str)
+                    DO_data[0, port_index] |= value << compact_line
             self.DO_task.WriteDigitalU32(
-                1, True, 10.0, DAQmx_Val_GroupByChannel, DO_data, written, None
+                1, True, 10.0, DAQmx_Val_GroupByScanNumber, DO_data, written, None
             )
         # TODO: return coerced/quantised values
         return {}
@@ -199,22 +249,20 @@ class NI_DAQmxOutputWorker(Worker):
         ports = DO_table.dtype.names
 
         final_values = {}
+        channel_lines_by_port = {}
         for port_str in ports:
             # Add each port to the task:
-            con = '%s/%s' % (self.MAX_name, port_str)
-            self.DO_task.CreateDOChan(con, "", DAQmx_Val_ChanForAllLines)
+            channel_lines = self._create_DO_channel(port_str)
+            channel_lines_by_port[port_str] = channel_lines
 
             # Collect the final values of the lines on this port:
             port_final_value = DO_table[port_str][-1]
-            for line in range(self.ports[port_str]["num_lines"]):
+            for line in channel_lines:
                 # Extract each digital value from the packed bits:
                 line_final_value = bool((1 << line) & port_final_value)
                 final_values['%s/line%d' % (port_str, line)] = int(line_final_value)
 
-        # Convert DO table to a regular array and ensure it is C continguous:
-        DO_table = np.ascontiguousarray(
-            structured_to_unstructured(DO_table, dtype=np.uint32)
-        )
+        DO_table = self._compact_DO_data(DO_table, ports, channel_lines_by_port)
 
         # Check if DOs are all zero for the whole shot. If they are this triggers a
         # bug in NI-DAQmx that throws a cryptic error for buffered output. In this

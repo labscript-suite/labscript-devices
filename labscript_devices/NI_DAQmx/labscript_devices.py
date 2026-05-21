@@ -1,5 +1,3 @@
-# TODO
-# Remove ports used as input (e.g. in counters) from DO ports
 #####################################################################
 #                                                                   #
 # /NI_DAQmx/models/labscript_devices.py                             #
@@ -41,6 +39,15 @@ _ints = {8: np.uint8, 16: np.uint16, 32: np.uint32, 64: np.uint64}
 def _smallest_int_type(n):
     """Return the smallest unsigned integer type sufficient to contain n bits"""
     return _ints[min(size for size in _ints.keys() if size >= n)]
+
+
+def _ensure_str(value):
+    """Convert HDF5 bytes/scalars to str without affecting normal strings."""
+    if isinstance(value, bytes):
+        return value.decode()
+    if hasattr(value, "decode"):
+        return value.decode()
+    return str(value)
 
 
 class NI_DAQmx(IntermediateDevice):
@@ -469,6 +476,50 @@ class NI_DAQmx(IntermediateDevice):
             analog_out_table[connection] = output.raw_output
         return analog_out_table
 
+    def _counter_PFI_terminals(self, counters):
+        """Return PFI terminals referenced by counter inputs."""
+        terminals = []
+        for counter in counters.values():
+            for term in (
+                counter.edge_terminal,
+                counter.gate_terminal,
+                counter.sample_terminal,
+            ):
+                if term is None:
+                    continue
+                terminal = _ensure_str(term)
+                if 'PFI' in terminal and terminal not in terminals:
+                    terminals.append(terminal)
+        return terminals
+
+    def _counter_reserved_dio_lines(self, counters):
+        """Map counter PFI terminals to DIO lines and validate model metadata."""
+        reserved = {}
+        for pfi in self._counter_PFI_terminals(counters):
+            if pfi not in self.PFI_connections:
+                msg = """Counter on NI_DAQmx device '%s' uses terminal '%s', but this
+                    device has no PFI_connections entry for it. Add the PFI-to-DIO
+                    mapping to the device model or choose a terminal that is mapped."""
+                raise LabscriptError(dedent(msg) % (self.name, pfi))
+            connection = self.PFI_connections[pfi]
+            split_conn_DO(connection)
+            reserved[connection] = pfi
+        return reserved
+
+    def _check_counter_dio_conflicts(self, digitals, counters):
+        """Raise if counters reserve DIO lines declared for digital I/O."""
+        reserved = self._counter_reserved_dio_lines(counters)
+        conflicts = sorted(set(digitals).intersection(reserved))
+        if conflicts:
+            details = ', '.join(
+                "%s (via %s)" % (connection, reserved[connection])
+                for connection in conflicts
+            )
+            msg = """Counter inputs on NI_DAQmx device '%s' use PFI terminals mapped to
+                DIO lines already declared as digital outputs: %s."""
+            raise LabscriptError(dedent(msg) % (self.name, details))
+        return reserved
+
     def _make_digital_out_table(self, digitals, times):
         """Collect digital output data and create the output array"""
         if not digitals:
@@ -545,11 +596,12 @@ class NI_DAQmx(IntermediateDevice):
 
         return acquisition_table
 
-    def _make_counter_input_table(self, counters):
+    def _make_counter_input_table(self, counters, reserved_dio_lines=None):
         """Collect counter input instructions and create the acquisition table"""
         if not counters:
-            return None
+            return None, {'counter_reserved_dio_lines': []}
 
+        reserved_dio_lines = reserved_dio_lines or {}
         pfies_used_in_counters = []
         acquisitions = []
         for connection, counter in counters.items():
@@ -586,7 +638,8 @@ class NI_DAQmx(IntermediateDevice):
         for i, acq in enumerate(acquisitions):
             counter_table[i] = acq
         attributes = {
-            'used_pfies': pfies_used_in_counters
+            'used_pfies': pfies_used_in_counters,
+            'counter_reserved_dio_lines': sorted(reserved_dio_lines),
         }
         return counter_table, attributes 
 
@@ -674,11 +727,16 @@ class NI_DAQmx(IntermediateDevice):
 
         self._check_even_children(analogs, digitals)
         self._check_bounds(analogs)
+        counter_reserved_dio_lines = self._check_counter_dio_conflicts(
+            digitals, counters
+        )
 
         AO_table = self._make_analog_out_table(analogs, times)
         DO_table = self._make_digital_out_table(digitals, times)
         AI_table = self._make_analog_input_table(inputs)
-        CI_table, CI_attr = self._make_counter_input_table(counters)
+        CI_table, CI_attr = self._make_counter_input_table(
+            counters, counter_reserved_dio_lines
+        )
 
         self._check_AI_not_too_fast(AI_table)
         self._check_wait_monitor_timeout_device_config()
@@ -688,6 +746,9 @@ class NI_DAQmx(IntermediateDevice):
             grp.create_dataset('AO', data=AO_table, compression=config.compression)
         if DO_table is not None:
             grp.create_dataset('DO', data=DO_table, compression=config.compression)
+            grp['DO'].attrs['counter_reserved_dio_lines'] = sorted(
+                counter_reserved_dio_lines
+            )
         if AI_table is not None:
             grp.create_dataset('AI', data=AI_table, compression=config.compression)
         if CI_table is not None:
