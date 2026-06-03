@@ -20,7 +20,6 @@ from qtutils.qt import QtWidgets
 from .utils import split_conn_AO, split_conn_DO
 from . import models
 import warnings
-import time
 
 
 DEFAULT_MANUAL_COUNTER_CONFIG = {
@@ -261,7 +260,6 @@ class NI_DAQmxTab(DeviceTab):
 
         self.manual_counter_widgets = {}
         self.manual_counter_active = set()
-        self.manual_counter_last_fetch = {}
         if counter_declarations:
             self._create_manual_counter_widgets(counter_declarations)
 
@@ -480,7 +478,6 @@ class NI_DAQmxTab(DeviceTab):
             self._set_counter_running(counter_name, False)
             return
         self.manual_counter_active.add(counter_name)
-        self.manual_counter_last_fetch[counter_name] = 0.0
         self._set_counter_running(counter_name, True)
         widgets['status'].setText(result.get('status', 'running'))
         self._ensure_manual_counter_monitor()
@@ -495,26 +492,22 @@ class NI_DAQmxTab(DeviceTab):
             )
         finally:
             self.manual_counter_active.discard(counter_name)
-            self.manual_counter_last_fetch.pop(counter_name, None)
             self._set_counter_running(counter_name, False)
             self._remove_manual_counter_monitor_if_idle()
         widgets['status'].setText(result.get('status', 'stopped'))
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def manual_counter_monitor(self):
-        now = time.monotonic()
         active = list(self.manual_counter_active)
+        if not active:
+            yield (self.queue_work("counter_worker", "noop"))
+            return
         for counter_name in active:
             widgets = self.manual_counter_widgets[counter_name]
-            interval = widgets['config']['polling_interval']
-            last_fetch = self.manual_counter_last_fetch.get(counter_name, 0.0)
-            if now - last_fetch < interval:
-                continue
-            self.manual_counter_last_fetch[counter_name] = now
             result = yield (
                 self.queue_work("counter_worker", "fetch_manual_counter", counter_name)
             )
-            if result.get('samples_read', 0):
+            if result.get('values'):
                 widgets['latest'].setText(
                     "latest: %.6g" % result['latest_value']
                 )

@@ -116,6 +116,37 @@ def import_counter_worker():
     return NI_DAQmxCounterWorker
 
 
+def import_counter_tab():
+    blacs = types.ModuleType('blacs')
+    device_base_class = types.ModuleType('blacs.device_base_class')
+    tab_base_classes = types.ModuleType('blacs.tab_base_classes')
+    qtutils = types.ModuleType('qtutils')
+    qtutils_qt = types.ModuleType('qtutils.qt')
+
+    class DeviceTab:
+        pass
+
+    def define_state(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    device_base_class.DeviceTab = DeviceTab
+    tab_base_classes.MODE_MANUAL = 1
+    tab_base_classes.define_state = define_state
+    qtutils_qt.QtWidgets = object()
+
+    sys.modules.setdefault('blacs', blacs)
+    sys.modules.setdefault('blacs.device_base_class', device_base_class)
+    sys.modules.setdefault('blacs.tab_base_classes', tab_base_classes)
+    sys.modules.setdefault('qtutils', qtutils)
+    sys.modules.setdefault('qtutils.qt', qtutils_qt)
+
+    from labscript_devices.NI_DAQmx.blacs_tabs import NI_DAQmxTab
+
+    return NI_DAQmxTab
+
+
 class TestManualCounterProcessing(unittest.TestCase):
     def test_manual_counter_values_wait_for_two_counts_without_previous(self):
         worker_class = import_counter_worker()
@@ -186,6 +217,56 @@ class TestManualCounterProcessing(unittest.TestCase):
                     'udp_port': 9000,
                 },
             )
+
+    def test_manual_counter_monitor_yields_when_no_active_counters(self):
+        tab_class = import_counter_tab()
+        tab = object.__new__(tab_class)
+        tab.manual_counter_active = set()
+        calls = []
+
+        def queue_work(worker, method, *args):
+            calls.append((worker, method, args))
+            return calls[-1]
+
+        tab.queue_work = queue_work
+        generator = tab.manual_counter_monitor()
+
+        self.assertEqual(next(generator), ("counter_worker", "noop", ()))
+        self.assertEqual(calls, [("counter_worker", "noop", ())])
+        with self.assertRaises(StopIteration):
+            next(generator)
+
+    def test_manual_counter_monitor_handles_baseline_only_read(self):
+        tab_class = import_counter_tab()
+        tab = object.__new__(tab_class)
+        tab.manual_counter_active = {'counts'}
+        texts = {}
+
+        class Label:
+            def __init__(self, name):
+                self.name = name
+
+            def setText(self, text):
+                texts[self.name] = text
+
+        tab.manual_counter_widgets = {
+            'counts': {
+                'latest': Label('latest'),
+                'moving_average': Label('moving_average'),
+                'status': Label('status'),
+            }
+        }
+
+        def queue_work(worker, method, *args):
+            return {'status': 'running', 'samples_read': 1}
+
+        tab.queue_work = queue_work
+        generator = tab.manual_counter_monitor()
+
+        self.assertEqual(next(generator), {'status': 'running', 'samples_read': 1})
+        with self.assertRaises(StopIteration):
+            generator.send({'status': 'running', 'samples_read': 1})
+        self.assertEqual(texts, {'status': 'running'})
 
 
 if __name__ == '__main__':

@@ -882,6 +882,9 @@ class NI_DAQmxCounterWorker(Worker):
     def program_manual(self, values):
         return {}
 
+    def noop(self):
+        return {}
+
     def _counter_internal_output_terminal(self, counter_connection):
         if '/' in counter_connection:
             return '/' + counter_connection.lstrip('/') + 'InternalOutput'
