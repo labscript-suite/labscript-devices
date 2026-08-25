@@ -494,9 +494,11 @@ class AD9959DDSSweeperWorker(Worker):
         Additionally updates front panels with values before run start and 
         updates smart cache before return.'''
         self.intf.abort()
-        while self.intf.get_status() != 'ABORTED':
-            self.logger.debug('Tried to abort buffer, waiting another half second for ABORTED STATUS')
+        status = self.intf.get_status()
+        while status != 'ABORTED' and status != 'STOPPED':
+            self.logger.debug('Tried to abort buffer, waiting another half second for ABORTED or STOPPED status')
             time.sleep(0.5)
+            status = self.intf.get_status()
         self.logger.debug('Successfully aborted buffered execution')
         
         # return state to initial values
