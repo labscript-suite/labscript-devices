@@ -1,4 +1,7 @@
 from labscript import *
+# RemoteBLACS lives in labscript.remote, which the wildcard import above does
+# not reach:
+from labscript.remote import RemoteBLACS
 from labscript_devices.PulseBlaster import PulseBlaster
 from labscript_devices.DummyPseudoclock.labscript_devices import DummyPseudoclock
 from labscript_devices.DummyIntermediateDevice import DummyIntermediateDevice
@@ -22,7 +25,6 @@ IMAQdxCamera(
     'trigger',
     serial_number=0xDEADBEEF,
     worker=test_remote,
-    mock=True,
 )
 start()
 

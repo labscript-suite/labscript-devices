@@ -11,8 +11,8 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.blacs_tabs import IMAQdxCameraTab
+from labscript_devices.TriggerableCamera.blacs_tabs import TriggerableCameraTab
 
-class AndorSolisTab(IMAQdxCameraTab):
+class AndorSolisTab(TriggerableCameraTab):
 
     worker_class = 'labscript_devices.AndorSolis.blacs_workers.AndorSolisWorker'

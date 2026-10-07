@@ -11,9 +11,9 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.blacs_tabs import IMAQdxCameraTab
+from labscript_devices.TriggerableCamera.blacs_tabs import TriggerableCameraTab
 
-class SpinnakerCameraTab(IMAQdxCameraTab):
+class SpinnakerCameraTab(TriggerableCameraTab):
 
     # override worker class
     worker_class = 'labscript_devices.SpinnakerCamera.blacs_workers.SpinnakerCameraWorker'

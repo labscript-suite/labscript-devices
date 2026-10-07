@@ -11,9 +11,9 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.blacs_tabs import IMAQdxCameraTab
+from labscript_devices.TriggerableCamera.blacs_tabs import TriggerableCameraTab
 
-class PylonCameraTab(IMAQdxCameraTab):
+class PylonCameraTab(TriggerableCameraTab):
     
     # override worker class
     worker_class = 'labscript_devices.PylonCamera.blacs_workers.PylonCameraWorker'

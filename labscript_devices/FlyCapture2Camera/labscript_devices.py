@@ -11,10 +11,10 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
+from labscript_devices.TriggerableCamera.labscript_devices import TriggerableCamera
 
-class FlyCapture2Camera(IMAQdxCamera):
-    """Thin sub-class of :obj:`IMAQdxCamera`."""
+class FlyCapture2Camera(TriggerableCamera):
+    """Thin sub-class of :obj:`TriggerableCamera`."""
     
     description = 'FlyCapture2 Camera'
 

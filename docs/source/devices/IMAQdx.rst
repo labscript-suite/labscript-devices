@@ -4,7 +4,7 @@ IMAQdx Cameras
 Overview
 ~~~~~~~~
 
-The "master" camera device from which all others derive.
+The camera device for cameras driven through National Instruments IMAQdx.
 
 .. autosummary::
    labscript_devices.IMAQdxCamera.labscript_devices

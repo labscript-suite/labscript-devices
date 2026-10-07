@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
+from labscript_devices.TriggerableCamera.labscript_devices import TriggerableCamera
 
-class SpinnakerCamera(IMAQdxCamera):
+class SpinnakerCamera(TriggerableCamera):
     description = 'Spinnaker Camera'

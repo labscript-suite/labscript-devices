@@ -10,7 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
+from labscript_devices.TriggerableCamera.labscript_devices import TriggerableCamera
 
-class AndorSolis(IMAQdxCamera):
+class AndorSolis(TriggerableCamera):
     description = "Andor scientific camera"

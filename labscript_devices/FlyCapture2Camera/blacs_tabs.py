@@ -11,10 +11,10 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.blacs_tabs import IMAQdxCameraTab
+from labscript_devices.TriggerableCamera.blacs_tabs import TriggerableCameraTab
 
-class FlyCapture2CameraTab(IMAQdxCameraTab):
-    """Thin sub-class of obj:`IMAQdxCameraTab`.
+class FlyCapture2CameraTab(TriggerableCameraTab):
+    """Thin sub-class of obj:`TriggerableCameraTab`.
     
     This sub-class only defines :obj:`worker_class` to point to the correct
     :obj:`FlyCapture2CameraWorker`."""

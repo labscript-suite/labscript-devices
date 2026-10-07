@@ -11,16 +11,18 @@
 #                                                                   #
 #####################################################################
 from zprocess import rich_print
-from labscript_devices.IMAQdxCamera.blacs_workers import MockCamera, IMAQdxCameraWorker
+from labscript_devices.TriggerableCamera.blacs_workers import (
+    TriggerableCameraInterface,
+    TriggerableCameraWorker,
+)
 
-class AndorCamera(object):
+class AndorCamera(TriggerableCameraInterface):
 
     def __init__(self):
         global AndorCam
         from .andor_sdk.andor_utils import AndorCam
         self.camera = AndorCam()
         self.attributes = self.camera.default_acquisition_attrs
-        self.exception_on_failed_shot = True
 
     def set_attributes(self, attr_dict):
         self.attributes.update(attr_dict)
@@ -51,7 +53,7 @@ class AndorCamera(object):
         # Consider using run til abort acquisition mode...
         return img
 
-    def grab_multiple(self, n_images, images, waitForNextBuffer=True):
+    def grab_multiple(self, n_images, images):
         """Grab n_images into images array during buffered acquistion."""
     
         # TODO: Catch timeout errors, check if abort, else keep trying.
@@ -104,28 +106,19 @@ class AndorCamera(object):
         pass
 
     def abort_acquisition(self):
+        # The SDK call is what unblocks a download already in flight; the
+        # flag is what stops the loop between acquisitions.
         self.camera.abort_acquisition()
-        self._abort_acquisition = True
-
-    def _decode_image_data(self, img):
-        pass
+        TriggerableCameraInterface.abort_acquisition(self)
 
     def close(self):
         self.camera.shutdown()
 
-class AndorSolisWorker(IMAQdxCameraWorker):
+class AndorSolisWorker(TriggerableCameraWorker):
 
     interface_class = AndorCamera
 
     def get_camera(self):
         """ Andor cameras may not be specified by serial numbers"""
-        if self.mock:
-            return MockCamera()
-        else:
-            return self.interface_class()
+        return self.interface_class()
             
-    def get_attributes_as_dict(self, visibility_level):
-        """Return a dict of the attributes of the camera for the given visibility
-        level"""
-        return self.camera.attributes
-

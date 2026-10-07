@@ -63,7 +63,6 @@ An example connection table for the experiment described in [1]_. This connectio
 	'''	    
 	PylonCamera('CCD_2',parent_device=pulseblaster_0.direct_outputs,connection='flag 6',
 		    serial_number=21646179,
-		    mock=False,
 		    camera_attributes={'ExposureTime':9000,
 				       'ExposureMode':'Timed',
 				       'Gain':0.0,

@@ -20,19 +20,22 @@ import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
 
-from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
+from labscript_devices.TriggerableCamera.blacs_workers import (
+    TriggerableCameraInterface,
+    TriggerableCameraWorker,
+)
 
-# Don't import API yet so as not to throw an error, allow worker to run as a dummy
-# device, or for subclasses to import this module to inherit classes without requiring API
+# Don't import the API yet so as not to throw an error: subclasses import this module
+# to inherit its classes, and doing so must not require the API
 PyCapture2 = None
 
-class FlyCapture2_Camera(object):
+class FlyCapture2_Camera(TriggerableCameraInterface):
     """The backend hardware interface class for the FlyCapture2Camera.
     
     This class handles all of the API/hardware implementation details for the
     corresponding labscript device. It is used by the BLACS worker to send
     appropriate API commands to the camera for the standard BLACS camera operations
-    (i.e. transition_to_buffered, get_attributes, snap, etc).
+    (i.e. transition_to_buffered, get_attributes_as_dict, snap, etc).
     
     Attributes:
         camera (PyCapture2.Camera): Handle to connected camera.
@@ -90,8 +93,6 @@ class FlyCapture2_Camera(object):
                 
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
-        self._abort_acquisition = False
-        self.exception_on_failed_shot = True
 
         # check if GigE camera. If so, ensure max packet size is used
         cam_info = self.camera.getCameraInfo()
@@ -264,7 +265,7 @@ class FlyCapture2_Camera(object):
             msg = f"failed to set attribute {name} to {values}"
             raise Exception(msg) from e
         
-    def get_attributes(self, visibility_level, writeable_only=True):
+    def get_attributes_as_dict(self, visibility_level, writeable_only=True):
         """Return a nested dict of all readable attributes.
         
         Args:
@@ -380,33 +381,6 @@ class FlyCapture2_Camera(object):
         
         return self._decode_image_data(img)
 
-    def grab_multiple(self, n_images, images):
-        """Grab n_images into images array during buffered acquistion.
-        
-        Grab method involves a continuous loop with fast timeout in order to
-        poll :obj:`_abort_acquisition` for a signal to abort.
-        
-        Args:
-            n_images (int): Number of images to acquire. Should be same number
-                as the bufferCount in :obj:`configure_acquisition`.
-            images (list): List that images will be saved to as they are acquired
-        """
-        print(f"Attempting to grab {n_images} images.")
-        for i in range(n_images):
-            while True:
-                if self._abort_acquisition:
-                    print("Abort during acquisition.")
-                    self._abort_acquisition = False
-                    return
-                try:
-                    images.append(self.grab())
-                    print(f"Got image {i+1} of {n_images}.")
-                    break
-                except PyCapture2.Fc2error as e:
-                    print('.', end='')
-                    continue
-        print(f"Got {len(images)} of {n_images} images.")
-        
     def _decode_image_data(self,img):
         """Formats returned FlyCapture2 API image buffers.
         
@@ -449,37 +423,25 @@ class FlyCapture2_Camera(object):
         except PyCapture2.Fc2error as e:
             raise RuntimeError('Error configuring image settings') from e
 
+    def is_transient_grab_error(self, exception):
+        """FlyCapture2 reports a frame that has not arrived yet as an
+        Fc2error, which is also what it reports every other fault as. This
+        retries on all of them, which is what this camera has always done."""
+        return isinstance(exception, PyCapture2.Fc2error)
+
     def stop_acquisition(self):
         """Tells camera to stop current acquistion."""
         self.camera.stopCapture()
-
-    def abort_acquisition(self):
-        """Sets :obj:`_abort_acquisition` flag to break buffered acquisition loop."""
-        self._abort_acquisition = True
 
     def close(self):
         """Closes :obj:`camera` handle to the camera."""
         self.camera.disconnect()
 
 
-class FlyCapture2CameraWorker(IMAQdxCameraWorker):
+class FlyCapture2CameraWorker(TriggerableCameraWorker):
     """FlyCapture2 API Camera Worker. 
     
-    Inherits from obj:`IMAQdxCameraWorker`. Defines :obj:`interface_class` and overloads
-    :obj:`get_attributes_as_dict` to use FlyCapture2Camera.get_attributes() method."""
+    Inherits from obj:`TriggerableCameraWorker`. Defines :obj:`interface_class`."""
     interface_class = FlyCapture2_Camera
-
-    def get_attributes_as_dict(self, visibility_level):
-        """Return a dict of the attributes of the camera for the given visibility
-        level
-        
-        Args:
-            visibility_level (str): Normally configures level of attribute detail
-                to return. Is not used by FlyCapture2_Camera.
-        """
-        if self.mock:
-            return IMAQdxCameraWorker.get_attributes_as_dict(self,visibility_level)
-        else:
-            return self.camera.get_attributes(visibility_level)
 
 
