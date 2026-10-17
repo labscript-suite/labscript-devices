@@ -105,9 +105,14 @@ class ImageReceiver(ZMQServer):
 
     @inmain_decorator(wait_for_return=True)
     def update_image(self):
+        if self.image is None:
+            return
         image = self.image
-        if self.bg_image is not None:
-            image = self.image.astype(float) - self.bg_image.astype(float)
+        bg_image = self.bg_image
+        if bg_image is not None and image.shape[-bg_image.ndim:] == bg_image.shape:
+            # Subtract the background from the image, or from each image of a stack, if
+            # the shapes match:
+            image = image.astype(float) - bg_image.astype(float)
         autolevels = self.autolevels_button.isChecked()
         if self.image_view.image is None:
             # First time setting an image. Do autoscaling etc:
@@ -120,10 +125,15 @@ class ImageReceiver(ZMQServer):
                 autoHistogramRange=autolevels,
             )
 
-    @inmain_decorator()
+    @inmain_decorator(wait_for_return=True)
     def set_bg_image(self):
+        """Use the most recently received image as the background. Returns False if no
+        image has been received yet."""
+        if self.image is None:
+            return False
         self.bg_image = self.image
         self.update_image()
+        return True
 
     @inmain_decorator()
     def clear_bg_image(self):
@@ -293,7 +303,8 @@ class IMAQdxCameraTab(DeviceTab):
         self.stop_continuous()
 
     def on_set_bg_clicked(self, button):
-        self.image_receiver.set_bg_image()
+        if not self.image_receiver.set_bg_image():
+            return
         self.ui.pushButton_set_bg.hide()
         self.ui.pushButton_clear_bg.show()
 

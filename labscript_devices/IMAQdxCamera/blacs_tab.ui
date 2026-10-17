@@ -64,7 +64,7 @@
        <item>
         <widget class="QPushButton" name="pushButton_set_bg">
          <property name="toolTip">
-          <string>Set current image as the background, to be subtracted from displayed images</string>
+          <string>Set the current image as the background, which is subtracted from displayed images. This affects the display only, not the images saved to shot files.</string>
          </property>
          <property name="text">
           <string>Set background</string>
