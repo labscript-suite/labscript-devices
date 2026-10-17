@@ -953,7 +953,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
 
             # Work out how long the waits were, save them, post an event saying so:
             dtypes = [
-                ('label', 'a256'),
+                ('label', 'S256'),
                 ('time', float),
                 ('timeout', float),
                 ('duration', float),

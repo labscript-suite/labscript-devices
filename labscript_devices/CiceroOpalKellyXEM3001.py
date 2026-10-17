@@ -649,7 +649,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
         if self.wait_table is not None:
             with h5py.File(self.h5_file,'a') as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so 
-                dtypes = [('label','a256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
+                dtypes = [('label','S256'),('time',float),('timeout',float),('duration',float),('timed_out',bool)]
                 data = numpy.empty(len(self.wait_table), dtype=dtypes)
                 data['label'] = self.wait_table['label']
                 data['time'] = self.wait_table['time']

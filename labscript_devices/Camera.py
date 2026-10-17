@@ -104,7 +104,7 @@ class Camera(TriggerableDevice):
                         
     def generate_code(self, hdf5_file):
         self.do_checks()
-        table_dtypes = [('name','a256'), ('time',float), ('frametype','a256'), ('exposure_time',float)]
+        table_dtypes = [('name','S256'), ('time',float), ('frametype','S256'), ('exposure_time',float)]
         data = np.array(self.exposures,dtype=table_dtypes)
 
         group = self.init_device_group(hdf5_file)

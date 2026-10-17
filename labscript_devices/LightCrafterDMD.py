@@ -148,7 +148,7 @@ class LightCrafterDMD(IntermediateDevice):
         if len(output.raw_output) > self.max_instructions:
             raise LabscriptError("Too many images for the LightCrafter. Your shot contains %s images"%len(output.raw_output))
           
-        # Apparently you should use np.void for binary data in a h5 file. Then on the way out, we need to use data.tostring() to decode again.
+        # Apparently you should use np.void for binary data in a h5 file. Then on the way out, we need to use data.tobytes() to decode again.
         out_table = np.void(output.raw_output)
         grp = self.init_device_group(hdf5_file)
         grp.create_dataset('IMAGE_TABLE',compression=config.compression,data=out_table)
@@ -345,7 +345,7 @@ class LightCrafterWorker(Worker):
                     else:
                         # Padding uses the final image:
                         im = table_data[-1]
-                    self.send(self.send_packet_type['write'], self.command['pattern_definition'], struct.pack('<B',i) + im.tostring())
+                    self.send(self.send_packet_type['write'], self.command['pattern_definition'], struct.pack('<B',i) + im.tobytes())
                 
             self.send(self.send_packet_type['write'], self.command['display_pattern'], struct.pack('<H',0))
             self.send(self.send_packet_type['write'], self.command['start_pattern_sequence'], struct.pack('<B',1))
@@ -356,7 +356,7 @@ class LightCrafterWorker(Worker):
             # raise Exception('Failed to transition to manual. Message from server was: %s'%response)
             
         
-        self.final_value = {"None" : base64.b64encode(table_data[-1].tostring())}
+        self.final_value = {"None" : base64.b64encode(table_data[-1].tobytes())}
         
         return self.final_value
         

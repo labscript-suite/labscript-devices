@@ -506,18 +506,18 @@ class NI_DAQmx(IntermediateDevice):
                 the waits. See labscript.WaitMonitor for details."""
             raise LabscriptError(dedent(msg))
 
-        # The 'a256' dtype below limits the string fields to 256
+        # The 'S256' dtype below limits the string fields to 256
         # characters. Can't imagine this would be an issue, but to not
         # specify the string length (using dtype=str) causes the strings
         # to all come out empty.
         acquisitions_table_dtypes = [
-            ('connection', 'a256'),
-            ('label', 'a256'),
+            ('connection', 'S256'),
+            ('label', 'S256'),
             ('start', float),
             ('stop', float),
-            ('wait label', 'a256'),
+            ('wait label', 'S256'),
             ('scale factor', float),
-            ('units', 'a256'),
+            ('units', 'S256'),
         ]
         acquisition_table = np.empty(len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
