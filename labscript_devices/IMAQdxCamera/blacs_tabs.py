@@ -210,13 +210,41 @@ class IMAQdxCameraTab(DeviceTab):
         self.supports_smart_programming(self.use_smart_programming) 
 
     def get_save_data(self):
-        return {
+        save_data = {
             'attribute_visibility': self.attributes_dialog.comboBox.currentText(),
             'acquiring': self.acquiring,
             'max_rate': self.ui.doubleSpinBox_maxrate.value(),
             'colormap': repr(self.image.ui.histogram.gradient.saveState()),
             'autolevels': self.ui.pushButtonAutoLevels.isChecked(),
         }
+
+        # Save info about plot settings if an image is plotted.
+        image = self.image.image
+        if image is not None:
+            # Save the shape and dtype of the image.
+            save_data['image_shape'] = repr(image.shape)
+            save_data['image_dtype'] = str(image.dtype)
+
+            # Get the view_box to access its settings.
+            view_box = self.image.getImageItem().getViewBox()
+
+            # Save x and y ranges. BLACS stores save data with repr() and restores it
+            # with eval(), so numpy scalars are converted to Python floats.
+            targetRange_x, targetRange_y = view_box.targetRange()
+            save_data['targetRange_x'] = [float(x) for x in targetRange_x]
+            save_data['targetRange_y'] = [float(y) for y in targetRange_y]
+
+            # Save whether the x and y ranges are automatically adjusted.
+            autoRange_x, autoRange_y = view_box.autoRangeEnabled()
+            save_data['autoRange_x'] = autoRange_x
+            save_data['autoRange_y'] = autoRange_y
+
+            # Save color scale limits.
+            color_scale_min, color_scale_max = self.image.getLevels()
+            save_data['color_scale_min'] = float(color_scale_min)
+            save_data['color_scale_max'] = float(color_scale_max)
+
+        return save_data
 
     def restore_save_data(self, save_data):
         self.attributes_dialog.comboBox.setCurrentText(
@@ -231,6 +259,45 @@ class IMAQdxCameraTab(DeviceTab):
                 ast.literal_eval(save_data['colormap'])
             )
         self.ui.pushButtonAutoLevels.setChecked(save_data.get('autolevels', False))
+
+        # Restore plot settings if they were saved.
+        if 'image_shape' in save_data and 'image_dtype' in save_data:
+            # Some image must be displayed now, otherwise the plot settings will
+            # be overwritten once the first image is displayed. We'll display a
+            # blank image of the saved size and data type.
+            image_shape = ast.literal_eval(save_data['image_shape'])
+            image_dtype = np.dtype(save_data['image_dtype'])
+            dummy_image = np.zeros(image_shape, dtype=image_dtype)
+            self.image.setImage(dummy_image)
+
+            # Restore x and y ranges.
+            try:
+                view_box = self.image.getImageItem().getViewBox()
+                view_box.setRange(
+                    xRange=save_data['targetRange_x'],
+                    yRange=save_data['targetRange_y'],
+                    padding=0,
+                )
+            except KeyError:
+                pass
+
+            # Restore whether the x and y ranges are automatically adjusted.
+            try:
+                view_box.enableAutoRange(
+                    x=save_data['autoRange_x'],
+                    y=save_data['autoRange_y'],
+                )
+            except KeyError:
+                pass
+
+            # Restore color scale range.
+            try:
+                self.image.setLevels(
+                    save_data['color_scale_min'],
+                    save_data['color_scale_max'],
+                )
+            except KeyError:
+                pass
 
 
     def initialise_workers(self):
