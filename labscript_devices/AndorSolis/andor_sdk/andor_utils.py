@@ -205,7 +205,7 @@ class AndorCam(object):
         """ Calls all the functions relative to the 
         emccd gain control. """
 
-        if not (emccd_gain > self.emccd_gain_range[0] and emccd_gain <self.emccd_gain_range[1]):
+        if not (self.emccd_gain_range[0] <= emccd_gain <= self.emccd_gain_range[1]):
             raise ValueError(
                 f"""Invalid emccd gain value, valid range is {self.emccd_gain_range}"""
             )
@@ -286,24 +286,6 @@ class AndorCam(object):
         # Get actual horizontal shifting (i.e. digitization) speed
         self.horizontal_shift_speed = GetHSSpeed(ad_number, 0, self.index_hs_speed)
      
-    def setup_acquisition_fast(self, added_attributes=None):
-        #should only be called if the normal setup_Acquisition has already been done
-        #I tried pairing this down to just the essentials that gets reset when reverting to manual
-        #although your mileage may vary
-        if added_attributes is None:
-            added_attributes = {}
-
-        # Override default acquisition attrs with added ones
-        self.acquisition_attributes = self.default_acquisition_attrs.copy()
-        self.acquisition_attributes.update(added_attributes)
-
-        # We setup trigger and shutter since they are likely to be set for manual mode
-        self.setup_trigger(**self.acquisition_attributes)
-        print(f'full attrs: {self.acquisition_attributes}')
-        self.setup_shutter(**self.acquisition_attributes)
-         # Arm sensor
-        self.armed = True
-
     def setup_acquisition(self, added_attributes=None):
         """ Main acquisition configuration method. Available acquisition modes are
         below. The relevant methods are called with the corresponding acquisition 
@@ -320,7 +302,7 @@ class AndorCam(object):
         if self.acquisition_attributes['preamp']:
             self.enable_preamp(self.acquisition_attributes['preamp_gain'])
 
-        #we need to do cooldown before emccd gain
+        # Cool down before setting the EM gain: the gain range depends on the sensor temperature
         if self.acquisition_attributes['cooldown']:
             self.enable_cooldown(
                 self.acquisition_attributes['temperature'],
@@ -339,15 +321,12 @@ class AndorCam(object):
                 )
 
         if self.acquisition_attributes['emccd']:
-            #set the emccd gain mode so the gain range is correct
-            print(f'setting em gain mode to {self.acquisition_attributes['em_gain_mode']}')
-            print(GetEMGainRange())
+            # The EM gain range depends on the EM gain mode, so set the mode first
+            if self.chatty:
+                print(f"setting em gain mode to {self.acquisition_attributes['em_gain_mode']}")
             SetEMGainMode(self.acquisition_attributes['em_gain_mode'])
             self.emccd_gain_range = GetEMGainRange()
-            print(GetEMGainRange())
             self.enable_emccd(self.acquisition_attributes['emccd_gain'])
-
-        
 
         # Available modes
         modes = {
@@ -394,7 +373,7 @@ class AndorCam(object):
         # Arm sensor
         self.armed = True
 
-        #on the ixon 855 in the caf lab this does not seem to work somehow
+        # GetKeepCleanTime is not supported by every camera
         try:
             self.keepClean_time = GetKeepCleanTime()
         except AndorException:
@@ -554,8 +533,9 @@ class AndorCam(object):
             if self.acquisition_attributes['crop']:
                 SetOutputAmplifier(0)
                 SetFrameTransferMode(1)
-                if self.model[0]=='IXION ULTRA': #only impolemented with IXON ultra cams
-                    SetIsolatedCropModeEx(#only impolemented with IXON ultra cams
+                # SetIsolatedCropModeEx is only implemented for the iXon Ultra
+                if 'IXONULTRA' in self.model:
+                    SetIsolatedCropModeEx(
                         int(1),
                         int(attrs['height']),
                         int(attrs['width']),
@@ -574,8 +554,8 @@ class AndorCam(object):
                     )
         else:
             SetFrameTransferMode(0)
-            if self.model[0]=='IXON ULTRA':
-                SetIsolatedCropModeEx( #only impolemented with IXON ultra cams
+            if 'IXONULTRA' in self.model:
+                SetIsolatedCropModeEx(
                     int(0),
                     int(attrs['height']),
                     int(attrs['width']),
@@ -601,7 +581,7 @@ class AndorCam(object):
             attrs['height'] + attrs['bottom_start'] - 1,
         )
 
-    def acquire(self,semaphore=None):
+    def acquire(self):
         """ Carries down the acquisition, if the camera is armed and
         waits for an acquisition event for acquisition timeout (has to be
         in milliseconds), default to 5 seconds """
@@ -639,16 +619,11 @@ class AndorCam(object):
             self.acquisition_status = GetStatus()
             if 'DRV_IDLE' in self.acquisition_status:
                 StartAcquisition()
-                #print(f'StartAcquisition finished at time {time.time()}')
-                #this semaphore we passed around from the IMAQdx worker should now be released because the actual acquisition has started
-                if semaphore is not None:
-                    semaphore.release() 
                 if self.chatty:
                     rich_print(
                         f"Waiting for {acquisition_timeout} ms for timeout ...",
                         color='yellow',
                     )
-                
                 homemade_wait_for_acquisition()
             
             # Last chance, check if the acquisition is finished, update
