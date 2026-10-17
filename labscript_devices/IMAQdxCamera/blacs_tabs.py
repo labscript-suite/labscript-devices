@@ -186,10 +186,11 @@ class IMAQdxCameraTab(DeviceTab):
             # Get the view_box to access its settings.
             view_box = self.image.getImageItem().getViewBox()
 
-            # Save x and y ranges.
+            # Save x and y ranges. BLACS stores save data with repr() and restores it
+            # with eval(), so numpy scalars are converted to Python floats.
             targetRange_x, targetRange_y = view_box.targetRange()
-            save_data['targetRange_x'] = targetRange_x
-            save_data['targetRange_y'] = targetRange_y
+            save_data['targetRange_x'] = [float(x) for x in targetRange_x]
+            save_data['targetRange_y'] = [float(y) for y in targetRange_y]
 
             # Save whether the x and y ranges are automatically adjusted.
             autoRange_x, autoRange_y = view_box.autoRangeEnabled()
@@ -198,8 +199,8 @@ class IMAQdxCameraTab(DeviceTab):
 
             # Save color scale limits.
             color_scale_min, color_scale_max = self.image.getLevels()
-            save_data['color_scale_min'] = color_scale_min
-            save_data['color_scale_max'] = color_scale_max
+            save_data['color_scale_min'] = float(color_scale_min)
+            save_data['color_scale_max'] = float(color_scale_max)
 
         return save_data
 
@@ -220,18 +221,10 @@ class IMAQdxCameraTab(DeviceTab):
         if 'image_shape' in save_data and 'image_dtype' in save_data:
             # Some image must be displayed now, otherwise the plot settings will
             # be overwritten once the first image is displayed. We'll display a
-            # mostly blank image of the saved size and data type.
+            # blank image of the saved size and data type.
             image_shape = ast.literal_eval(save_data['image_shape'])
             image_dtype = np.dtype(save_data['image_dtype'])
             dummy_image = np.zeros(image_shape, dtype=image_dtype)
-            # Make one pixel nonzero to avoid a histogram binning error. This is
-            # fixed by in pyqtgraph 0.11 by
-            # https://github.com/pyqtgraph/pyqtgraph/pull/767 but this
-            # workaround is retained for compatibility with older versions.
-            if dummy_image.ndim == 2:
-                dummy_image[0, 0] = 1
-            if dummy_image.ndim == 3:
-                dummy_image[:, 0, 0] = 1
             self.image.setImage(dummy_image)
 
             # Restore x and y ranges.
@@ -240,6 +233,7 @@ class IMAQdxCameraTab(DeviceTab):
                 view_box.setRange(
                     xRange=save_data['targetRange_x'],
                     yRange=save_data['targetRange_y'],
+                    padding=0,
                 )
             except KeyError:
                 pass
