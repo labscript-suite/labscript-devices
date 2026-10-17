@@ -494,7 +494,7 @@ class PrawnBlasterWorker(Worker):
             with h5py.File(self.h5_file, "a") as hdf5_file:
                 # Work out how long the waits were, save em, post an event saying so
                 dtypes = [
-                    ("label", "a256"),
+                    ("label", "S256"),
                     ("time", float),
                     ("timeout", float),
                     ("duration", float),

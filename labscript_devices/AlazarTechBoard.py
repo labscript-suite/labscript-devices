@@ -154,8 +154,8 @@ class AlazarTechBoard(Device):
             for acq in inputs[connection].acquisitions:
                 acquisitions.append((connection, acq['label'], acq['start_time'],
                                      acq['end_time'], acq['wait_label'], acq['scale_factor'], acq['units']))
-        acquisitions_table_dtypes = [('connection', 'a256'), ('label', 'a256'), ('start', float),
-                                     ('stop', float), ('wait label', 'a256'), ('scale factor', float), ('units', 'a256')]
+        acquisitions_table_dtypes = [('connection', 'S256'), ('label', 'S256'), ('start', float),
+                                     ('stop', float), ('wait label', 'S256'), ('scale factor', float), ('units', 'S256')]
         acquisition_table = np.empty(
             len(acquisitions), dtype=acquisitions_table_dtypes)
         for i, acq in enumerate(acquisitions):
