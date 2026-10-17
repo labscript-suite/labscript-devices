@@ -62,7 +62,7 @@ The below script uses external clocking and gating features.
 
    from labscript_devices.PrawnBlaster.labscript_devices import PrawnBlaster
    from labscript_devices.Windfreak.labscript_devices import WindfreakSynthHDPro
-   from labscript_devices.NI_DAQmx.Models.NI_USB_6343 import NI_USB_6343
+   from labscript_devices.NI_DAQmx.models.NI_USB_6343 import NI_USB_6343
 
    PrawnBlaster(name='prawn', com_port='COM6', num_pseudoclocks=1)
 

@@ -91,7 +91,7 @@ class WindfreakSynthHD(Device):
 
         return FreqConversion, None, None
 
-    def validate_data(self, data, limits, device):
+    def validate_data(self, data, limits, device, quantity):
         """Tests that requested data is within limits.
 
         Args:
@@ -99,6 +99,7 @@ class WindfreakSynthHD(Device):
                 Input is cast to a numpy array of type float64.
             limits (tuple): 2-element tuple of (min, max) range
             device (:obj:`labscript:labscript.Device`): labscript device we are performing check on.
+            quantity (str): Name and unit of the quantity, for the error message.
 
         Returns:
             numpy.ndarray: Input data, cast to a numpy array.
@@ -106,8 +107,8 @@ class WindfreakSynthHD(Device):
         if not isinstance(data, np.ndarray):
             data = np.array(data,dtype=np.float64)
         if np.any(data < limits[0]) or np.any(data > limits[1]):
-            msg = f'''{device.description} {device.name} can only have frequencies between
-            {limits[0]:E}Hz and {limits[1]:E}Hz, {data} given
+            msg = f'''{device.description} {device.name} can only have {quantity} between
+            {limits[0]} and {limits[1]}, {data} given
             '''
             raise LabscriptError(dedent(msg))
         return data
@@ -121,7 +122,7 @@ class WindfreakSynthHD(Device):
                 prefix, channel = output.connection.split()
                 channel = int(channel)
                 if channel not in self.allowed_chans:
-                    LabscriptError(f"Channel {channel} must be 0 or 1")
+                    raise LabscriptError(f"Channel {channel} must be 0 or 1")
             except:
                 msg = f"""{output.description}:{output.name} has invalid connection string.
                 Only 'channel 0' or 'channel 1' is allowed.
@@ -134,9 +135,9 @@ class WindfreakSynthHD(Device):
         stat_DDSs = set(DDSs)&set(range(2))
         for connection in DDSs:
             dds = DDSs[connection]
-            dds.frequency.raw_output = self.validate_data(dds.frequency.static_value,self.freq_limits,dds)
-            dds.amplitude.raw_output = self.validate_data(dds.amplitude.static_value,self.amp_limits,dds)
-            dds.phase.raw_output = self.validate_data(dds.phase.static_value,self.phase_limits,dds)
+            dds.frequency.raw_output = self.validate_data(dds.frequency.static_value,self.freq_limits,dds,'frequencies in Hz')
+            dds.amplitude.raw_output = self.validate_data(dds.amplitude.static_value,self.amp_limits,dds,'amplitudes in dBm')
+            dds.phase.raw_output = self.validate_data(dds.phase.static_value,self.phase_limits,dds,'phases in degrees')
 
         static_dtypes = [(f'freq{i:d}',np.float64) for i in stat_DDSs] +\
                         [(f'amp{i:d}',np.float64) for i in stat_DDSs] +\
@@ -168,7 +169,7 @@ class WindfreakSynthHD(Device):
             if channel not in self.enabled_chans:
                 self.enabled_chans.append(channel)
         else:
-            raise LabscriptError(f'Channel {channel} is not a valid option for {self.device.name}.')
+            raise LabscriptError(f'Channel {channel} is not a valid option for {self.name}.')
 
 
 class WindfreakSynthHDPro(WindfreakSynthHD):
