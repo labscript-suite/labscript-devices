@@ -18,7 +18,7 @@ The AD9959 evaluation board provides the following:
 
 The Pico interface allows the evaluation board parameters to be reprogrammed during a sequence.
 At this time, stepping of frequency, amplitude, and phase parameters is supported.
-Parameter ramping is possible, but not currently supported by the labscript device (if support for this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`).
+Parameter ramping is possible, but not currently supported by the labscript device (if support for this is of interest, please `open an issue <https://github.com/labscript-suite/labscript-devices/issues>`_).
 The Pico interface provides the following:
 
 * For the Pico 1: 16,656 instructions distributed evenly among the configured channels; 16,656, 8,615, 5,810, and 4,383 for 1, 2, 3, 4 channels respectively.
@@ -41,7 +41,7 @@ Drag and drop the `.uf2` file into the mounted mass storage device.
 The mass storage device should unmount after the copy completes. Your Pico is now running the DDS Sweeper firmware!
 
 Note that this device communicates using a virtual COM port.
-The number is assigned by the controlling computer and will need to be determined in order for BLACS to connect to the PrawnDO.
+The number is assigned by the controlling computer and will need to be determined in order for BLACS to connect to the DDS Sweeper.
 
 
 Usage
@@ -120,9 +120,11 @@ dynamic channels, an external, 100 MHz clock and pll multiplier of 5:
 
 .. note::
 
-**Clocking**
+    **Clocking**
 
-If the Pi Pico is used as the AD9959 system reference clock, pin 21 of the Pi Pico should be connected to the REF CLK input (J9) of the AD9959 eval board. Otherwise, another clock source should be connected to REF CLK input and its frequency provided as the ref_clock_frequency.
+    If the Pi Pico is used as the AD9959 system reference clock, pin 21 of the Pi Pico should be connected to the REF CLK input (J9) of the AD9959 eval board. Otherwise, another clock source should be connected to REF CLK input and its frequency provided as the ref_clock_frequency.
+
+    The maximum update rate is set by the Pi Pico system clock, which is ``ref_clock_frequency`` when the Pi Pico provides the reference clock and 125 MHz when an external reference clock is used.
 
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~

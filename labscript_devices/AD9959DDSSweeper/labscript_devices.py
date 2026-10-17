@@ -39,6 +39,9 @@ class AD9959DDSSweeper(IntermediateDevice):
         'sweeps' : [1000, 1500, 2000, 2500]
     }
 
+    # Pico system clock frequency set by the firmware at power-up, in Hz
+    pico_default_clock_frequency = 125e6
+
     @set_passed_properties(
         property_names={
             'connection_table_properties': [
@@ -73,6 +76,7 @@ class AD9959DDSSweeper(IntermediateDevice):
                 The DDS Sweeper firmware can set the DDS outputs in either fixed steps or sweeps of the amplitude, frequency, or phase.
                 At this time, only steps are supported, so sweep_mode must be 0.
             ref_clock_external (int): Set to 0 to have Pi Pico provide the reference clock to the AD9959 eval board. Set to 1 for another source of reference clock for the AD9959 eval board.
+                The Pi Pico system clock, which sets the maximum update rate, is then left at its power-up frequency of 125 MHz.
             ref_clock_frequency (float): Frequency of the reference clock. If ref_clock_external is 0, the Pi Pico system clock will be set to this frequency. If the PLL is used, ref_clock_frequency * pll_mult must be between 100 MHz and 500 MHz. If the PLL is not used, ref_clock_frequency must be less than 500 MHz.
             pll_mult: the AD9959 has a PLL to multiply the reference clock frequency. Allowed values are 1 or 4-20.
         '''
@@ -84,6 +88,8 @@ class AD9959DDSSweeper(IntermediateDevice):
             raise LabscriptError(f'Pico board specified not in {self.allowed_boards}')
         
         # store mode data
+        if sweep_mode != 0:
+            raise LabscriptError(f'{name}: only sweep_mode=0 (steps) is supported, got sweep_mode={sweep_mode}')
         self.sweep_mode = sweep_mode
         self.ref_clock_frequency = ref_clock_frequency
         # Check clocking
@@ -95,6 +101,12 @@ class AD9959DDSSweeper(IntermediateDevice):
             raise ValueError('ref_clock_frequency must be less than 133 MHz when clock is provided by Pi Pico')
 
         self.dds_clock = ref_clock_frequency * pll_mult
+        # The firmware sets the Pico system clock to the reference clock frequency when
+        # the Pico provides the reference clock, and does not change it otherwise.
+        if ref_clock_external:
+            self.pico_clock_frequency = self.pico_default_clock_frequency
+        else:
+            self.pico_clock_frequency = ref_clock_frequency
         # define output scale factors for dynamic channels
         # static channel scaling handled by firmware
         self.freq_scale = 2**32 / self.dds_clock
@@ -110,8 +122,8 @@ class AD9959DDSSweeper(IntermediateDevice):
 
     @property
     def clock_limit(self):
-        '''Dynamically computes clock limit based off of number of dynamic 
-        channels and reference clock frequency.'''
+        '''Clock limit computed from the number of dynamic channels and the
+        Pico system clock frequency.'''
         if self.dynamic_channels == 0:
             # No clock limit
             return None
@@ -125,7 +137,7 @@ class AD9959DDSSweeper(IntermediateDevice):
         except (KeyError, IndexError):
             raise LabscriptError(f'Unsupported mode or number of channels: {mode}, {self.dynamic_channels}')
 
-        return self.ref_clock_frequency / cycles_per_instruction
+        return self.pico_clock_frequency / cycles_per_instruction
 
     def add_device(self, device):
         """Confirms channel specified is valid before adding
@@ -228,7 +240,7 @@ class AD9959DDSSweeper(IntermediateDevice):
                 assert channel in range(4), 'requested channel out of range'
             except Exception:
                 raise LabscriptError('%s %s has invalid connection string: \'%s\'. ' % (output.description,output.name,str(output.connection)) + 
-                                     'Format must be \'channel n\' with n from 0 to 4.')
+                                     'Format must be \'channel n\' with n from 0 to 3.')
             
             # separate dynamic from static
             if isinstance(output, DDS):

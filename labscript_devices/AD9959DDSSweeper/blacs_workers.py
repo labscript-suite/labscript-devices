@@ -61,7 +61,7 @@ class AD9959DDSSweeperInterface(object):
         self.sys_clk_freq = ref_clock_frequency * pll_mult
         
         self.tuning_words_to_SI = {
-            'freq' : self.sys_clk_freq / (2**32 - 1),
+            'freq' : self.sys_clk_freq / 2**32,
             'amp' : 1/1023.0,
             'phase' : 360 / 16384.0
         }
@@ -73,7 +73,8 @@ class AD9959DDSSweeperInterface(object):
 
         board = self.get_board()
         print(f'Connected to board: {board}')
-        assert board.strip() == pico_board.strip(), f'firmware thinks {board} attached, labscript thinks {pico_board}'
+        if board.strip() != pico_board.strip():
+            raise LabscriptError(f'firmware thinks {board} attached, labscript thinks {pico_board}')
 
         current_status = self.get_status()
         print(f'Current status is {current_status}')
@@ -88,9 +89,10 @@ class AD9959DDSSweeperInterface(object):
         self.assert_OK()
 
     def assert_OK(self):
-        '''Read a response from the DDS Sweeper, assert that that response is "ok", the standard response to a successful command.'''
+        '''Read a response from the DDS Sweeper and raise LabscriptError unless it is "ok", the standard response to a successful command.'''
         resp = self.conn.readline().decode().strip()
-        assert resp == "ok", 'Expected "ok", received "%s"' % resp
+        if resp != "ok":
+            raise LabscriptError('Expected "ok", received "%s"' % resp)
 
     def get_version(self):
         '''Sends 'version' command, which retrieves the Pico firmware version.
@@ -100,7 +102,8 @@ class AD9959DDSSweeperInterface(object):
         version_str = self.conn.readline().decode()
         version = tuple(int(i) for i in version_str.split('.'))
 
-        assert version >= self.min_ver, f'Version {version} too low'
+        if version < self.min_ver:
+            raise LabscriptError(f'Version {version} too low, need at least {self.min_ver}')
         return version
 
     def abort(self):
@@ -261,6 +264,9 @@ class AD9959DDSSweeperInterface(object):
         self.conn.close()
 
 class AD9959DDSSweeperWorker(Worker):
+    # Time to wait for STOPPED status at the end of buffered execution, in seconds
+    status_timeout = 5.0
+
     def init(self):
         self.intf = AD9959DDSSweeperInterface(
                                             self.com_port, 
@@ -473,21 +479,19 @@ class AD9959DDSSweeperWorker(Worker):
         -> STOPPED ideally. If buffered execution takes too long, calls
         :meth:`abort_buffered`'''
 
-        i = 0
+        deadline = time.monotonic() + self.status_timeout
         while True:
             status = self.intf.get_status()
-            i += 1
             if status == 'STOPPED':
                 self.logger.debug('Transition to manual successful')
                 return True
-            
-            elif i == 1000:
+            elif status in ['ABORTING', 'ABORTED']:
+                raise LabscriptError(f'AD9959 returned status {status} in transition to manual')
+            elif time.monotonic() > deadline:
                 # program hasn't ended, probably bad triggering
                 # abort and raise an error
                 self.abort_buffered()
-                raise LabscriptError(f'Buffered operation did not end with status {status}. Is triggering working?')
-            elif status in ['ABORTING', 'ABORTED']:
-                raise LabscriptError(f'AD9959 returned status {status} in transition to manual')
+                raise LabscriptError(f'Buffered operation did not end within {self.status_timeout} s, status {status}. Is triggering working?')
 
     def abort_buffered(self):
         '''Aborts currently running program, ensuring ABORTED status. 

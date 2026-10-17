@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/AD9959DDSSweeper/runview_parsers.py            #
+# /labscript_devices/AD9959DDSSweeper/runviewer_parsers.py          #
 #                                                                   #
 # Copyright 2025, Carter Turnbaugh                                  #
 #                                                                   #
@@ -11,11 +11,12 @@
 #                                                                   #
 #####################################################################
 
-import labscript_utils.h5_lock  
+import labscript_utils.h5_lock
 import h5py
 import numpy as np
 
 import labscript_utils.properties as properties
+
 
 class AD9959DDSSweeperParser(object):
     def __init__(self, path, device):
@@ -24,33 +25,50 @@ class AD9959DDSSweeperParser(object):
         self.device = device
 
     def get_traces(self, add_trace, clock=None):
-        with h5py.File(self.path, "r") as f:
+        if clock is None:
+            raise Exception(f'No clock passed to {self.name}. The AD9959DDSSweeper must be clocked by another device.')
+
+        times, clock_value = clock[0], clock[1]
+        clock_indices = np.where((clock_value[1:] - clock_value[:-1]) == 1)[0] + 1
+        # If initial clock value is 1, then this counts as a rising edge
+        # (clock should be 0 before experiment) but this is not picked up
+        # by the above code. So we insert it!
+        if clock_value[0] == 1:
+            clock_indices = np.insert(clock_indices, 0, 0)
+        clock_ticks = times[clock_indices]
+
+        subchnls = ['freq', 'amp', 'phase']
+        data = {}
+        with h5py.File(self.path, 'r') as f:
+            if self.name not in f['devices']:
+                # The device has no outputs, so generate_code wrote nothing
+                return {}
             group = f['devices'][self.name]
-            dds_data = group['dds_data'][()]
-            channels = set([int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')])
-
-            dtypes = {'names':['freq%d' % i for i in DDSs] +
-                      ['amp%d' % i for i in DDSs] +
-                      ['phase%d' % i for i in DDSs],
-                      'formats':[np.float for i in DDSs] +
-                      [np.float for i in DDSs] + 
-                      [np.float for i in DDSs]}
-
-            data = np.zeros(len(dds_data), dtype=dtypes)
-
-            connection_table_props = properties.get(f, self.name, 'connection_table_properties')
-            freq_scale = connection_table_props['ref_clock_frequency'] * connection_table_props['pll_mult'] / 2**32
-            amp_scale = 1.0 / 1023
-            phase_scale = 360.0 / 16384
-
-            for channel in channels:
-                data['%d_freq' % channel] = dds_data['freq%d' % channel] * freq_scale
-                data['%d_amp' % channel] = dds_data['amp%d' % channel] * amp_scale
-                data['%d_phase' % channel] = dds_data['phase%d' % channel] * phase_scale
+            if 'dds_data' in group:
+                dds_data = group['dds_data'][()]
+                device_props = properties.get(f, self.name, 'device_properties')
+                scale_factors = {
+                    'freq': device_props['frequency_scale_factor'],
+                    'amp': device_props['amplitude_scale_factor'],
+                    'phase': device_props['phase_scale_factor'],
+                }
+                channels = [int(n[4:]) for n in dds_data.dtype.names if n.startswith('freq')]
+                for channel in channels:
+                    for subchnl in subchnls:
+                        values = dds_data[f'{subchnl}{channel}'] / scale_factors[subchnl]
+                        data[f'channel {channel}_{subchnl}'] = (clock_ticks, values)
+            if 'static_data' in group:
+                # Static values are stored in base units, not tuning words
+                static_data = group['static_data'][()]
+                channels = [int(n[4:]) for n in static_data.dtype.names if n.startswith('freq')]
+                for channel in channels:
+                    for subchnl in subchnls:
+                        values = np.full(len(clock_ticks), static_data[f'{subchnl}{channel}'][0])
+                        data[f'channel {channel}_{subchnl}'] = (clock_ticks, values)
 
         for channel_name, channel in self.device.child_list.items():
             for subchnl_name, subchnl in channel.child_list.items():
-                connection = '%s_%s' % (channel.parent_port, subchnl.parent_port)
+                connection = f'{channel.parent_port}_{subchnl.parent_port}'
                 if connection in data:
                     add_trace(subchnl.name, data[connection], self.name, connection)
 
