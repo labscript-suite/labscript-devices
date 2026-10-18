@@ -121,6 +121,9 @@ class PrawnDO(PseudoclockDevice):
     
     max_frequency_map = {'pico1' : 133e6, 'pico2' : 150e6}
 
+    max_reps = 2**32 - 1
+    """Largest number of clock cycles for which one instruction holds its output.
+    The firmware stores reps as a 32-bit unsigned integer."""
 
     @set_passed_properties(
         property_names={
@@ -285,7 +288,17 @@ class PrawnDO(PseudoclockDevice):
         bit_sets = np.array(bitfield(bits, dtype=np.uint16))
 
         # Now create the reps array (ie times between changes in number of clock cycles)
-        reps = np.rint(np.diff(times)/self.clock_resolution).astype(np.uint32)
+        reps = np.rint(np.diff(times)/self.clock_resolution)
+        if reps.size and reps.max() > self.max_reps:
+            i = int(np.argmax(reps))
+            max_interval = self.max_reps * self.clock_resolution
+            raise LabscriptError(
+                f"{self.description} {self.name} has no output changes between "
+                f"t={times[i]} s and t={times[i + 1]} s. This interval of "
+                f"{times[i + 1] - times[i]} s is longer than the maximum of "
+                f"{max_interval:.1f} s between instructions."
+            )
+        reps = reps.astype(np.uint32)
         
         # add stop command sequence
         # final output already in bit_sets
