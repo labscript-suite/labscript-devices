@@ -382,7 +382,7 @@ class IMAQdxCameraTab(DeviceTab):
 
     def on_copy_clicked(self, button):
         text = self.attributes_dialog.plainTextEdit.toPlainText()
-        clipboard = QtGui.QApplication.instance().clipboard()
+        clipboard = QtWidgets.QApplication.instance().clipboard()
         clipboard.setText(text)
 
     def on_reset_rate_clicked(self):
