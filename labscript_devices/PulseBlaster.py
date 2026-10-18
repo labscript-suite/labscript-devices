@@ -645,9 +645,13 @@ class PulseBlaster(PseudoclockDevice):
 
 class PulseBlasterDirectOutputs(IntermediateDevice):
     allowed_children = [DDS, PulseBlasterDDS, DigitalOut]
-    clock_limit = PulseBlaster.clock_limit
     description = 'PB-DDSII-300 Direct Outputs'
-  
+
+    @property
+    def clock_limit(self):
+        """clock_limit of the class of the parent PulseBlaster."""
+        return type(self.pseudoclock_device).clock_limit
+
     def add_device(self, device):
         IntermediateDevice.add_device(self, device)
         if isinstance(device, DDS):
