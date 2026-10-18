@@ -645,9 +645,13 @@ class PulseBlaster(PseudoclockDevice):
 
 class PulseBlasterDirectOutputs(IntermediateDevice):
     allowed_children = [DDS, PulseBlasterDDS, DigitalOut]
-    clock_limit = PulseBlaster.clock_limit
     description = 'PB-DDSII-300 Direct Outputs'
-  
+
+    @property
+    def clock_limit(self):
+        """clock_limit of the class of the parent PulseBlaster."""
+        return type(self.pseudoclock_device).clock_limit
+
     def add_device(self, device):
         IntermediateDevice.add_device(self, device)
         if isinstance(device, DDS):
@@ -1235,7 +1239,7 @@ class PulseBlasterParser(object):
                         # stop_profile('loop_contents')
                             
                         # start_profile('end_of_loop')
-                        t+= row['length']*1.0e-9
+                        t += self._row_duration(row)
                         
                         if row['inst'] == 3: # END_LOOP
                             looping = False
@@ -1257,7 +1261,7 @@ class PulseBlasterParser(object):
                     pass
                 clock.append(t)
                 self._add_pulse_program_row_to_traces(traces,row,dds)
-                t+= row['length']*1.0e-9
+                t += self._row_duration(row)
             
                 if row['inst'] == 8 and parent is not None: #WAIT
                     #TODO: Offset next time by trigger delay is not master pseudoclock
@@ -1301,6 +1305,14 @@ class PulseBlasterParser(object):
             
         return clocklines_and_triggers
     
+    def _row_duration(self, row):
+        """Duration of a pulse program row in seconds. A LONG_DELAY row lasts
+        inst_data times its length."""
+        duration = row['length'] * 1.0e-9
+        if row['inst'] == 7:  # LONG_DELAY
+            duration *= row['inst_data']
+        return duration
+
     @profile
     def _add_pulse_program_row_from_buffer(self, traces, index):
         for i in range(self.num_flags):

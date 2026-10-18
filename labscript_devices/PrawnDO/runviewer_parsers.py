@@ -81,8 +81,8 @@ class PrawnDOParser(object):
             for clock_line_name, clock_line in pseudoclock.child_list.items():
                 for internal_device_name, internal_device in clock_line.child_list.items():
                     for channel_name, channel in internal_device.child_list.items():
-                        chan = channel.parent_port.split(' ')[-1]
-                        output_trace = (times_table, do_bitfield[:,int(chan,16)])
+                        chan = int(channel.parent_port.split('do')[-1])
+                        output_trace = (times_table, do_bitfield[:, chan])
                         digital_outs[channel_name] = output_trace
                         add_trace(channel_name, output_trace,
                                   self.name, channel.parent_port)

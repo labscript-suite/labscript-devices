@@ -15,6 +15,7 @@
 import base64
 import os
 import struct
+import time
 import PIL.Image
 from io import BytesIO
     
@@ -301,7 +302,7 @@ class LightCrafterWorker(Worker):
         if recv['type'] == 'Write response':
             return True
         else:
-            return body
+            return recv['body']
     
     
     
