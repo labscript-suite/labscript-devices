@@ -94,6 +94,8 @@ class PrawnBlasterParser(object):
 
             last_instruction_was_wait = False
             for row in pulse_program:
+                if row["reps"] == 0 and row["half_period"] == 0:  # STOP
+                    break
                 if row["reps"] == 0 and not last_instruction_was_wait:  # WAIT
                     last_instruction_was_wait = True
                     if clock is not None:
