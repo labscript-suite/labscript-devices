@@ -272,8 +272,11 @@ class PrawnDO(PseudoclockDevice):
             # no instructions, so return
             return
 
-        # get where wait instructions should be added from clock instructions
-        wait_idxs = [i for i,instr in enumerate(instructions) if instr=='WAIT']
+        # Each 'WAIT' entry in instructions precedes the instruction at which execution
+        # resumes. The index of that instruction in times is its index in instructions
+        # minus the number of earlier 'WAIT' entries.
+        wait_idxs = [i for i, instr in enumerate(instructions) if instr == 'WAIT']
+        wait_idxs = [i - n for n, i in enumerate(wait_idxs)]
 
         # Retrieving the time series of each DigitalOut to be stored
         # as the output word for the pins
@@ -294,8 +297,8 @@ class PrawnDO(PseudoclockDevice):
         bit_sets = np.append(bit_sets, 0) # this value is ignored
         reps = np.append(reps, 0)
 
-        # Add in wait instructions to reps
-        # have output maintain previous output state during wait
+        # Add in wait instructions to reps. The output word of the instruction at
+        # which execution resumes is held during the wait.
         reps = np.insert(reps, wait_idxs, 0)
         bit_sets = np.insert(bit_sets, wait_idxs, bit_sets[wait_idxs])
 
