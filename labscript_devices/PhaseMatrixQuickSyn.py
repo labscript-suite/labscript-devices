@@ -341,7 +341,7 @@ class QuickSynWorker(Worker):
                 
         self.connection.write(b'FREQ %i\r'%(data['freq0']))
         time.sleep(0.05)
-        self.connection.write(b'OUTP:STAT 1')#%i'%(data['gate0']))
+        self.connection.write(b'OUTP:STAT 1\r')#%i'%(data['gate0']))
         
         
         # Save these values into final_values so the GUI can
