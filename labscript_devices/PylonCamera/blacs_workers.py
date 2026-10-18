@@ -126,7 +126,7 @@ class Pylon_Camera(object):
             result.Release()
             return img
         else:
-            raise('Snap Error:',result.ErrorCode,result.ErrorDescription)
+            raise RuntimeError(f'Snap Error: {result.ErrorCode} {result.ErrorDescription}')
 
     def configure_acquisition(self, continuous=True, bufferCount=10):
         """Configure acquisition by calling StartGrabbing with appropriate
@@ -148,7 +148,7 @@ class Pylon_Camera(object):
             result.Release()
             return img
         else:
-            raise('Grab Error:',result.ErrorCode,result.ErrorDescription)
+            raise RuntimeError(f'Grab Error: {result.ErrorCode} {result.ErrorDescription}')
 
     def grab_multiple(self, n_images, images):
         """Grab n_images into images array during buffered acquistion."""
