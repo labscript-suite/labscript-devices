@@ -199,7 +199,7 @@ class PrawnDO(PseudoclockDevice):
         if self.clock_frequency != 100e6:
             # factor to scale times by
             factor = 100e6/self.clock_frequency
-            self.clock_limit *= factor
+            self.clock_limit /= factor
             self.clock_resolution *= factor
             self.minimum_duration *= factor
             self.wait_delay *= factor
