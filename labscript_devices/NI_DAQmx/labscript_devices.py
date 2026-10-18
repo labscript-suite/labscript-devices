@@ -265,7 +265,7 @@ class NI_DAQmx(IntermediateDevice):
             if (AI_timebase_rate is None) ^ (AI_timebase_terminal is None):
                 raise LabscriptError("You must specify terminal and rate when using an external AI timebase")
             self.AI_timebase_terminal = AI_timebase_terminal
-            self.AI_timebease_rate = AI_timebase_rate
+            self.AI_timebase_rate = AI_timebase_rate
                 
         self.num_AO = num_AO
         self.num_CI = num_CI

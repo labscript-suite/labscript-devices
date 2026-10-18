@@ -73,8 +73,10 @@ class NI_DAQmxParser(object):
 
         triggers = {}
         for channel_name, channel in self.device.child_list.items():
-            if channel.parent_port in traces:
-                trace = traces[channel.parent_port]
+            # A digital connection may have a PFI suffix, as in 'port0/line0 (PFI0)'
+            connection = channel.parent_port.split()[0]
+            if connection in traces:
+                trace = traces[connection]
                 if channel.device_class == 'Trigger':
                     triggers[channel_name] = trace
                 add_trace(channel_name, trace, self.name, channel.parent_port)
