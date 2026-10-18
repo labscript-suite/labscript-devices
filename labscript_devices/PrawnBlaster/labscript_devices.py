@@ -143,6 +143,11 @@ class PrawnBlaster(PseudoclockDevice):
     wait_delay = 40e-9
     """Minimum required length of a wait before retrigger can be detected.
     Corresponds to 4 instructions."""
+    max_half_period = 2**32 - 1
+    """Largest half_period of an instruction, in clock cycles. The firmware stores
+    half_period and reps as 32-bit unsigned integers."""
+    max_reps = 2**32 - 1
+    """Largest number of repetitions of an instruction."""
     allowed_children = [_PrawnBlasterPseudoclock, _PrawnBlasterDummyPseudoclock]
     allowed_boards = ['pico1', 'pico2']
     max_instructions_map = {'pico1' : 30000, 'pico2' : 60000}
@@ -393,40 +398,54 @@ class PrawnBlaster(PseudoclockDevice):
                     # If we're using the internal wait monitor, set the timeout
                     if self.use_wait_monitor:
                         # Get the wait timeout value
-                        wait_timeout = compiler.wait_table[
-                            wait_table[current_wait_index]
-                        ][1]
+                        wait_time = wait_table[current_wait_index]
+                        wait_timeout = compiler.wait_table[wait_time][1]
                         current_wait_index += 1
+                        half_period = round(wait_timeout / (self.clock_resolution / 2))
+                        if half_period > self.max_half_period:
+                            max_timeout = self.max_half_period * self.clock_resolution / 2
+                            raise LabscriptError(
+                                f"{self.description} {self.name}: the wait at t={wait_time} s "
+                                f"has a timeout of {wait_timeout} s, longer than the "
+                                f"maximum of {max_timeout:.1f} s."
+                            )
                         # The following half_period and reps indicates a wait instruction
                         reduced_instructions.append(
-                            {
-                                "half_period": round(
-                                    wait_timeout / (self.clock_resolution / 2)
-                                ),
-                                "reps": 0,
-                            }
+                            {"half_period": half_period, "reps": 0}
                         )
                         continue
                     # Else, set an indefinite wait and wait for a trigger from something else.
                     else:
                         # Two waits in a row are an indefinite wait
                         reduced_instructions.append(
-                            {
-                                "half_period": 2 ** 32 - 1,
-                                "reps": 0,
-                            }
+                            {"half_period": self.max_half_period, "reps": 0}
                         )
                         reduced_instructions.append(
-                            {
-                                "half_period": 2 ** 32 - 1,
-                                "reps": 0,
-                            }
+                            {"half_period": self.max_half_period, "reps": 0}
                         )
+                        continue
 
                 # Normal instruction
                 reps = instruction["reps"]
                 # half_period is in quantised units:
                 half_period = int(round(instruction["step"] / self.clock_resolution))
+                if half_period > self.max_half_period:
+                    max_step = self.max_half_period * self.clock_resolution
+                    start = instruction["start"]
+                    raise LabscriptError(
+                        f"{self.description} {self.name}.clocklines[{i}] has no clock "
+                        f"ticks between t={start} s and t={start + instruction['step']} s. "
+                        f"This interval of {instruction['step']} s is longer than the "
+                        f"maximum of {max_step:.1f} s between clock ticks. Command an "
+                        f"output on this clockline at least once every {max_step:.1f} s."
+                    )
+                if reps > self.max_reps:
+                    raise LabscriptError(
+                        f"{self.description} {self.name}.clocklines[{i}] requires {reps} "
+                        f"clock ticks of period {instruction['step']} s from "
+                        f"t={instruction['start']} s, more than the maximum of "
+                        f"{self.max_reps} repetitions of one instruction."
+                    )
                 if (
                     # If there is a previous instruction
                     reduced_instructions
@@ -460,7 +479,7 @@ class PrawnBlaster(PseudoclockDevice):
                 )
 
             # Store these instructions to the h5 file:
-            dtypes = [("half_period", int), ("reps", int)]
+            dtypes = [("half_period", np.uint32), ("reps", np.uint32)]
             pulse_program = np.zeros(len(reduced_instructions), dtype=dtypes)
             for j, instruction in enumerate(reduced_instructions):
                 pulse_program[j]["half_period"] = instruction["half_period"]

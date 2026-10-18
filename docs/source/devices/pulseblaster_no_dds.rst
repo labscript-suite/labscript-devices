@@ -15,7 +15,7 @@ The labscript-suite currently supports a number of no-dds variants of the Pulseb
  * `PulseBlasterUSB`: Identical to the `PulseBlaster_No_DDS` device
  * `PulseBlaster_SP2_24_100_32k`: Has slightly lower `clock_limit` and `clock_resolution` than the standard device. Also supports 32k instructions instead of the standard 4k.
  * `PulseBlasterESRPro200`: Has a 200 MHz core clock frequency.
- * `PulseBlasterESRPro500`: Has a 500 MHz core clock frequency.
+ * `PulseBlasterESRPro500`: Has a 500 MHz core clock frequency and 24 flags.
 
 ESR-Pro PulseBlasters
 ^^^^^^^^^^^^^^^^^^^^^
@@ -38,6 +38,7 @@ The ESR-Pro series of PulseBlasters have the Short Pulse Feature, which allows f
 
 Currently, the PulseBlaster labscript device does not use this functionality.
 However, in order to get any output at all, bits 21-23 must be set high manually.
+`PulseBlasterESRPro500` exposes all 24 flags so that flags 21-23 can be set high from the connection table or the BLACS front panel.
 
 
 Installation
