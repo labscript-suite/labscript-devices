@@ -423,6 +423,7 @@ class PrawnBlaster(PseudoclockDevice):
                         reduced_instructions.append(
                             {"half_period": self.max_half_period, "reps": 0}
                         )
+                        continue
 
                 # Normal instruction
                 reps = instruction["reps"]
