@@ -212,6 +212,7 @@ class PrawnDO(PseudoclockDevice):
 
         if clock_line is not None and trigger_device is not None:
             raise LabscriptError("Provide only a trigger_device or a clock_line, not both")
+        self.__intermediate = None
         if clock_line is not None:
             # make internal Intermediate device and trigger to connect it
             self.__intermediate = _PrawnDOIntermediateDevice(f'{name:s}__intermediate',
@@ -239,12 +240,12 @@ class PrawnDO(PseudoclockDevice):
     
     @initial_trigger_time.setter
     def initial_trigger_time(self, value):
-        if value != 0 and hasattr(self, "__intermediate"):
+        if value != 0 and self.__intermediate is not None:
             raise LabscriptError("You cannot set the initial trigger time when the PrawnDO is directly triggered by a clockline")
         self._initial_trigger_time = value
 
     def set_initial_trigger_time(self, *args, **kwargs):
-        if hasattr(self, "__intermediate"):
+        if self.__intermediate is not None:
             raise LabscriptError("You cannot set the initial trigger time when the PrawnDO is directly triggered by a clockline")
         return super().set_initial_trigger_time(*args, **kwargs)
 
