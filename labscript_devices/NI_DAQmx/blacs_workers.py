@@ -10,7 +10,6 @@
 # file in the root of the project for the full license.             #
 #                                                                   #
 #####################################################################
-import sys
 import time
 import threading
 from PyDAQmx import *
@@ -23,7 +22,6 @@ from numpy.lib.recfunctions import structured_to_unstructured
 import labscript_utils.h5_lock
 import h5py
 from zprocess import Event
-from zprocess.utils import _reraise
 
 import labscript_utils.properties as properties
 from labscript_utils import dedent
@@ -821,10 +819,10 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                 # Inform any interested parties that waits have all finished:
                 self.logger.debug('All waits finished')
                 self.all_waits_finished.post(self.h5_file)
-        except Exception:
+        except Exception as e:
             self.logger.exception('Exception in wait monitor thread:')
             # Save the exception so it can be raised in transition_to_manual
-            self.wait_monitor_thread_exception = sys.exc_info()
+            self.wait_monitor_thread_exception = e
 
     def send_resume_trigger(self, pulse_width):
         written = int32()
@@ -853,7 +851,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
             self.shutting_down = False
             if not abort and self.wait_monitor_thread_exception is not None:
                 # Raise any unexpected errors from the wait monitor thread:
-                _reraise(*self.wait_monitor_thread_exception)
+                raise self.wait_monitor_thread_exception
             self.wait_monitor_thread_exception = None
             if not abort:
                 # Don't want errors about incomplete task to be raised if we are aborting:
