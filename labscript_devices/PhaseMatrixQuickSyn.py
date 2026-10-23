@@ -182,18 +182,18 @@ class PhaseMatrixQuickSynTab(DeviceTab):
         
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
-    def update_reference_out(self):
+    def update_reference_out(self, button=None):
         value = self.status_ui.ref_button.isChecked()
         yield(self.queue_work(self._primary_worker,'update_reference_out',value))
         
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
-    def update_blanking(self):
+    def update_blanking(self, button=None):
         value = self.status_ui.blanking_button.isChecked()
         yield(self.queue_work(self._primary_worker,'update_blanking',value))
         
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,True)
-    def update_lock_recovery(self):
+    def update_lock_recovery(self, button=None):
         value = self.status_ui.lock_recovery_button.isChecked()
         yield(self.queue_work(self._primary_worker,'update_lock_recovery',value))
 
