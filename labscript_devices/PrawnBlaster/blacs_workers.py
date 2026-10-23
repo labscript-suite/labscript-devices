@@ -46,11 +46,11 @@ class PrawnBlasterWorker(Worker):
         self.cached_pll_params = {}
         # fmt: on
 
-        self.all_waits_finished = zprocess.Event("all_waits_finished", type="post")
+        self.all_waits_finished = zprocess.Event("all_waits_finished", role="post")
         self.wait_durations_analysed = zprocess.Event(
-            "wait_durations_analysed", type="post"
+            "wait_durations_analysed", role="post"
         )
-        self.wait_completed = zprocess.Event("wait_completed", type="post")
+        self.wait_completed = zprocess.Event("wait_completed", role="post")
         self.current_wait = 0
         self.wait_table = None
         self.measured_waits = None
