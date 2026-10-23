@@ -395,7 +395,7 @@ class IMAQdxCameraTab(DeviceTab):
             self.start_continuous(dt)
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
-    def on_snap_clicked(self, button):
+    def on_snap_clicked(self, button=None):
         yield (self.queue_work(self.primary_worker, 'snap'))
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
