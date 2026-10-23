@@ -16,9 +16,6 @@ from labscript import (
     add_time_marker
 )
 
-import sys
-sys.excepthook = sys.__excepthook__
-
 
 # labscript_init('test.h5', new=True, overwrite=True)
 
