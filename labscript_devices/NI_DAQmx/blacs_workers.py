@@ -698,9 +698,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
 class NI_DAQmxWaitMonitorWorker(Worker):
     def init(self):
 
-        self.all_waits_finished = Event('all_waits_finished', type='post')
-        self.wait_durations_analysed = Event('wait_durations_analysed', type='post')
-        self.wait_completed = Event('wait_completed', type='post')
+        self.all_waits_finished = Event('all_waits_finished', role='post')
+        self.wait_durations_analysed = Event('wait_durations_analysed', role='post')
+        self.wait_completed = Event('wait_completed', role='post')
 
         # Set on a per-shot basis and cleared afterward:
         self.h5_file = None
