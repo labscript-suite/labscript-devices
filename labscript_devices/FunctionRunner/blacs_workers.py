@@ -45,10 +45,10 @@ def deserialise_function_table(function_table, device_name):
 
 
 class ShotContext(object):
-    def __init__(self, h5_file, device_name):
+    def __init__(self, h5_file, device_name, globals):
         self.h5_file = h5_file
         self.device_name = device_name
-        self.globals = get_shot_globals(h5_file)
+        self.globals = globals
 
 
 class FunctionRunnerWorker(Worker):
@@ -64,11 +64,12 @@ class FunctionRunnerWorker(Worker):
                 rich_print("[no functions]", color=GREY)
                 return {}
             function_table = group['FUNCTION_TABLE'][:]
+            shot_globals = get_shot_globals(f)
 
         self.function_table = deserialise_function_table(
             function_table, self.device_name
         )
-        self.shot_context = ShotContext(h5_file, self.device_name)
+        self.shot_context = ShotContext(h5_file, self.device_name, shot_globals)
         if self.function_table[0][0] != 'start':
             rich_print("no start functions", color=GREY)
             return {}
