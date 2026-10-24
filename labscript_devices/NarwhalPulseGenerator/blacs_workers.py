@@ -60,9 +60,11 @@ class NarwhalPulseGeneratorWorker(Worker):
             "port": self.device.port,
         }
         self.logger.info(
-            f"Connected to pulse generator {info.serial_number} on {self.device.port}, "
-            f"hardware version {info.hardware_version}, firmware "
-            f"{firmware_string(info.firmware_version)}"
+            "Connected to pulse generator %s on %s, hardware version %s, firmware %s",
+            info.serial_number,
+            self.device.port,
+            info.hardware_version,
+            self.device_info["firmware_version"],
         )
         # The device's settings are left as they are, so that restarting BLACS does not
         # disturb a run in progress.
