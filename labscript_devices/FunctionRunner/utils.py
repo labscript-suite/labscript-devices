@@ -17,6 +17,27 @@ from types import FunctionType
 from labscript_utils import dedent
 from labscript_utils.properties import serialise, deserialise
 
+# Lines of each source file as last returned by linecache, and the source code of the
+# functions in it by line number:
+_source_cache = {}
+
+
+def _getsource(function):
+    """Return inspect.getsource(function). The block of lines that make up the function
+    is found once for each version of the file's lines in linecache."""
+    function = inspect.unwrap(function)
+    if not isinstance(function, FunctionType):
+        return inspect.getsource(function)
+    lines, lnum = inspect.findsource(function)
+    filename = function.__code__.co_filename
+    cached_lines, sources = _source_cache.get(filename, (None, None))
+    if cached_lines is not lines:
+        sources = {}
+        _source_cache[filename] = (lines, sources)
+    if lnum not in sources:
+        sources[lnum] = ''.join(inspect.getblock(lines[lnum:]))
+    return sources[lnum]
+
 
 def serialise_function(function, *args, **kwargs):
     """Serialise a function based on its source code, and serialise the additional args
@@ -39,7 +60,7 @@ def serialise_function(function, *args, **kwargs):
         raise TypeError(dedent(msg))
 
     # Serialise the function, args and kwargs:
-    source = textwrap.dedent(inspect.getsource(function))
+    source = textwrap.dedent(_getsource(function))
     args = serialise(args)
     kwargs = serialise(kwargs)
 
