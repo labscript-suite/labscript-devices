@@ -13,6 +13,7 @@
 
 import os
 import json
+import threading
 from time import perf_counter
 import ast
 from queue import Empty
@@ -59,49 +60,61 @@ class ImageReceiver(ZMQServer):
         self.image = None
         self.bg_image = None
         self.autolevels_button = autolevels_button
+        # Set when no received image is waiting to be displayed:
+        self.displayed = threading.Event()
+        self.displayed.set()
 
-    @inmain_decorator(wait_for_return=True)
     def handler(self, data):
-        # Acknowledge immediately so that the worker process can begin acquiring the
-        # next frame. This increases the possible frame rate since we may render a frame
-        # whilst acquiring the next, but does not allow us to accumulate a backlog since
-        # only one call to this method may occur at a time.
-        self.send([b'ok'])
+        # Runs in the server thread. We reply once the previous image has been
+        # displayed, so that the worker process does not wait for the main thread unless
+        # an image is already waiting to be displayed, and at most one image is waiting.
+        while not self.displayed.wait(timeout=0.1):
+            if self.stopping:
+                return [b'ok']
+        self.displayed.clear()
         md = json.loads(data[0])
         image = np.frombuffer(memoryview(data[1]), dtype=md['dtype'])
         image = image.reshape(md['shape'])
         if len(image.shape) == 3 and image.shape[0] == 1:
             # If only one image given as a 3D array, convert to 2D array:
             image = image.reshape(image.shape[1:])
-        this_frame_time = perf_counter()
-        if self.last_frame_time is not None:
-            dt = this_frame_time - self.last_frame_time
+        self.display(image)
+        return [b'ok']
+
+    @inmain_decorator(wait_for_return=False)
+    def display(self, image):
+        try:
+            this_frame_time = perf_counter()
+            if self.last_frame_time is not None:
+                dt = this_frame_time - self.last_frame_time
+                if self.frame_rate is not None:
+                    # Exponential moving average of the frame rate over 1 second:
+                    self.frame_rate = exp_av(self.frame_rate, 1 / dt, dt, 1.0)
+                else:
+                    self.frame_rate = 1 / dt
+            self.last_frame_time = this_frame_time
+
+            self.image = image
+            self.update_image()
+
+            # Update fps indicator:
             if self.frame_rate is not None:
-                # Exponential moving average of the frame rate over 1 second:
-                self.frame_rate = exp_av(self.frame_rate, 1 / dt, dt, 1.0)
-            else:
-                self.frame_rate = 1 / dt
-        self.last_frame_time = this_frame_time
-        
-        self.image = image
-        self.update_image()
+                self.label_fps.setText(f"{self.frame_rate:.01f} fps")
 
-        # Update fps indicator:
-        if self.frame_rate is not None:
-            self.label_fps.setText(f"{self.frame_rate:.01f} fps")
-
-        # Tell Qt to send posted events immediately to prevent a backlog of paint events
-        # and other low-priority events. It seems that we cannot make our qtutils
-        # CallEvents (which are used to call this method in the main thread) low enough
-        # priority to ensure all other occur before our next call to self.handler()
-        # runs. This may be because the CallEvents used by qtutils.invoke_in_main have
-        # their own event handler (qtutils.invoke_in_main.Caller), perhaps posted event
-        # priorities are only meaningful within the context of a single event handler,
-        # and not for the Qt event loop as a whole. In any case, this seems to fix it.
-        # Manually calling this is usually a sign of bad coding, but I think it is the
-        # right solution to this problem. This solves issue #36.
-        QtWidgets.QApplication.instance().sendPostedEvents()
-        return self.NO_RESPONSE
+            # Tell Qt to send posted events immediately to prevent a backlog of paint
+            # events and other low-priority events. It seems that we cannot make our
+            # qtutils CallEvents (which are used to call this method in the main thread)
+            # low enough priority to ensure all other occur before our next call to
+            # self.display() runs. This may be because the CallEvents used by
+            # qtutils.invoke_in_main have their own event handler
+            # (qtutils.invoke_in_main.Caller), perhaps posted event priorities are only
+            # meaningful within the context of a single event handler, and not for the
+            # Qt event loop as a whole. In any case, this seems to fix it. Manually
+            # calling this is usually a sign of bad coding, but I think it is the right
+            # solution to this problem. This solves issue #36.
+            QtWidgets.QApplication.instance().sendPostedEvents()
+        finally:
+            self.displayed.set()
 
     @inmain_decorator(wait_for_return=True)
     def update_image(self):
