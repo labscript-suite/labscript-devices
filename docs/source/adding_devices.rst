@@ -63,6 +63,15 @@ This function informs **labscript** where to find the necessary classes during i
 		runviewer_parser='labscript_devices.NI_DAQmx.runviewer_parsers.NI_DAQmxParser',
 	)
 
+Serial devices
+~~~~~~~~~~~~~~
+
+A device that connects through a USB-serial adaptor can open its port with :func:`labscript_devices.usbserial.Serial` instead of ``serial.Serial``.
+It takes the same arguments, and on Linux and Windows it sets the latency timer of FTDI adaptors to 1 ms, which otherwise adds up to 16 ms to every reply from the device.
+
+.. automodule:: labscript_devices.usbserial
+   :members: Serial
+
 Contributions to **labscript-devices**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
