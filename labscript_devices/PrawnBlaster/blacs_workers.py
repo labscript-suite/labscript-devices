@@ -232,7 +232,10 @@ class PrawnBlasterWorker(Worker):
                     self.wait_timeout[self.current_wait] = False
 
                 self.logger.info(
-                    f"Wait {self.current_wait} finished. Length={self.measured_waits[self.current_wait]:.9f}s. Timed-out={self.wait_timeout[self.current_wait]}"
+                    "Wait %s finished. Length=%.9fs. Timed-out=%s",
+                    self.current_wait,
+                    self.measured_waits[self.current_wait],
+                    self.wait_timeout[self.current_wait],
                 )
 
                 # Inform any interested parties that a wait has completed:
@@ -507,7 +510,7 @@ class PrawnBlasterWorker(Worker):
                 data["duration"] = self.measured_waits
                 data["timed_out"] = self.wait_timeout
 
-                self.logger.info(str(data))
+                self.logger.info('%s', data)
 
                 hdf5_file.create_dataset("/data/waits", data=data)
 
