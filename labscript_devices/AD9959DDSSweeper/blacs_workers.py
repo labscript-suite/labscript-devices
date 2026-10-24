@@ -367,7 +367,7 @@ class AD9959DDSSweeperWorker(Worker):
                 cache_phase = self.smart_cache['static_data'][f'phase{chan}']
         
                 if fresh or freq != cache_freq or amp != cache_amp or phase != cache_phase:
-                    self.logger.debug(f'Setting fresh outputs on chan: {chan}')
+                    self.logger.debug('Setting fresh outputs on chan: %s', chan)
                     self.intf.set_output(chan, freq, amp, phase)
                     self.final_values[f'channel {chan}'] = {
                         'freq' : freq,
@@ -398,7 +398,7 @@ class AD9959DDSSweeperWorker(Worker):
 
                 # past a 10% change, force a refresh
                 if changed_ratio > 0.1:
-                    self.logger.debug(f'Changed ratio: {changed_ratio:.2%}, refreshing fully')
+                    self.logger.debug('Changed ratio: %.2f%%, refreshing fully', 100 * changed_ratio)
                     fresh = True
             
             elif self.smart_cache['dds_data'] is None:
@@ -440,7 +440,7 @@ class AD9959DDSSweeperWorker(Worker):
                     # need to check field-by-field, both vals and dtypes
                     diffs = np.where(cache[:len(dds_data)][name] != dds_data[name])[0]
                     if diffs.size > 0:
-                        self.logger.debug(f"Field {name} differs at rows: {diffs}")
+                        self.logger.debug("Field %s differs at rows: %s", name, diffs)
                     field_dtype = dds_data[name].dtype
                     if np.issubdtype(field_dtype, np.floating):
                         changed_mask |= ~np.isclose(cache[:len(dds_data)][name], dds_data[name])
@@ -448,19 +448,19 @@ class AD9959DDSSweeperWorker(Worker):
                         changed_mask |= cache[:len(dds_data)][name] != dds_data[name]
 
                 changed_indices = np.where(changed_mask)[0]
-                self.logger.debug(f"Changed rows: {changed_indices}")
+                self.logger.debug("Changed rows: %s", changed_indices)
 
                 # Iterate only over changed rows
                 for i in changed_indices:
-                    self.logger.debug(f'Smart cache differs at index {i}')
+                    self.logger.debug('Smart cache differs at index %s', i)
                     if i >= len(dds_data):
-                        self.logger.warning(f"Skipping seti at index {i} — beyond dds_data length")
+                        self.logger.warning("Skipping seti at index %s — beyond dds_data length", i)
                         continue
                     for chan in sorted(dyn_chans):
                         freq = dds_data[i][f'freq{chan}']
                         amp = dds_data[i][f'amp{chan}']
                         phase = dds_data[i][f'phase{chan}']
-                        self.logger.debug(f'seti {chan} {i} {freq} {amp} {phase}')
+                        self.logger.debug('seti %s %s %s %s %s', chan, i, freq, amp, phase)
                         self.intf.seti(int(chan), int(i), int(freq), int(amp), int(phase))
                     for name in dds_data.dtype.names:
                         cache[i][name] = dds_data[i][name]
@@ -507,7 +507,7 @@ class AD9959DDSSweeperWorker(Worker):
         
         # return state to initial values
         values = self.initial_values # fix, and update smart cache
-        self.logger.debug(f'Returning to values: {values}')
+        self.logger.debug('Returning to values: %s', values)
         self.smart_cache['static_data'] = None
         self.smart_cache['dds_data'] = None
         self.program_manual(values)

@@ -514,7 +514,7 @@ class NovatechDDS9mWorker(Worker):
                         self.connection.readline()
                 et = time.time()
                 tt=et-st
-                self.logger.debug('Time spent on line %s: %s'%(i,tt))
+                self.logger.debug('Time spent on line %s: %s', i, tt)
             # Store the table for future smart programming comparisons:
             try:
                 self.smart_cache['TABLE_DATA'][:len(data)] = data
