@@ -649,8 +649,8 @@ class PulseBlasterDirectOutputs(IntermediateDevice):
 
     @property
     def clock_limit(self):
-        """clock_limit of the class of the parent PulseBlaster."""
-        return type(self.pseudoclock_device).clock_limit
+        """clock_limit of the parent PulseBlaster."""
+        return self.pseudoclock_device.clock_limit
 
     def add_device(self, device):
         IntermediateDevice.add_device(self, device)
