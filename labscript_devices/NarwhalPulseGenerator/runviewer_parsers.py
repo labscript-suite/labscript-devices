@@ -16,6 +16,7 @@ import numpy as np
 
 import labscript_utils.properties as properties
 
+from labscript_devices import rising_edge_times
 from .labscript_devices import parse_channel
 
 
@@ -98,13 +99,12 @@ class NarwhalPulseGeneratorParser(object):
         if clock is None:
             offset = np.zeros(n_segments)
         else:
-            clock_times, clock_values = clock
-            rising = np.flatnonzero(np.diff(clock_values.astype(np.int64), prepend=0) > 0)
+            rising = rising_edge_times(clock)
             if len(rising) < n_segments:
                 raise ValueError(
                     f"{self.name} starts {n_segments} times (once, then after each "
                     f"wait), but its trigger has {len(rising)} rising edges."
                 )
-            offset = clock_times[rising[:n_segments]] + trigger_delay - segment_start * cycle
+            offset = rising[:n_segments] + trigger_delay - segment_start * cycle
         times = start * cycle + offset[segments]
         return times, states
