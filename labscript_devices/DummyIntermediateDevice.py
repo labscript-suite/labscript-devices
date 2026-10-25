@@ -133,6 +133,9 @@ class DummyIntermediateDeviceParser(object):
         self.device = device
 
     def get_traces(self, add_trace, clock=None):
+        if clock is None:
+            raise Exception(f'No clock passed to {self.name}. The DummyIntermediateDevice must be clocked by another device.')
+
         times, clock_value = clock[0], clock[1]
         clock_indices = np.where((clock_value[1:] - clock_value[:-1]) == 1)[0] + 1
         # If initial clock value is 1, then this counts as a rising edge (clock should
