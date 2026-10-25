@@ -17,6 +17,7 @@ Many pseudoclock devices also include other types of outputs, including digital 
    devices/pulseblaster
    devices/pulseblaster_no_dds
    devices/opalkellyXEM3001
+   devices/narwhalpulsegenerator
    devices/pineblaster
    devices/prawnblaster
    devices/prawndo
