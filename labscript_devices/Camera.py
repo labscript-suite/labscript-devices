@@ -16,6 +16,10 @@ import numpy as np
 
 
 class Camera(TriggerableDevice):
+    """A camera controlled by an external program, with which BLACS communicates over
+    zeromq or a plain TCP socket. For zeromq, labscript_utils.camera_server describes
+    the protocol and provides a base class for the server. The zeromq connection uses
+    the [security] settings of the labconfig."""
     description = 'Generic Camera'        
     
     # To be set as instantiation arguments:
@@ -199,7 +203,8 @@ class CameraWorker(Worker):
     def init(self):
         global socket; import socket
         global zmq; import zmq
-        global zprocess; import zprocess
+        global ls_zprocess; import labscript_utils.ls_zprocess as ls_zprocess
+        global AuthenticationFailure; from zprocess.security import AuthenticationFailure
         global shared_drive; import labscript_utils.shared_drive as shared_drive
         
         self.host = ''
@@ -213,7 +218,17 @@ class CameraWorker(Worker):
         if not self.use_zmq:
             return self.initialise_sockets(self.host, self.port)
         else:
-            response = zprocess.zmq_get_string(self.port, self.host, data='hello')
+            try:
+                response = ls_zprocess.zmq_get_string(self.port, self.host, data='hello')
+            except AuthenticationFailure:
+                msg = (
+                    f"Failed to authenticate with the camera server at {self.host}:"
+                    + f"{self.port}. The Camera device connects using the labconfig "
+                    + "[security] settings, and the server must use the same shared secret "
+                    + "(a server that subclasses labscript_utils.camera_server.CameraServer "
+                    + "does this from labscript-utils 3.5.0)."
+                )
+                raise AuthenticationFailure(msg) from None
             if response == 'hello':
                 return True
             else:
@@ -238,10 +253,10 @@ class CameraWorker(Worker):
         h5file = shared_drive.path_to_agnostic(h5file)
         if not self.use_zmq:
             return self.transition_to_buffered_sockets(h5file,self.host, self.port)
-        response = zprocess.zmq_get_string(self.port, self.host, data=h5file)
+        response = ls_zprocess.zmq_get_string(self.port, self.host, data=h5file)
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
+        response = ls_zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return {} # indicates final values of buffered run, we have none
@@ -264,10 +279,10 @@ class CameraWorker(Worker):
     def transition_to_manual(self):
         if not self.use_zmq:
             return self.transition_to_manual_sockets(self.host, self.port)
-        response = zprocess.zmq_get_string(self.port, self.host, 'done')
+        response = ls_zprocess.zmq_get_string(self.port, self.host, 'done')
         if response != 'ok':
             raise Exception('invalid response from server: ' + str(response))
-        response = zprocess.zmq_get_string(self.port, self.host, timeout = 10)
+        response = ls_zprocess.zmq_get_string(self.port, self.host, timeout = 10)
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success
@@ -296,7 +311,7 @@ class CameraWorker(Worker):
     def abort(self):
         if not self.use_zmq:
             return self.abort_sockets(self.host, self.port)
-        response = zprocess.zmq_get_string(self.port, self.host, 'abort')
+        response = ls_zprocess.zmq_get_string(self.port, self.host, 'abort')
         if response != 'done':
             raise Exception('invalid response from server: ' + str(response))
         return True # indicates success 
