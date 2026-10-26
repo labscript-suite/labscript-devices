@@ -49,7 +49,7 @@ Detailed Documentation
 
 """
 
-from labscript_devices import BLACS_tab, runviewer_parser
+from labscript_devices import BLACS_tab, runviewer_parser, rising_edge_times
 from labscript import IntermediateDevice, DigitalOut, AnalogOut, config
 import labscript_utils.h5_lock
 import h5py
@@ -136,14 +136,7 @@ class DummyIntermediateDeviceParser(object):
         if clock is None:
             raise Exception(f'No clock passed to {self.name}. The DummyIntermediateDevice must be clocked by another device.')
 
-        times, clock_value = clock[0], clock[1]
-        clock_indices = np.where((clock_value[1:] - clock_value[:-1]) == 1)[0] + 1
-        # If initial clock value is 1, then this counts as a rising edge (clock should
-        # be 0 before experiment) but this is not picked up by the above code. So we
-        # insert it!
-        if clock_value[0] == 1:
-            clock_indices = np.insert(clock_indices, 0, 0)
-        clock_ticks = times[clock_indices]
+        clock_ticks = rising_edge_times(clock)
 
         with h5py.File(self.path, 'r') as f:
             outputs = f['devices/%s/OUTPUTS' % self.name][:]

@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import runviewer_parser, BLACS_tab
+from labscript_devices import runviewer_parser, BLACS_tab, rising_edge_times
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
@@ -612,14 +612,7 @@ class RunviewerClass(object):
             # we're the master pseudoclock, software triggered. So we don't have to worry about trigger delays, etc
             raise Exception('No clock passed to %s. The NovaTechDDS9M must be clocked by another device.'%self.name)
         
-        times, clock_value = clock[0], clock[1]
-        
-        clock_indices = np.where((clock_value[1:]-clock_value[:-1])==1)[0]+1
-        # If initial clock value is 1, then this counts as a rising edge (clock should be 0 before experiment)
-        # but this is not picked up by the above code. So we insert it!
-        if clock_value[0] == 1:
-            clock_indices = np.insert(clock_indices, 0, 0)
-        clock_ticks = times[clock_indices]
+        clock_ticks = rising_edge_times(clock)
         
         # get the data out of the H5 file
         data = {}
