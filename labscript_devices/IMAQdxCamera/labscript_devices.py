@@ -159,10 +159,7 @@ class IMAQdxCamera(TriggerableDevice):
         self.orientation = orientation
         self.pixel_size = pixel_size
         self.magnification = magnification
-        if isinstance(serial_number, (str, bytes)):
-            serial_number = int(serial_number, 16)
-        self.serial_number = serial_number
-        self.BLACS_connection = hex(self.serial_number)[2:].upper()
+        self._set_serial_number(serial_number)
         if camera_attributes is None:
             camera_attributes = {}
         if manual_mode_camera_attributes is None:
@@ -182,6 +179,15 @@ class IMAQdxCamera(TriggerableDevice):
         self.manual_mode_camera_attributes = manual_mode_camera_attributes
         self.exposures = []
         TriggerableDevice.__init__(self, name, parent_device, connection, **kwargs)
+
+    def _set_serial_number(self, serial_number):
+        """Set `self.serial_number` and `self.BLACS_connection` from the serial number
+        passed to `__init__`. A string is interpreted as hexadecimal. Subclasses for
+        cameras with other serial number formats override this method."""
+        if isinstance(serial_number, (str, bytes)):
+            serial_number = int(serial_number, 16)
+        self.serial_number = serial_number
+        self.BLACS_connection = hex(self.serial_number)[2:].upper()
 
     def expose(self, t, name, frametype='frame', trigger_duration=None):
         """Request an exposure at the given time. A trigger will be produced by the
