@@ -616,10 +616,9 @@ class NI_DAQmxAcquisitionWorker(Worker):
             self.extract_measurements(raw_data, waits_in_use)
             self.h5_file = None
             self.buffered_rate = None
-            msg = 'data written, time taken: %ss' % str(time.time() - start_time)
+            self.logger.info('data written, time taken: %ss', time.time() - start_time)
         else:
-            msg = 'No acquisitions in this shot.'
-        self.logger.info(msg)
+            self.logger.info('No acquisitions in this shot.')
 
         return True
 
@@ -774,7 +773,7 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                     semiperiods = self.read_edges(1, timeout=None)
                 else:
                     semiperiods = self.read_edges(2, timeout=None)
-                self.logger.debug('Experiment started, got edges:' + str(semiperiods))
+                self.logger.debug('Experiment started, got edges:%s', semiperiods)
                 # May have been one or two edges, depending on whether the device has
                 # incomplete sample detection. We are only interested in the second one
                 # anyway, it tells us how long the initial pulse was. Store the pulse width
@@ -796,10 +795,11 @@ class NI_DAQmxWaitMonitorWorker(Worker):
                         # It timed out. If there is a timeout device, send a trigger to
                         # resume the clock!
                         if self.DO_task is not None:
-                            msg = """Wait timed out; retriggering clock with {:.3e} s
-                                pulse ({} edge)"""
-                            msg = msg.format(pulse_width, self.timeout_trigger_type)
-                            self.logger.debug(dedent(msg))
+                            msg = """Wait timed out; retriggering clock with %.3e s
+                                pulse (%s edge)"""
+                            self.logger.debug(
+                                dedent(msg), pulse_width, self.timeout_trigger_type
+                            )
                             self.send_resume_trigger(pulse_width)
                         else:
                             msg = """Specified wait timeout exceeded, but there is no

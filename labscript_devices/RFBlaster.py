@@ -347,7 +347,7 @@ class RFBlasterWorker(Worker):
         import socket, time
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(self.timeout)
-        self.netlogger.info('restart_kloned: Connecting to %s...' % self.ip)
+        self.netlogger.info('restart_kloned: Connecting to %s...', self.ip)
         s.connect((self.ip, 8009))
         self.netlogger.info('restart_kloned: Connected!')
         if respawn_netcat:
@@ -427,7 +427,7 @@ class RFBlasterWorker(Worker):
         response = None
         while not response:
             try:
-                self.netlogger.info('Connection attempt %i.' % self._connection_attempt)
+                self.netlogger.info('Connection attempt %i.', self._connection_attempt)
                 if form is not None:
                     # For some reason the MultiPartForm object stored form_fields as a list of key,value tuples...
                     # ... rather than a dict. No matter. it seems requests sucks this up anyway.
@@ -440,16 +440,16 @@ class RFBlasterWorker(Worker):
                 self.netlogger.info('Connected!')
                 break
             except (URLError, HTTPError, TimeoutError, ConnectionError, requests.exceptions.RequestException) as e:
-                self.netlogger.warning(str(e))
+                self.netlogger.warning('%s', e)
                 if self._connection_attempt < self.retries:
-                    self.netlogger.info('Connection failed. Trying again (%i more attempts remain).' % (self.retries - self._connection_attempt))
+                    self.netlogger.info('Connection failed. Trying again (%i more attempts remain).', self.retries - self._connection_attempt)
                     self._connection_attempt += 1
                 elif not self._kloned_attempted:
                     self._kloned_attempted = True
                     self.restart_kloned()
                     self._connection_attempt = 1
                 else:
-                    self.netlogger.error(str(e))   
+                    self.netlogger.error('%s', e)   
                     raise e
         return r.text
 

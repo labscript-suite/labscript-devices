@@ -339,7 +339,7 @@ class CiceroOpalKellyXEM3001Tab(DeviceTab):
         connection_object = self.settings['connection_table'].find_by_name(self.device_name)
         self.serial = str(connection_object.BLACS_connection)
         self.reference_clock = connection_object.properties.get('reference_clock', 'internal')
-        self.logger.debug('reference clock scheme is: %s'%self.reference_clock)
+        self.logger.debug('reference clock scheme is: %s', self.reference_clock)
         # Create and set the primary worker
         self.create_worker("main_worker", CiceroOpalKellyXEM3001Worker, {'serial':self.serial, "reference_clock":self.reference_clock})
         self.primary_worker = "main_worker"
@@ -480,7 +480,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
         if not os.path.exists(fpga_path):
             raise RuntimeError('Cannot flash the FPGA for the current reference clock configuration as the .bit file is missing. Please ensure the correct bit file is available at %s'%fpga_path)
             
-        self.logger.debug('Flashing FPGA bit file located at: %s'%fpga_path)
+        self.logger.debug('Flashing FPGA bit file located at: %s', fpga_path)
         self.dev.ConfigureFPGA(fpga_path)
         assert self.dev.IsFrontPanelEnabled(), 'Flashing of the FPGA failed. The device is not configured with the .bit file correctly'
 
@@ -589,7 +589,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             # master_samples_generated = (master_samples_generated_2 << 16) + master_samples_generated_1
             
             master_samples_generated = bits_to_int(16, self.dev.GetWireOutValue(0x22), self.dev.GetWireOutValue(0x23))
-            self.logger.debug('Master samples generated: %d'%master_samples_generated)
+            self.logger.debug('Master samples generated: %d', master_samples_generated)
         
             clock_frequency = self.connection_table_properties['clock_frequency']
 
@@ -597,7 +597,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
             wait_sample = int(self.wait_table[self.current_wait][1]*clock_frequency)
             # for some reason this needs to be incremented by 1?
             #wait_sample += 1
-            self.logger.debug('Wait sample: %d'%wait_sample)
+            self.logger.debug('Wait sample: %d', wait_sample)
             if wait_sample < master_samples_generated:
                 # a wait has happened!
                 # let's make sure 2 waits have not happened before we noticed the first...
@@ -607,7 +607,7 @@ class CiceroOpalKellyXEM3001Worker(Worker):
                 
                 # work out the length of the last wait
                 retrigger_wait_samples = bits_to_int(16, self.dev.GetWireOutValue(0x26), self.dev.GetWireOutValue(0x27))
-                self.logger.debug('Retrigger wait samples: %d'%retrigger_wait_samples)
+                self.logger.debug('Retrigger wait samples: %d', retrigger_wait_samples)
                 # store length of wait (must be stored in clock samples so that
                 # we can subtract off this number of samples for a following wait)
                 self.measured_waits[self.current_wait] = retrigger_wait_samples-self.measured_waits.sum()
