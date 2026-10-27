@@ -443,14 +443,16 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.task is not None:
             self.stop_task(discard=True)
 
-    def read(self, task_handle, event_type, num_samples, callback_data=None):
-        """Called as a callback by DAQmx while task is running. Also called by us to get
-        remaining data just prior to stopping the task. Since the callback runs
-        in a separate thread, we need to serialise access to instance variables"""
+    def read(self, task, num_samples):
+        """Called from the DAQmx callback of the given task while it is running. Also
+        called by us to get remaining data just prior to stopping the task. Since the
+        callback runs in a separate thread, we need to serialise access to instance
+        variables"""
         samples_read = int32()
         with self.tasklock:
-            if self.task is None or task_handle != self.task.taskHandle.value:
-                # Task stopped already.
+            if task is not self.task:
+                # Task stopped already. DAQmx reuses task handles, so we compare the
+                # task objects rather than the handles.
                 return 0
             self.task.ReadAnalogF64(
                 num_samples,
@@ -525,8 +527,13 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.buffered_mode:
             self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
 
+        task = self.task
+
+        def callback(task_handle, event_type, num_samples, callback_data):
+            return self.read(task, num_samples)
+
         # This must not be garbage collected until the task is:
-        self.task.callback_ptr = DAQmxEveryNSamplesEventCallbackPtr(self.read)
+        self.task.callback_ptr = DAQmxEveryNSamplesEventCallbackPtr(callback)
 
         self.task.RegisterEveryNSamplesEvent(
             DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, self.task.callback_ptr, 100
@@ -552,7 +559,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
                     remaining = available.value
                     while remaining:
                         n = min(num_samples, remaining)
-                        self.read(self.task.taskHandle.value, None, n)
+                        self.read(self.task, n)
                         remaining -= n
                     # Once the buffer has overflowed, DAQmx reports no samples
                     # available, and a read of zero samples raises the overflow error:
