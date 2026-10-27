@@ -45,7 +45,7 @@ dependencies = [
     "PyVISA",
     "PyNIVision",
     "pyserial",
-    "qtutils>=2.2.3",
+    "qtutils>=4.4.0",
     "spinapi",
     "zprocess>=2.18.0",
 ]
