@@ -175,6 +175,16 @@ and the DAQ will use an internall PLL to derive the AI sample clock from the pro
 Specifying an externally provided sample timebase is done using the `AI_timebase_terminal` and `AI_timebase_rate` arguments,
 which specify the input terminal (generally a PFI line) and the clock frequency.
 
+Analog output banks
+-------------------
+
+The analog outputs of the NI PCIe-6738 and PXIe-6738 are in banks of four (ao0 to ao3, ao4 to ao7, and so on).
+The maximum sample rate is 1 MS/s with at most one analog output in use in each bank,
+and 400 kS/s with more than one analog output in use in any bank.
+The device classes have a clock limit of 1 MS/s,
+so compilation fails if two analog outputs in one bank are connected.
+To use more than one analog output in a bank, pass `max_AO_sample_rate=400e3` to the device class.
+
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
