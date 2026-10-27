@@ -133,6 +133,7 @@ from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
 import qtutils.icons
+from qtutils.icons import Icon
 
 @BLACS_tab
 class CameraTab(DeviceTab):
@@ -177,10 +178,8 @@ class CameraTab(DeviceTab):
        
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def update_settings_and_check_connectivity(self, *args):
-        icon = QIcon(':/qtutils/fugue/hourglass')
-        pixmap = icon.pixmap(QSize(16, 16))
+        self.ui.status_icon.setIcon(Icon(':/qtutils/fugue/hourglass'))
         status_text = 'Checking...'
-        self.ui.status_icon.setPixmap(pixmap)
         self.ui.server_status.setText(status_text)
         kwargs = self.get_save_data()
         responding = yield(self.queue_work(self.primary_worker, 'update_settings_and_check_connectivity', **kwargs))
@@ -188,14 +187,12 @@ class CameraTab(DeviceTab):
         
     def update_responding_indicator(self, responding):
         if responding:
-            icon = QIcon(':/qtutils/fugue/tick')
-            pixmap = icon.pixmap(QSize(16, 16))
+            icon = Icon(':/qtutils/fugue/tick')
             status_text = 'Server is responding'
         else:
-            icon = QIcon(':/qtutils/fugue/exclamation')
-            pixmap = icon.pixmap(QSize(16, 16))
+            icon = Icon(':/qtutils/fugue/exclamation')
             status_text = 'Server not responding'
-        self.ui.status_icon.setPixmap(pixmap)
+        self.ui.status_icon.setIcon(icon)
         self.ui.server_status.setText(status_text)
 
 

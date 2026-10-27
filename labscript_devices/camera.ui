@@ -94,11 +94,7 @@
               </spacer>
              </item>
              <item>
-              <widget class="QLabel" name="status_icon">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
+              <widget class="IconLabel" name="status_icon"/>
              </item>
              <item>
               <widget class="QLabel" name="server_status">
@@ -183,4 +179,11 @@
  </widget>
  <resources/>
  <connections/>
+ <customwidgets>
+  <customwidget>
+   <class>IconLabel</class>
+   <extends>QWidget</extends>
+   <header>qtutils/widgets.h</header>
+  </customwidget>
+ </customwidgets>
 </ui>

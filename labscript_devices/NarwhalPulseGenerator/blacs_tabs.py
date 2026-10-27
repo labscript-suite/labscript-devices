@@ -20,6 +20,8 @@ from datetime import datetime
 
 from blacs.device_base_class import DeviceTab, define_state, MODE_BUFFERED, MODE_MANUAL
 import qtutils.icons  # noqa: F401
+from qtutils.icons import Icon
+from qtutils.iconlabel import IconLabel
 from qtutils.qt import QtCore, QtGui, QtWidgets
 
 from .driver import (
@@ -114,9 +116,9 @@ class NarwhalPulseGeneratorTab(DeviceTab):
 
         # Status:
         form = self._group(grid, "Status", 0, 0)
-        self.running_label = QtWidgets.QLabel()
-        self.software_enable_label = QtWidgets.QLabel()
-        self.hardware_enable_label = QtWidgets.QLabel()
+        self.running_label = IconLabel()
+        self.software_enable_label = IconLabel()
+        self.hardware_enable_label = IconLabel()
         self.current_address_label = QtWidgets.QLabel()
         self.final_address_label = QtWidgets.QLabel()
         self.run_time_label = QtWidgets.QLabel()
@@ -193,7 +195,7 @@ class NarwhalPulseGeneratorTab(DeviceTab):
 
     def _button(self, icon, tooltip, slot, checkable=False):
         button = QtWidgets.QPushButton()
-        button.setIcon(QtGui.QIcon(icon))
+        button.setIcon(Icon(icon))
         button.setToolTip(tooltip)
         button.setCheckable(checkable)
         if checkable:
@@ -316,7 +318,7 @@ class NarwhalPulseGeneratorTab(DeviceTab):
     @staticmethod
     def _show_flag(label, value):
         icon = ":/qtutils/fugue/tick" if value else ":/qtutils/fugue/cross"
-        label.setPixmap(QtGui.QIcon(icon).pixmap(QtCore.QSize(16, 16)))
+        label.setIcon(Icon(icon))
 
     def _log_notifications(self, notifications):
         if len(notifications) > 100:

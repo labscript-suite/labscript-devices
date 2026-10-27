@@ -59,6 +59,7 @@ from blacs.device_base_class import DeviceTab
 
 from qtutils import UiLoader
 import qtutils.icons
+from qtutils.icons import Icon
 import os
 
 # We can't import * from QtCore & QtGui, as one of them has a function called bin() which overrides the builtin, which is used in the pulseblaster worker
@@ -196,12 +197,10 @@ class Pulseblaster_No_DDS_Tab(DeviceTab):
         # Update widgets with new status
         for state in self.status_states:
             if self.status[state]:
-                icon = QtGui.QIcon(':/qtutils/fugue/tick')
+                icon = Icon(':/qtutils/fugue/tick')
             else:
-                icon = QtGui.QIcon(':/qtutils/fugue/cross')
-            
-            pixmap = icon.pixmap(QtCore.QSize(16, 16))
-            self.status_widgets[state].setPixmap(pixmap)
+                icon = Icon(':/qtutils/fugue/cross')
+            self.status_widgets[state].setIcon(icon)
         
     
     @define_state(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True)  
