@@ -16,7 +16,7 @@ import numpy as np
 
 import labscript_utils.properties as properties
 
-from labscript_devices import rising_edge_times
+from labscript_devices.common.runviewer import rising_edge_times
 from .labscript_devices import parse_channel
 
 

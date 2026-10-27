@@ -1,7 +1,7 @@
 import labscript_utils.h5_lock
 import h5py
 import numpy as np
-from labscript_devices import rising_edge_times
+from labscript_devices.common.runviewer import rising_edge_times
 
 import labscript_utils.properties as properties
 from labscript_utils import dedent

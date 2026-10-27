@@ -49,7 +49,8 @@ Detailed Documentation
 
 """
 
-from labscript_devices import BLACS_tab, runviewer_parser, rising_edge_times
+from labscript_devices import BLACS_tab, runviewer_parser
+from labscript_devices.common.runviewer import rising_edge_times
 from labscript import IntermediateDevice, DigitalOut, AnalogOut, config
 import labscript_utils.h5_lock
 import h5py

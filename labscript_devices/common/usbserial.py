@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /labscript_devices/usbserial.py                                   #
+# /labscript_devices/common/usbserial.py                            #
 #                                                                   #
 # Copyright 2026, Christopher Billington                            #
 #                                                                   #
