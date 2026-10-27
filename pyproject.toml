@@ -43,7 +43,6 @@ dependencies = [
     "tqdm",
     "PyDAQmx",
     "PyVISA",
-    "PyNIVision",
     "pyserial",
     "qtutils>=4.4.0",
     "spinapi",

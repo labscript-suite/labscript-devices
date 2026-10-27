@@ -30,35 +30,9 @@ from labscript_utils.ls_zprocess import Context
 from labscript_utils.shared_drive import path_to_local
 from labscript_utils.properties import set_attributes
 
-# Don't import nv yet so as not to throw an error, allow worker to run as a dummy
-# device, or for subclasses to import this module to inherit classes without requiring
-# nivision
+# Don't import nv yet, so that the worker can run as a mock device, and subclasses can
+# import this module to inherit classes, without NI-IMAQdx installed
 nv = None
-
-
-def _monkeypatch_imaqdispose():
-    """Monkeypatch a fix to a memory leak bug in pynivision. The pynivision project is
-    no longer active, so we can't contribute this fix upstream. In the long run,
-    hopefully someone (perhaps us) forks it so that bugs can be addressed in the
-    normal way"""
-
-    import nivision.core
-    import ctypes
-
-    _imaqDispose = nivision.core._imaqDispose
-
-    def imaqDispose(obj):
-        if getattr(obj, "_contents", None) is not None:
-            _imaqDispose(ctypes.byref(obj._contents))
-            obj._contents = None
-        if getattr(obj, "value", None) is not None:
-            _imaqDispose(obj)
-            obj.value = None
-        # This is the bugfix: pointers as raw ints were not being disposed:
-        if isinstance(obj, int):
-            _imaqDispose(obj)
-
-    nivision.core.imaqDispose = nv.imaqDispose = imaqDispose
 
 
 class MockCamera(object):
@@ -121,8 +95,7 @@ class MockCamera(object):
 class IMAQdx_Camera(object):
     def __init__(self, serial_number):
         global nv
-        import nivision as nv
-        _monkeypatch_imaqdispose()
+        from labscript_devices.IMAQdxCamera import imaqdx as nv
 
         # Find the camera:
         print("Finding camera...")
@@ -136,10 +109,11 @@ class IMAQdx_Camera(object):
         # Connect to the camera:
         print("Connecting to camera...")
         self.imaqdx = nv.IMAQdxOpenCamera(
-            self.camera.InterfaceName, nv.IMAQdxCameraControlModeController
+            self.camera.InterfaceName.decode('utf8'),
+            nv.IMAQdxCameraControlModeController,
         )
         # Keep an img attribute so we don't have to create it every time
-        self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16)
+        self.img = nv.imaqCreateImage(nv.IMAQ_IMAGE_U16, 0)
         self.exception_on_failed_shot = True
         self._abort_acquisition = False
 
@@ -149,11 +123,8 @@ class IMAQdx_Camera(object):
 
     def set_attribute(self, name, value):
         """Set the value of the attribute of the given name to the given value"""
-        _value = value  # Keep the original for the sake of the error message
-        if isinstance(_value, str):
-            _value = _value.encode('utf8')
         try:
-            nv.IMAQdxSetAttribute(self.imaqdx, name.encode('utf8'), _value)
+            nv.IMAQdxSetAttribute(self.imaqdx, name, value)
         except Exception as e:
             # Add some info to the exception:
             msg = f"failed to set attribute {name} to {value}"
@@ -169,7 +140,7 @@ class IMAQdx_Camera(object):
         }
         visibility_level = visibilities[visibility_level.lower()]
         attributes = []
-        for a in nv.IMAQdxEnumerateAttributes2(self.imaqdx, b'', visibility_level):
+        for a in nv.IMAQdxEnumerateAttributes2(self.imaqdx, '', visibility_level):
             if writeable_only and not a.Writable:
                 continue
             if not a.Readable:
@@ -180,12 +151,7 @@ class IMAQdx_Camera(object):
     def get_attribute(self, name):
         """Return current value of attribute of the given name"""
         try:
-            value = nv.IMAQdxGetAttribute(self.imaqdx, name.encode('utf8'))
-            if isinstance(value, nv.core.IMAQdxEnumItem):
-                value = value.Name
-            if isinstance(value, bytes):
-                value = value.decode('utf8')
-            return value
+            return nv.IMAQdxGetAttribute(self.imaqdx, name)
         except Exception as e:
             # Add some info to the exception:
             raise Exception(f"Failed to get attribute {name}") from e
@@ -193,17 +159,15 @@ class IMAQdx_Camera(object):
     def snap(self):
         """Acquire a single image and return it"""
         nv.IMAQdxSnap(self.imaqdx, self.img)
-        return self._decode_image_data(self.img)
+        return nv.imaqImageToArray(self.img)
 
     def configure_acquisition(self, continuous=True, bufferCount=5):
-        nv.IMAQdxConfigureAcquisition(
-            self.imaqdx, continuous=continuous, bufferCount=bufferCount
-        )
+        nv.IMAQdxConfigureAcquisition(self.imaqdx, continuous, bufferCount)
         nv.IMAQdxStartAcquisition(self.imaqdx)
 
     def grab(self, waitForNextBuffer=True):
         nv.IMAQdxGrab(self.imaqdx, self.img, waitForNextBuffer=waitForNextBuffer)
-        return self._decode_image_data(self.img)
+        return nv.imaqImageToArray(self.img)
 
     def grab_multiple(self, n_images, images, waitForNextBuffer=True):
         print(f"Attempting to grab {n_images} images.")
@@ -217,8 +181,8 @@ class IMAQdx_Camera(object):
                     images.append(self.grab(waitForNextBuffer))
                     print(f"Got image {i+1} of {n_images}.")
                     break
-                except nv.ImaqDxError as e:
-                    if e.code == nv.IMAQdxErrorTimeout.value:
+                except nv.IMAQdxError as e:
+                    if e.code == nv.IMAQdxErrorTimeout:
                         print('.', end='')
                         continue
                     
@@ -240,17 +204,9 @@ class IMAQdx_Camera(object):
     def abort_acquisition(self):
         self._abort_acquisition = True
 
-    def _decode_image_data(self, img):
-        img_array = nv.imaqImageToArray(img)
-        img_array_shape = (img_array[2], img_array[1])
-        # bitdepth in bytes
-        bitdepth = len(img_array[0]) // (img_array[1] * img_array[2])
-        dtype = {1: np.uint8, 2: np.uint16, 4: np.uint32}[bitdepth]
-        data = np.frombuffer(img_array[0], dtype=dtype).reshape(img_array_shape)
-        return data.copy()
-
     def close(self):
         nv.IMAQdxCloseCamera(self.imaqdx)
+        nv.imaqDispose(self.img)
 
 
 class IMAQdxCameraWorker(Worker):
