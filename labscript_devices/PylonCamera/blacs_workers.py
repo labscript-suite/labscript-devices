@@ -187,6 +187,8 @@ class PylonCameraWorker(TriggerableCameraWorker):
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
         level"""
+        if self.mock:
+            return TriggerableCameraWorker.get_attributes_as_dict(self, visibility_level)
         return self.camera.get_attributes(visibility_level)
 
 
