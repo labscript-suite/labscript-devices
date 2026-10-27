@@ -20,10 +20,11 @@ from labscript_utils import dedent
 from enum import IntEnum
 from time import sleep, perf_counter
 
-from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
+from labscript_devices.common.triggerable_camera.blacs_workers import CameraInterface, TriggerableCameraWorker
 
-class Spinnaker_Camera(object):
+class Spinnaker_Camera(CameraInterface):
     def __init__(self, serial_number):
+        super().__init__()
         """Initialize Spinnaker API camera.
 
         Serial number should be of string(?) type."""
@@ -52,10 +53,6 @@ class Spinnaker_Camera(object):
 
         # Set the timeout to 5 s:
         self.timeout = 5000 # in ms
-
-        # Set the abort acquisition thingy:
-        self._abort_acquisition = False
-        self.exception_on_failed_shot = True
 
     def get_attribute_names(self, visibility):
         names = []
@@ -252,10 +249,10 @@ class Spinnaker_Camera(object):
         self.system.ReleaseInstance()
 
 
-class SpinnakerCameraWorker(IMAQdxCameraWorker):
+class SpinnakerCameraWorker(TriggerableCameraWorker):
     """Spinnaker API Camera Worker.
 
-    Inherits from IMAQdxCameraWorker."""
+    Inherits from TriggerableCameraWorker."""
     interface_class = Spinnaker_Camera
 
     #def continuous_loop(self, dt):

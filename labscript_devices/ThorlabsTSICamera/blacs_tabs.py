@@ -11,10 +11,10 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices.IMAQdxCamera.blacs_tabs import IMAQdxCameraTab
+from labscript_devices.common.triggerable_camera.blacs_tabs import TriggerableCameraTab
 
 
-class ThorlabsTSICameraTab(IMAQdxCameraTab):
+class ThorlabsTSICameraTab(TriggerableCameraTab):
     worker_class = (
         'labscript_devices.ThorlabsTSICamera.blacs_workers.ThorlabsTSICameraWorker'
     )

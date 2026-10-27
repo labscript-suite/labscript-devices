@@ -12,10 +12,10 @@
 #####################################################################
 
 from labscript import set_passed_properties
-from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
+from labscript_devices.common.triggerable_camera.labscript_devices import TriggerableCamera
 
 
-class ThorlabsTSICamera(IMAQdxCamera):
+class ThorlabsTSICamera(TriggerableCamera):
     description = 'Thorlabs TSI Camera'
 
     @set_passed_properties(property_names={"device_properties": ["trigger_edge_type"]})
@@ -23,9 +23,9 @@ class ThorlabsTSICamera(IMAQdxCamera):
         """A Thorlabs scientific camera (Zelux, Kiralux or Quantalux), controlled with
         the Thorlabs camera SDK and triggered with a digital pulse.
 
-        The arguments are those of :obj:`IMAQdxCamera
-        <labscript_devices.IMAQdxCamera.labscript_devices.IMAQdxCamera>`, with these
-        differences:
+        The arguments are those of :obj:`TriggerableCamera
+        <labscript_devices.common.triggerable_camera.labscript_devices.TriggerableCamera>`,
+        with these differences:
 
         Args:
             serial_number (str or int)
