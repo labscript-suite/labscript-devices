@@ -35,6 +35,9 @@ class CameraInterface(object):
     """Base class for the classes that communicate with a camera. The worker calls these
     methods. A subclass implements the ones that raise NotImplementedError."""
 
+    # Whether the images are generated rather than acquired by a camera:
+    mock_data = False
+
     def __init__(self):
         self.exception_on_failed_shot = True
         self._abort_acquisition = False
@@ -88,6 +91,8 @@ class CameraInterface(object):
 
 class MockCamera(CameraInterface):
     """Mock camera class that returns fake image data."""
+
+    mock_data = True
 
     def __init__(self):
         super().__init__()
@@ -343,6 +348,10 @@ class TriggerableCameraWorker(Worker):
 
             # Whether we failed to get all the expected exposures:
             image_group.attrs['failed_shot'] = len(self.images) != len(self.exposures)
+
+            # Interface classes that are not subclasses of CameraInterface do not have
+            # mock_data:
+            image_group.attrs['mock_data'] = getattr(self.camera, 'mock_data', False)
 
             # key the images by name and frametype. Allow for the case of there being
             # multiple images with the same name and frametype. In this case we will

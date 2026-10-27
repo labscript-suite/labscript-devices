@@ -57,9 +57,12 @@ and trigger duration of each. After the shot, the images are saved in
 ``images/<orientation>/<name>/<frametype>``, or ``images/<device name>/<name>/<frametype>``
 if the camera has no orientation, as ``uint16`` datasets. Several images with the same name and
 frame type are saved as one three-dimensional dataset. The group ``images/<orientation>`` has
-the attributes ``camera``, the device name, and ``failed_shot``, which is true if fewer images
-were acquired than requested, and the camera's attributes at the visibility level given by
-``saved_attribute_visibility_level``.
+the attributes ``camera``, the device name, ``failed_shot``, which is true if fewer images
+were acquired than requested, and ``mock_data``, which is true if the images were generated rather
+than acquired by a camera, as those of the mock camera are. It also has the camera's attributes at the visibility level given by
+``saved_attribute_visibility_level``. lyse includes the attributes of the group in its
+dataframe, so analysis routines can read ``mock_data`` from the column
+``(<orientation>, 'mock_data')``.
 
 Adding a camera
 ~~~~~~~~~~~~~~~
