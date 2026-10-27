@@ -49,6 +49,7 @@ The "master" camera class which provides the core functionality and from which t
    devices/flycapture2
    devices/spinnaker
    devices/andorsolis
+   devices/thorlabs_tsi
 
 
 Frequency Sources
