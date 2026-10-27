@@ -27,7 +27,7 @@ That maximum allowed value (typically 9000) is preferable to avoid dropped frame
 Usage
 ~~~~~
 
-Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the FlyCapture2 SDK interface.
+Like the :doc:`TriggerableCamera <triggerablecamera>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the FlyCapture2 SDK interface.
 Which parameters can/need to be set depend on the communication interface.
 Discovery of what parameters are available can be done in three ways:
 

@@ -37,7 +37,7 @@ The cameras will work on any USB3 port, but non-compatible hosts will not allow 
 Usage
 ~~~~~
 
-Like the :doc:`IMAQdxCamera <IMAQdx>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Pylon SDK interface.
+Like the :doc:`TriggerableCamera <triggerablecamera>` device, the bulk of camera configuration is performed using a dictionary of kwargs, where the key names and values mirror those provided by the Pylon SDK interface.
 Which parameters can/need to be set depend on the communication interface.
 Discovery of what parameters are available can be done in three ways:
 

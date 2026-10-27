@@ -50,7 +50,7 @@ Python environment of the labscript suite active, install the package from the S
 Usage
 ~~~~~
 
-Like the :doc:`IMAQdxCamera <IMAQdx>` device, the camera is configured with a dictionary of attributes. The
+Like the :doc:`TriggerableCamera <triggerablecamera>` device, the camera is configured with a dictionary of attributes. The
 serial number is the decimal number printed on the camera and shown by ThorCam.
 
 .. code-block:: python
