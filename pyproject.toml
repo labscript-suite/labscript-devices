@@ -37,6 +37,7 @@ dependencies = [
     "runmanager>=3.0.0",
     "labscript>=3.0.0",
     "labscript_utils>=3.0.0",
+    "filelock>=3.12",
     "numpy>=1.15.1",
     "pillow",
     "tqdm",
