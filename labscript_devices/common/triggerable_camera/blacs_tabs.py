@@ -316,6 +316,12 @@ class TriggerableCameraTab(DeviceTab):
 
 
     def initialise_workers(self):
+        self.create_worker('main_worker', self.worker_class, self.get_worker_kwargs())
+        self.primary_worker = "main_worker"
+
+    def get_worker_kwargs(self):
+        """Return the keyword arguments of the worker, which it has as attributes.
+        Subclasses extend this for workers that need other arguments."""
         table = self.settings['connection_table']
         connection_table_properties = table.find_by_name(self.device_name).properties
         # The device properties can vary on a shot-by-shot basis, but at startup we will
@@ -335,10 +341,7 @@ class TriggerableCameraTab(DeviceTab):
             'mock': connection_table_properties['mock'],
             'image_receiver_port': self.image_receiver.port,
         }
-        self.create_worker(
-            'main_worker', self.worker_class, worker_initialisation_kwargs
-        )
-        self.primary_worker = "main_worker"
+        return worker_initialisation_kwargs
 
     @define_state(MODE_MANUAL, queue_state_indefinitely=True, delete_stale_states=True)
     def update_attributes(self):
