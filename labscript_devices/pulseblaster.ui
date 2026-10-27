@@ -74,44 +74,16 @@
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLabel" name="stopped_label">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignCenter</set>
-           </property>
-          </widget>
+          <widget class="IconLabel" name="stopped_label"/>
          </item>
          <item row="1" column="1">
-          <widget class="QLabel" name="reset_label">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignCenter</set>
-           </property>
-          </widget>
+          <widget class="IconLabel" name="reset_label"/>
          </item>
          <item row="1" column="2">
-          <widget class="QLabel" name="running_label">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignCenter</set>
-           </property>
-          </widget>
+          <widget class="IconLabel" name="running_label"/>
          </item>
          <item row="1" column="3">
-          <widget class="QLabel" name="waiting_label">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignCenter</set>
-           </property>
-          </widget>
+          <widget class="IconLabel" name="waiting_label"/>
          </item>
          <item row="0" column="3">
           <widget class="QLabel" name="label_5">
@@ -253,4 +225,11 @@
  </widget>
  <resources/>
  <connections/>
+ <customwidgets>
+  <customwidget>
+   <class>IconLabel</class>
+   <extends>QWidget</extends>
+   <header>qtutils/widgets.h</header>
+  </customwidget>
+ </customwidgets>
 </ui>
