@@ -10,9 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from labscript_devices import deprecated_import_alias
+from labscript_devices.common.deprecation import deprecated_names
 
-# For backwards compatibility with old experiment scripts:
-NI_PCI_6733 = deprecated_import_alias(
-    "labscript_devices.NI_DAQmx.labscript_devices.NI_PCI_6733"
+__getattr__ = deprecated_names(
+    __name__,
+    {
+        'labscript_devices.NI_DAQmx.labscript_devices': [
+            'NI_PCI_6733',
+        ],
+    },
 )

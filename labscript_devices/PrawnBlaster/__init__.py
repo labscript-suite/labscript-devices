@@ -10,10 +10,13 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-from labscript_devices import deprecated_import_alias
+from labscript_devices.common.deprecation import deprecated_names
 
-
-# For backwards compatibility with old experiment scripts:
-PrawnBlaster = deprecated_import_alias(
-    "labscript_devices.PrawnBlaster.labscript_devices.PrawnBlaster"
+__getattr__ = deprecated_names(
+    __name__,
+    {
+        'labscript_devices': [
+            'PrawnBlaster',
+        ],
+    },
 )
