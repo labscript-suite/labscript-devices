@@ -51,6 +51,7 @@ Every camera device is a subclass of the TriggerableCamera class, which provides
    devices/spinnaker
    devices/andorsolis
    devices/thorlabs_tsi
+   devices/dummycamera
 
 
 Frequency Sources
