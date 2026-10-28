@@ -4,7 +4,8 @@ IMAQdx Cameras
 Overview
 ~~~~~~~~
 
-The "master" camera device from which all others derive.
+A camera controlled through NI-IMAQdx, which supports GigE Vision, USB3 Vision and IEEE 1394
+cameras. It is a :doc:`triggerable camera <triggerablecamera>`.
 
 .. autosummary::
    labscript_devices.IMAQdxCamera.labscript_devices
@@ -22,6 +23,11 @@ no Python package for it. NI-IMAQdx needs a licence for each computer, and stops
 
 Usage
 ~~~~~
+
+The camera is configured as described for :doc:`triggerable cameras <triggerablecamera>`,
+and the attributes are those shown by NI MAX. A serial number given as a string is
+hexadecimal. Attributes that the connection table does not set keep the values that are
+saved in NI MAX; attributes set by BLACS are not saved in the camera.
 
 
 Detailed Documentation

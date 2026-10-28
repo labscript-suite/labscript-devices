@@ -18,15 +18,16 @@
 import numpy as np
 from labscript_utils import dedent
 
-from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
+from labscript_devices.common.triggerable_camera.blacs_workers import CameraInterface, TriggerableCameraWorker
 
 # Don't import API yet so as not to throw an error, allow worker to run as a dummy
 # device, or for subclasses to import this module to inherit classes without requiring API
 pylon = None
 genicam = None
 
-class Pylon_Camera(object):
+class Pylon_Camera(CameraInterface):
     def __init__(self, serial_number):
+        super().__init__()
         
         global pylon
         global genicam
@@ -44,8 +45,6 @@ class Pylon_Camera(object):
                         pylon.RegistrationMode_ReplaceAll, pylon.Cleanup_Delete)
         # Keep a nodeMap reference so we don't have to re-create a lot
         self.nodeMap = self.camera.GetNodeMap()
-        self._abort_acquisition = False
-        self.exception_on_failed_shot = True
 
 
     def set_attributes(self, attributes_dict):
@@ -178,16 +177,18 @@ class Pylon_Camera(object):
         self.camera.Close()
 
 
-class PylonCameraWorker(IMAQdxCameraWorker):
+class PylonCameraWorker(TriggerableCameraWorker):
     """Pylon API Camera Worker. 
     
-    Inherits from IMAQdxCameraWorker. Overloads get_attributes_as_dict 
+    Inherits from TriggerableCameraWorker. Overloads get_attributes_as_dict 
     to use PylonCamera.get_attributes() method."""
     interface_class = Pylon_Camera
 
     def get_attributes_as_dict(self, visibility_level):
         """Return a dict of the attributes of the camera for the given visibility
         level"""
+        if self.mock:
+            return TriggerableCameraWorker.get_attributes_as_dict(self, visibility_level)
         return self.camera.get_attributes(visibility_level)
 
 

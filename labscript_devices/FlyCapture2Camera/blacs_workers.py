@@ -20,13 +20,13 @@ import numpy as np
 from labscript_utils import dedent
 from enum import IntEnum
 
-from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
+from labscript_devices.common.triggerable_camera.blacs_workers import CameraInterface, TriggerableCameraWorker
 
 # Don't import API yet so as not to throw an error, allow worker to run as a dummy
 # device, or for subclasses to import this module to inherit classes without requiring API
 PyCapture2 = None
 
-class FlyCapture2_Camera(object):
+class FlyCapture2_Camera(CameraInterface):
     """The backend hardware interface class for the FlyCapture2Camera.
     
     This class handles all of the API/hardware implementation details for the
@@ -65,7 +65,7 @@ class FlyCapture2_Camera(object):
         Args:
             serial_number (int): serial number of camera to connect to
         """
-        
+        super().__init__()
         global PyCapture2
         import PyCapture2
         
@@ -90,8 +90,6 @@ class FlyCapture2_Camera(object):
                 
         self.pixel_formats = IntEnum('pixel_formats',fmts)
 
-        self._abort_acquisition = False
-        self.exception_on_failed_shot = True
 
         # check if GigE camera. If so, ensure max packet size is used
         cam_info = self.camera.getCameraInfo()
@@ -462,10 +460,10 @@ class FlyCapture2_Camera(object):
         self.camera.disconnect()
 
 
-class FlyCapture2CameraWorker(IMAQdxCameraWorker):
+class FlyCapture2CameraWorker(TriggerableCameraWorker):
     """FlyCapture2 API Camera Worker. 
     
-    Inherits from obj:`IMAQdxCameraWorker`. Defines :obj:`interface_class` and overloads
+    Inherits from obj:`TriggerableCameraWorker`. Defines :obj:`interface_class` and overloads
     :obj:`get_attributes_as_dict` to use FlyCapture2Camera.get_attributes() method."""
     interface_class = FlyCapture2_Camera
 
@@ -478,7 +476,7 @@ class FlyCapture2CameraWorker(IMAQdxCameraWorker):
                 to return. Is not used by FlyCapture2_Camera.
         """
         if self.mock:
-            return IMAQdxCameraWorker.get_attributes_as_dict(self,visibility_level)
+            return TriggerableCameraWorker.get_attributes_as_dict(self,visibility_level)
         else:
             return self.camera.get_attributes(visibility_level)
 

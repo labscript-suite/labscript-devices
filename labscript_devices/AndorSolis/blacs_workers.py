@@ -11,16 +11,20 @@
 #                                                                   #
 #####################################################################
 from zprocess import rich_print
-from labscript_devices.IMAQdxCamera.blacs_workers import MockCamera, IMAQdxCameraWorker
+from labscript_devices.common.triggerable_camera.blacs_workers import (
+    CameraInterface,
+    MockCamera,
+    TriggerableCameraWorker,
+)
 
-class AndorCamera(object):
+class AndorCamera(CameraInterface):
 
     def __init__(self):
+        super().__init__()
         global AndorCam
         from .andor_sdk.andor_utils import AndorCam
         self.camera = AndorCam()
         self.attributes = self.camera.default_acquisition_attrs
-        self.exception_on_failed_shot = True
 
     def set_attributes(self, attr_dict):
         self.attributes.update(attr_dict)
@@ -113,7 +117,7 @@ class AndorCamera(object):
     def close(self):
         self.camera.shutdown()
 
-class AndorSolisWorker(IMAQdxCameraWorker):
+class AndorSolisWorker(TriggerableCameraWorker):
 
     interface_class = AndorCamera
 

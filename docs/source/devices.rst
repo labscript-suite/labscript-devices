@@ -39,11 +39,12 @@ Cameras
 
 The camera devices provide interfaces for using various scientific cameras to acquire hardware-timed images during an experiment.
 They are organized by the programming API the underlies the communication to the device.
-The "master" camera class which provides the core functionality and from which the others derive is the IMAQdx class.
+Every camera device is a subclass of the TriggerableCamera class, which provides the core functionality.
 
 .. toctree::
    :maxdepth: 2
 
+   devices/triggerablecamera
    devices/IMAQdx
    devices/pylon
    devices/flycapture2

@@ -25,7 +25,7 @@ import h5py
 import labscript_utils.properties
 from labscript_utils.shared_drive import path_to_local
 
-from labscript_devices.IMAQdxCamera.blacs_workers import IMAQdxCameraWorker
+from labscript_devices.common.triggerable_camera.blacs_workers import CameraInterface, TriggerableCameraWorker
 
 # Version of the thorlabs_tsi_sdk package in Thorlabs camera SDK 2.3:
 MIN_SDK_VERSION = (1, 2, 0)
@@ -105,7 +105,7 @@ def _dispose_sdk():
             _sdk.dispose()
 
 
-class ThorlabsTSICamera(object):
+class ThorlabsTSICamera(CameraInterface):
     """Interface to a Thorlabs scientific camera through the thorlabs_tsi_sdk package.
 
     The camera stays armed between hardware-triggered acquisitions. It is disarmed when
@@ -126,6 +126,7 @@ class ThorlabsTSICamera(object):
     GRAB_POLL_INTERVAL = 0.001
 
     def __init__(self, serial_number, logger):
+        super().__init__()
         from thorlabs_tsi_sdk.tl_camera import TLCameraError
         from thorlabs_tsi_sdk import tl_camera_enums
 
@@ -154,7 +155,6 @@ class ThorlabsTSICamera(object):
             self.cam.disarm()
         self.cam.image_poll_timeout_ms = 0
 
-        self._abort_acquisition = False
         self.bulb_mode = False
         self.trigger_edge_type = 'rising'
         self._buffer_count = self.MIN_BUFFER_COUNT
@@ -411,7 +411,7 @@ class ThorlabsTSICamera(object):
                 self.camera_lock = None
 
 
-class ThorlabsTSICameraWorker(IMAQdxCameraWorker):
+class ThorlabsTSICameraWorker(TriggerableCameraWorker):
     interface_class = ThorlabsTSICamera
 
     def get_camera(self):
