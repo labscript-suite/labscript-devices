@@ -38,7 +38,7 @@ import numpy as np
 import serial
 import serial.tools.list_ports
 
-from .. import usbserial
+from ..common import usbserial
 
 USB_VID = 0x0403
 USB_PID = 0x6010

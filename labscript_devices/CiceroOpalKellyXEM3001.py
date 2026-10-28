@@ -12,7 +12,8 @@
 #####################################################################
 
 from labscript import Device, PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties, compiler, IntermediateDevice, WaitMonitor, DigitalOut
-from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device, rising_edge_times
+from labscript_devices import runviewer_parser, BLACS_tab, BLACS_worker, labscript_device
+from labscript_devices.common.runviewer import rising_edge_times
 
 import numpy as np
 import labscript_utils.h5_lock, h5py

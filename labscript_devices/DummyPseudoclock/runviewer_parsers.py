@@ -1,7 +1,7 @@
 import labscript_utils.h5_lock  # noqa: F401
 import h5py
 import numpy as np
-from labscript_devices import rising_edge_times
+from labscript_devices.common.runviewer import rising_edge_times
 
 
 class DummyPseudoclockParser(object):

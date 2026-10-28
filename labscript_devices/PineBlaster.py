@@ -12,7 +12,8 @@
 #####################################################################
 
 from labscript import PseudoclockDevice, Pseudoclock, ClockLine, config, LabscriptError, set_passed_properties
-from labscript_devices import runviewer_parser, BLACS_tab, rising_edge_times
+from labscript_devices import runviewer_parser, BLACS_tab
+from labscript_devices.common.runviewer import rising_edge_times
 
 import numpy as np
 import labscript_utils.h5_lock, h5py

@@ -27,7 +27,7 @@ protocol is implemented in this package, so no other Python package is needed, i
 ``ndpulsegen`` package.
 
 The pulse generator connects by USB through an FTDI bridge, which the operating system presents as a
-serial port. The port is opened with :func:`labscript_devices.usbserial.Serial`, which sets the latency
+serial port. The port is opened with :func:`labscript_devices.common.usbserial.Serial`, which sets the latency
 timer of the bridge to 1 ms on Linux and Windows. On Windows this requires FTDI's D2XX library, which
 Windows normally installs with FTDI's driver when the device is first plugged in. Without it, each reply
 from the device can be delayed by up to 16 ms. The library is available from

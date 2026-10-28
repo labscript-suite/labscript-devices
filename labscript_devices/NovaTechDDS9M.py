@@ -11,7 +11,8 @@
 #                                                                   #
 #####################################################################
 
-from labscript_devices import runviewer_parser, BLACS_tab, rising_edge_times
+from labscript_devices import runviewer_parser, BLACS_tab
+from labscript_devices.common.runviewer import rising_edge_times
 
 from labscript import IntermediateDevice, DDS, StaticDDS, Device, config, LabscriptError, set_passed_properties
 from labscript_utils.unitconversions import NovaTechDDS9mFreqConversion, NovaTechDDS9mAmpConversion
