@@ -4,17 +4,18 @@
 # Copyright (c) Monash University 2017
 import ctypes
 import numpy as np
-import signal
 import sys
 import time
 from tqdm import tqdm
+import labscript_devices.AlazarTechBoard.atsapi as ats
+from labscript import LabscriptError
+import labscript_utils.properties
+from blacs.tab_base_classes import Worker
 
-# Install atsapi.py into site-packages for this to work
-# or keep in local directory.
-import labscript_devices.atsapi as ats
 
 # TDQM progress indicator defaults
 tqdm_kwargs = {'file': sys.stdout, 'ascii': False, 'ncols': 80}
+
 
 # Talk mv to card set range
 # All ATS ranges given below,
@@ -43,6 +44,7 @@ atsRanges = {
     # 250: ats.INPUT_RANGE_PM_250_MV
 }
 
+
 atsSampleRates = {
     1000:      ats.SAMPLE_RATE_1KSPS,
     2000:      ats.SAMPLE_RATE_2KSPS,
@@ -66,133 +68,11 @@ atsSampleRates = {
     180000000: ats.SAMPLE_RATE_180MSPS
 }
 
+
 atsExternalClockAdvice = {
     'ATS9462': 'a 200mV sine (conservatively peak-to-peak) between 9.5 and 10.5 MHz.'
 }
 
-from labscript import Device, AnalogIn, bitfield, config, LabscriptError, set_passed_properties
-import labscript_utils.h5_lock
-import h5py
-import labscript_utils.properties
-
-class AlazarTechBoard(Device):
-    allowed_children = [AnalogIn]
-    description = 'Generic_Alazar_Technologies_capture_board'
-
-# Many properties not supported. Examples include:
-# AlazarSetExternalClockLevel, SetDataFormat
-# Anything to do with board memory
-# Anything "for scanning"
-    @set_passed_properties(property_names={
-        "device_properties": ["ats_system_id", "ats_board_id",
-                              "requested_acquisition_rate", "acquisition_duration",
-                              "clock_source_id", "sample_rate_id_or_value", "clock_edge_id", "decimation",
-                              "trig_operation",
-                              "trig_engine_id1", "trig_source_id1", "trig_slope_id1",  "trig_level_id1",
-                              "trig_engine_id2", "trig_source_id2", "trig_slope_id2", "trig_level_id2",
-                              "exttrig_coupling_id", "exttrig_range_id",
-                              "trig_delay_samples", "trig_timeout_10usecs", "input_range",
-                              "channels",
-                              "chA_coupling_id", "chA_input_range", "chA_impedance_id", "chA_bw_limit",
-                              "chB_coupling_id", "chB_input_range", "chB_impedance_id", "chB_bw_limit"
-                              ]
-    })
-    def __init__(self, name, server,
-                 ats_system_id=1, ats_board_id=1,
-                 requested_acquisition_rate=0, # No default for this, must be calculated and set!
-                 acquisition_duration    = 1,  # In seconds. This should be set up by .acquire calls, but too bad for now.
-                 clock_source_id         = ats.INTERNAL_CLOCK,
-                 sample_rate_id          = ats.SAMPLE_RATE_180MSPS,
-                 clock_edge_id           = ats.CLOCK_EDGE_RISING,
-                 decimation              = 0, 
-                 trig_operation          = ats.TRIG_ENGINE_OP_J,
-                 trig_engine_id1         = ats.TRIG_ENGINE_J,
-                 trig_source_id1         = ats.TRIG_EXTERNAL,
-                 trig_slope_id1          = ats.TRIGGER_SLOPE_POSITIVE,
-                 trig_level_id1          = 150, # 860 mV
-                 trig_engine_id2         = ats.TRIG_ENGINE_K,
-                 trig_source_id2         = ats.TRIG_DISABLE,
-                 trig_slope_id2          = ats.TRIGGER_SLOPE_POSITIVE,
-                 trig_level_id2          = 150, # 860 mV
-                 exttrig_coupling_id     = ats.DC_COUPLING,
-                 exttrig_range_id        = ats.ETR_5V,
-                 trig_delay_samples      = 0,
-                 trig_timeout_10usecs    = 0,
-                 channels                = (ats.CHANNEL_A | ats.CHANNEL_B), 
-                 chA_coupling_id         = ats.AC_COUPLING,
-                 chA_input_range         = 4000,
-                 chA_impedance_id        = ats.IMPEDANCE_1M_OHM,
-                 chA_bw_limit            = 0,
-                 chB_coupling_id         = ats.AC_COUPLING,
-                 chB_input_range         = 4000,
-                 chB_impedance_id        = ats.IMPEDANCE_1M_OHM,
-                 chB_bw_limit            = 0):
-        Device.__init__(self, name, None, None)
-        self.name = name
-        # This line makes BLACS think the device is connected to something
-        self.BLACS_connection = server
-
-    def add_device(self, output):
-        # TODO: check there are no duplicates, check that connection
-        # string is formatted correctly.
-        Device.add_device(self, output)
-
-    # Has no children for now so hopefully does nothing
-    def generate_code(self, hdf5_file):
-        Device.generate_code(self, hdf5_file)
-        inputs = {}
-        for device in self.child_devices:
-            if isinstance(device, AnalogIn):
-                inputs[device.connection] = device
-            else:
-                raise Exception('Got unexpected device.')
-        input_connections = sorted(inputs)
-        input_attrs = []
-        acquisitions = []
-        for connection in input_connections:
-            input_attrs.append(self.name+'/'+connection)
-            for acq in inputs[connection].acquisitions:
-                acquisitions.append((connection, acq['label'], acq['start_time'],
-                                     acq['end_time'], acq['wait_label'], acq['scale_factor'], acq['units']))
-        acquisitions_table_dtypes = [('connection', 'S256'), ('label', 'S256'), ('start', float),
-                                     ('stop', float), ('wait label', 'S256'), ('scale factor', float), ('units', 'S256')]
-        acquisition_table = np.empty(
-            len(acquisitions), dtype=acquisitions_table_dtypes)
-        for i, acq in enumerate(acquisitions):
-            acquisition_table[i] = acq
-            grp = self.init_device_group(hdf5_file)
-        if len(acquisition_table):  # Table must be non empty
-            grp.create_dataset(
-                'ACQUISITIONS', compression=config.compression, data=acquisition_table)
-            self.set_property('analog_in_channels', ', '.join(
-                input_attrs), location='device_properties')
-
-
-from labscript_devices import BLACS_tab
-from blacs.tab_base_classes import Worker, define_state
-from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED
-from blacs.device_base_class import DeviceTab
-import os
-import copy
-
-# A BLACS tab for a purely remote device which does not need configuration of parameters in BLACS
-
-
-@BLACS_tab
-class GuilessTab(DeviceTab):
-    def initialise_GUI(self):
-        pass
-
-    def get_save_data(self):
-        return {}
-
-    def restore_save_data(self, save_data):
-        pass
-
-    def initialise_workers(self):
-        # Create and set the primary worker
-        self.create_worker("main_worker", GuilessWorker, {})
-        self.primary_worker = "main_worker"
 
 # Helper functions that don't need to be class methods
 def find_nearest_internal_clock(array, value):
@@ -233,6 +113,7 @@ def ats9462_clock(f):
             f, clock//divider)
         print(warning, file=sys.stderr)
     return clock, divider
+
 
 # As a substitute for real documentation, here's an outline for what the Alazar worker does.
 # This should be sphinx'ed or whatever.

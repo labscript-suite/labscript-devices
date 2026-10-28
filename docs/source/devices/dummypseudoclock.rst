@@ -19,7 +19,7 @@ Usage
 	from labscript import *
 	
 	from labscript_devices.DummyPseudoclock.labscript_devices import DummyPseudoclock
-	from labscript_devices.DummyIntermediateDevice import DummyIntermediateDevice
+	from labscript_devices.DummyIntermediateDevice.labscript_devices import DummyIntermediateDevice
 
 	DummyPseudoclock(name='dummy_clock',BLACS_connection='dummy')
 	DummyIntermediateDevice(name='dummy_device',BLACS_connection='dummy2',

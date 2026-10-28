@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /LightCrafterDMD.py                                               #
+# /labscript_devices/LightCrafterDMD/blacs_workers.py               #
 #                                                                   #
 # Copyright 2017, Monash University                                 #
 #                                                                   #
@@ -10,193 +10,15 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-
-# COMMON IMPORTS
 import base64
-import os
 import struct
 import time
-import PIL.Image
-from io import BytesIO
-    
-import labscript_utils.h5_lock, h5py
-
-# LABSCRIPT_DEVICES IMPORTS
-from labscript_devices import labscript_device, BLACS_tab, BLACS_worker, runviewer_parser
-
-# LABSCRIPT IMPORTS
-from labscript import Device, IntermediateDevice, LabscriptError, Output, config
-import numpy as np
+import labscript_utils.h5_lock
+import h5py
+from blacs.tab_base_classes import Worker
+from labscript_devices.LightCrafterDMD.labscript_devices import BLANK_BMP
 
 
-
-# BLACS IMPORTS
-from blacs.tab_base_classes import Worker, define_state
-from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
-
-from blacs.device_base_class import DeviceTab
-
-from qtutils.qt.QtCore import *
-from qtutils.qt.QtGui import *
-from qtutils.qt.QtCore import pyqtSignal as Signal
-
-
-def arr_to_bmp(arr):
-    """Convert array to 1 bit BMP, white wherever the array is nonzero, and return a
-    bytestring of the BMP data"""
-    binary_arr = 255 * (arr != 0).astype(np.uint8)
-    im = PIL.Image.fromarray(binary_arr, mode='L').convert('1')
-    f = BytesIO()
-    im.save(f, "BMP")
-    return f.getvalue()
-
-
-WIDTH = 608
-HEIGHT = 684
-BLANK_BMP = arr_to_bmp(np.zeros((HEIGHT, WIDTH)))
-
-
-class ImageSet(Output):
-    description = 'A set of images to be displayed on an SLM or DMD'
-    width = WIDTH
-    height = HEIGHT
-    # Set default value to be a black image. Here's a raw BMP!
-    default_value = BLANK_BMP
-    """bytes: A black image.
-
-    Raw bitmap data hidden from docs.
-
-    :meta hide-value:
-    """
-    
-    def __init__(self, name, parent_device, connection = 'Mirror'):
-        Output.__init__(self, name, parent_device, connection)
-        
-    def set_array(self, t, arr):
-        self.set_image(t, raw=arr_to_bmp(arr))
-         
-    def set_image(self, t, path=None, raw=None):
-        """set an image at the given time, either by a filepath to a bmp file,
-        or by a bytestring of bmp data"""
-        if raw is not None:
-            raw_data = raw
-        else:
-            if not os.path.exists(path):
-                raise LabscriptError('Cannot load the image for DMD output %s (path: %s)'%(self.name, path))
-            # First rough check that the path leads to a .bmp file
-            if len(path) < 5 or path[-4:] != '.bmp':
-                raise LabscriptError('Error loading image for DMD output %s: The image does not appear to be in bmp format(path: %s) Length: %s, end: %s'%(self.name, path, len(path),path[-4:] ))
-            with open(path, 'rb') as f:
-                raw_data = f.read()
-        # Check that the image is a BMP, first two bytes should be "BM"
-        if raw_data[0:2] != b"BM":
-            raise LabscriptError('Error loading image for DMD output %s: The image does not appear to be in bmp format(path: %s)'%(self.name, path))
-        # Check the dimensions match the device, these are stored in bytes 18-21 and 22-25
-        width = struct.unpack("<i",raw_data[18:22])[0]
-        height = struct.unpack("<i",raw_data[22:26])[0]
-        
-        if width != self.width or height != self.height:
-            raise LabscriptError('Image %s (for DMD output %s) has wrong dimensions. Image dimesions were %s x %s, expected %s x %s'%(path, self.name, width, height, self.width, self.height))
-        
-        bitdepth = struct.unpack("<h", raw_data[28:30])[0]
-        if bitdepth != 1:
-            raise LabscriptError("Your image %s is bitdepth %s, but it needs to be 1 for DMD output %s. Please re-save image in appropriate format."%(path,bitdepth,self.name))
-        self.add_instruction(t, raw_data)
-            
-    def expand_timeseries(self,all_times):
-        """We have to override the usual expand_timeseries, as it sees strings as iterables that need flattening!
-        Luckily for us, we should only ever have individual data points, as we won't be ramping or anything,
-        so this function is a lot simpler than the original, as we have more information about the output.
-        
-        Not 100% sure that this is enough to cover ramps on other devices sharing the clock, come here if there are issues!
-        """
-        
-        self.raw_output = np.array(self.timeseries)
-        return
-        
-        
-
-            
-class LightCrafterDMD(IntermediateDevice):
-    description = 'LightCrafter DMD controller'
-    allowed_children = [ImageSet]
-    
-    # The following numbers are based on the DLPC300, if there are other models in use with different resolution etc then we'd better make this class more generic.
-    # I'm assuming that we'll only be using the device for black & white images with bitdepth of 1.
-    max_instructions = 96
-    clock_limit = 4000
-    width = WIDTH
-    height = HEIGHT
-    
-    def __init__(self, name, parent_device, server = '192.168.1.100', port=21845):
-        IntermediateDevice.__init__(self, name, parent_device)
-        self.BLACS_connection = '%s:%d'%(server, port)
-        
-    def add_device(self, device):        
-        # run checks
-        
-        # if the device passes the checks, call the parent class function to add it as a child
-        Device.add_device(self, device)
-        
-        device.width = self.width
-        device.height = self.height
-                
-    def generate_code(self, hdf5_file):
-       
-        if len(self.child_devices) > 1:
-            raise LabscriptError("More than one set of images attached to the LightCrafter")
-        output = self.child_devices[0]
-        if len(output.raw_output) > self.max_instructions:
-            raise LabscriptError("Too many images for the LightCrafter. Your shot contains %s images"%len(output.raw_output))
-          
-        # Apparently you should use np.void for binary data in a h5 file. Then on the way out, we need to use data.tobytes() to decode again.
-        out_table = np.void(output.raw_output)
-        grp = self.init_device_group(hdf5_file)
-        grp.create_dataset('IMAGE_TABLE',compression=config.compression,data=out_table)
-        
-@BLACS_tab
-class LightCrafterTab(DeviceTab):
-    # For now, assume only the DLP 0.3 WVGA is supported, fix the image dimensions:
-    width = 608
-    height = 684
-    
-    def initialise_GUI(self):
-        # find the connection table object for this device
-        self.connection_object = self.connection_table.find_by_name(self.device_name)
-        
-        # Get the region properties from teh connection table and build the dictionary to produce the IMAGE object outputs
-        image_properties = {}
-        for child_name, child in self.connection_object.child_list.items():
-            wx = self.width
-            wy = self.height
-            image_properties[child.parent_port] = {'width' : wx, 'height' : wy}
-            
-            
-        # Create the outputs and widgets and place the widgets in the UI
-        self.create_image_outputs(image_properties)
-        _,_,_,image_widgets = self.auto_create_widgets()
-        # hide the widget views
-        # for region, widget in image_widgets.items():
-            # widget._view.hide()
-        self.auto_place_widgets(("DMD Image", image_widgets))
-        
-        # generate the better looking view
-        # self.scene = QGraphicsScene(0,0,self.width,self.height)
-        # self.view = SLMGraphicsView(regions, self.scene)
-        # self.wrapper_objects = {}
-        # for region in image_widgets:
-            # self.wrapper_objects[region] = ImageWrapperWidget(self.view, region)
-            # self._IMAGE[region].add_widget(self.wrapper_objects[region])
-        
-        # self.get_tab_layout().addWidget(self.view)
-        
-        self.supports_remote_value_check(False)        
-        self.supports_smart_programming(True) 
-        
-    def initialise_workers(self):
-        self.server = self.BLACS_connection
-        self.create_worker("main_worker",LightCrafterWorker,{'server':self.server, 'slm_properties':{'width':self.width, 'height':self.height}})
-        self.primary_worker = "main_worker"
         
         
 class LightCrafterWorker(Worker):

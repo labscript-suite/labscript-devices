@@ -1,7 +1,7 @@
 from labscript import *
-from labscript_devices.PulseBlaster import PulseBlaster
+from labscript_devices.PulseBlaster.labscript_devices import PulseBlaster
 from labscript_devices.DummyPseudoclock.labscript_devices import DummyPseudoclock
-from labscript_devices.DummyIntermediateDevice import DummyIntermediateDevice
+from labscript_devices.DummyIntermediateDevice.labscript_devices import DummyIntermediateDevice
 from labscript_devices.IMAQdxCamera.labscript_devices import IMAQdxCamera
 
 MOCK = True
