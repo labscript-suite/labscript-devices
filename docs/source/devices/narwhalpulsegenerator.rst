@@ -59,10 +59,25 @@ A port that another program has open cannot be opened, so BLACS must be the only
 device. If another program holds the port, BLACS retries for five seconds and then reports an error that
 names the port.
 
-On Linux the first channel of the FTDI bridge, which is the device's JTAG interface, also appears as a
-serial port. The driver does not open it. Other programs that probe every serial port can hang for 30 s
-when they close it; `narwhaldevs-pulsegen issue 1 <https://github.com/Narwhal-Devices/narwhaldevs-pulsegen/issues/1>`_
-gives a udev rule that hides it.
+Linux
+-----
+
+.. code-block:: bash
+
+   sudo tee /etc/udev/rules.d/99-narwhal-pulse-generator.rules > /dev/null << 'EOF'
+   # Read and write access for every user to the serial ports of Alchitry Au boards
+   SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", ATTRS{product}=="Alchitry Au", MODE="0666"
+   # Interface 0 of an Alchitry Au board is its JTAG interface: unbind the serial driver from it
+   ACTION=="bind", SUBSYSTEM=="usb", DRIVER=="ftdi_sio", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", ATTR{interface}=="Alchitry Au", ATTR{bInterfaceNumber}=="00", RUN+="/bin/sh -c 'echo %k > /sys/bus/usb/drivers/ftdi_sio/unbind'"
+   EOF
+   sudo udevadm control --reload-rules
+
+Then unplug the device and plug it in again. The first rule gives every user access to the device's serial
+port, which otherwise belongs to the group ``dialout`` (Debian, Ubuntu, Fedora) or ``uucp`` (Arch), and can
+only be opened by members of that group. The second rule removes the serial port of the first channel of
+the FTDI bridge, which is the device's JTAG interface. The driver does not open that port, but other
+programs that probe every serial port can hang for 30 s when they close it
+(`narwhaldevs-pulsegen issue 1 <https://github.com/Narwhal-Devices/narwhaldevs-pulsegen/issues/1>`_).
 
 Usage
 ~~~~~
