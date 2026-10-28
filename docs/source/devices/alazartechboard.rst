@@ -14,7 +14,21 @@ It also uses the tqdm progress bar, which is not a standard dependency for the l
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: labscript_devices.AlazarTechBoard
+.. automodule:: labscript_devices.AlazarTechBoard.labscript_devices
+	:members:
+	:undoc-members:
+	:show-inheritance:
+	:member-order: bysource
+	:private-members:
+
+.. automodule:: labscript_devices.AlazarTechBoard.blacs_tabs
+	:members:
+	:undoc-members:
+	:show-inheritance:
+	:member-order: bysource
+	:private-members:
+
+.. automodule:: labscript_devices.AlazarTechBoard.blacs_workers
 	:members:
 	:undoc-members:
 	:show-inheritance:
