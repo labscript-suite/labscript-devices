@@ -1,5 +1,5 @@
-from labscript_devices import BLACS_tab, runviewer_parser 
 from labscript import Device, LabscriptError, set_passed_properties
+
 
 class test_device(Device):
     description = 'test device'
@@ -15,14 +15,3 @@ class test_device(Device):
 
 
         Device.__init__(self, name, None, None, **kwargs)
-
-@BLACS_tab
-class Tab(object):
-    pass
-    
-class Worker(object):
-    pass
-    
-@runviewer_parser
-class Parser(object):
-    pass

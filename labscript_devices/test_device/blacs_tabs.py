@@ -1,0 +1,2 @@
+class Tab(object):
+    pass
