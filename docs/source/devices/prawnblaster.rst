@@ -95,12 +95,6 @@ and `here <https://github.com/QTC-UMD/PrawnBlaster_Breakout_Connectorized>`_.
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: labscript_devices.PrawnBlaster
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 .. automodule:: labscript_devices.PrawnBlaster.labscript_devices
    :members:
    :undoc-members:

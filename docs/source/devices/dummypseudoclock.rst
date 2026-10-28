@@ -32,12 +32,6 @@ Usage
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: labscript_devices.DummyPseudoclock
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
 .. automodule:: labscript_devices.DummyPseudoclock.labscript_devices
    :members:
    :undoc-members:

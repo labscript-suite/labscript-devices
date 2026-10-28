@@ -10,34 +10,38 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
-"""Deprecated import locations for names that are defined in the submodules of a device
-package."""
+"""Deprecated import locations for names that are defined in other modules."""
 import importlib
 import sys
 import warnings
 
 
-def deprecated_names(package, locations):
-    """Return a module ``__getattr__`` function for the package with the fully qualified
-    name ``package``. ``locations`` is a dict that maps the name of each submodule of the
-    package to a list of names that are defined in that submodule. Getting one of these
-    names as an attribute of the package, including with ``from package import name``,
-    returns the object from the submodule. The first time that each name is accessed,
-    this issues a ``FutureWarning`` that gives the submodule and sets the name as an
-    attribute of the package."""
-    submodules = {name: submodule for submodule, names in locations.items() for name in names}
+def deprecated_names(module, locations):
+    """Return a module ``__getattr__`` function for the module with the fully qualified
+    name ``module``. ``locations`` is a dict that maps module names to lists of names
+    that are defined in those modules. A module name is either the name of a submodule
+    of ``module``, or a fully qualified name if it contains a dot. Getting one of the
+    names as an attribute of ``module``, including with ``from module import name``,
+    returns the object from the module that defines it. The first time that each name is
+    accessed, this issues a ``FutureWarning`` that gives that module, and sets the name
+    as an attribute of ``module``."""
+    sources = {}
+    for source, names in locations.items():
+        if '.' not in source:
+            source = f'{module}.{source}'
+        for name in names:
+            sources[name] = source
 
     def __getattr__(name):
         try:
-            submodule = submodules[name]
+            source = sources[name]
         except KeyError:
-            msg = f"module {package!r} has no attribute {name!r}"
+            msg = f"module {module!r} has no attribute {name!r}"
             raise AttributeError(msg) from None
-        fullname = f'{package}.{submodule}'
-        msg = f"Importing {name} from {package} is deprecated. Import it from {fullname}."
+        msg = f"Importing {name} from {module} is deprecated. Import it from {source}."
         warnings.warn(msg, FutureWarning, stacklevel=2)
-        value = getattr(importlib.import_module(fullname), name)
-        setattr(sys.modules[package], name, value)
+        value = getattr(importlib.import_module(source), name)
+        setattr(sys.modules[module], name, value)
         return value
 
     return __getattr__
