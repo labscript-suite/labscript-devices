@@ -26,7 +26,7 @@ Usage
 
 	from labscript import *
 
-	from labscript_devices.PulseBlaster import PulseBlaster
+	from labscript_devices.PulseBlaster.labscript_devices import PulseBlaster
 
 	PulseBlaster(name='pb',board_number=0,programming_scheme='pb_start/BRANCH')
 
@@ -44,7 +44,25 @@ Usage
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: labscript_devices.PulseBlaster
+.. automodule:: labscript_devices.PulseBlaster.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:

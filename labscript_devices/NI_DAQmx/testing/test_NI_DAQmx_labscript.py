@@ -1,5 +1,5 @@
 from labscript_devices.NI_DAQmx.labscript_devices import NI_PCI_6733, NI_USB_6008
-from labscript_devices.PulseBlasterUSB import PulseBlasterUSB
+from labscript_devices.PulseBlasterUSB.labscript_devices import PulseBlasterUSB
 
 from labscript import (
     ClockLine,

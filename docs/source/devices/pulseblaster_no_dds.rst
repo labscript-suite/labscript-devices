@@ -58,7 +58,7 @@ Usage
 
 	from labscript import *
 
-	from labscript_devices.PulseBlaster import PulseBlaster
+	from labscript_devices.PulseBlaster.labscript_devices import PulseBlaster
 
 	PulseBlaster(name='pb',board_number=0,programming_scheme='pb_start/BRANCH')
 
@@ -84,7 +84,25 @@ Detailed Documentation
 PulseBlaster_No_DDS
 ^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: labscript_devices.PulseBlaster_No_DDS
+.. automodule:: labscript_devices.PulseBlaster_No_DDS.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_No_DDS.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_No_DDS.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_No_DDS.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -93,7 +111,25 @@ PulseBlaster_No_DDS
 PulseBlasterUSB
 ^^^^^^^^^^^^^^^
 
-.. automodule:: labscript_devices.PulseBlasterUSB
+.. automodule:: labscript_devices.PulseBlasterUSB.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterUSB.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterUSB.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterUSB.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -102,7 +138,25 @@ PulseBlasterUSB
 PulseBlaster_SP2_24_100_32k
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: labscript_devices.PulseBlaster_SP2_24_100_32k
+.. automodule:: labscript_devices.PulseBlaster_SP2_24_100_32k.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_SP2_24_100_32k.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_SP2_24_100_32k.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlaster_SP2_24_100_32k.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -111,7 +165,25 @@ PulseBlaster_SP2_24_100_32k
 PulseBlasterESRPro200
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: labscript_devices.PulseBlasterESRPro200
+.. automodule:: labscript_devices.PulseBlasterESRPro200.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro200.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro200.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro200.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -120,7 +192,25 @@ PulseBlasterESRPro200
 PulseBlasterESRPro500
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: labscript_devices.PulseBlasterESRPro500
+.. automodule:: labscript_devices.PulseBlasterESRPro500.labscript_devices
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro500.blacs_tabs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro500.blacs_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
+.. automodule:: labscript_devices.PulseBlasterESRPro500.runviewer_parsers
    :members:
    :undoc-members:
    :show-inheritance:
