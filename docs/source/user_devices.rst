@@ -5,17 +5,24 @@ Adding custom devices for use in the **labscript-suite** can be done using the `
 This mechanism provides a simple way to add support for a new device without directly interacting with the **labscript-devices** repository. 
 This is particularly useful when using standard installations of labscript, using code that is proprietary in nature, or code that, while functional, is not mature enough for widespread dissemination.
 
-This is done by adding the **labscript-device** code into the `userlib/user_devices` folder. Using the custom device in a **labscript** connection table is then done by:
+The `user_devices` setting in the `[DEFAULT]` section of the labconfig file
+(`~/labscript-suite/labconfig/<hostname>.ini`) is a comma-separated list of the names of
+Python packages that contain labscript devices. Each package can be anywhere on the Python
+search path. The default value is `user_devices`, and the default profile has a
+`user_devices` folder in the `userlib` folder, which is on the search path.
+A device in a user package is imported in a **labscript** connection table by its package name, for example:
 
 .. code-block:: python
 
 	from user_devices.MyCustomUserDevice.labscript_devices import MyCustomUserDevice
 
-This import statement assumes your custom device follows the new device structure organization. 
-
-Note that both the `userlib` path and the `user_devices` folder name can be custom configured in the `labconfig.ini` file. 
-The `user_devices` folder must be in the `userlib` path. 
-If a different `user_devices` folder name is used, the import uses that folder name in place of `user_devices` in the above import statement.
+A user package must register the BLACS tab and runviewer parser of each of its devices in a
+file named `register_classes.py`, which can be in any folder of the package
+(see :doc:`adding_devices`). Devices that are single files with `@BLACS_tab` and
+`@runviewer_parser` decorators are found only in **labscript-devices**.
+BLACS and runviewer find the classes of a device by the name of its labscript device class,
+so this name must be different from the names of the device classes in **labscript-devices**
+and in the other user packages.
 
 Note that we highly encourage everyone that adds support for new hardware to consider making a pull request to **labscript-devices** so that it may be added to the mainline and more easily used by other groups.
 

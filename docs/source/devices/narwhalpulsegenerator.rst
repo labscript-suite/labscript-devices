@@ -126,6 +126,8 @@ As the master pseudoclock the device measures its own waits and resumes a wait t
 so no other wait monitor is needed. A wait ends on a rising edge at the hardware trigger input. Pass
 ``use_wait_monitor=False`` to use another device as the wait monitor.
 
+.. fragment
+
 .. code-block:: python
 
    if __name__ == '__main__':
@@ -155,6 +157,8 @@ powerline input; BLACS reports an error at the start of the shot if it does not.
 ``pulsegen.wait_for_powerline(label, t)`` is a wait that ends at the next zero crossing instead of on a
 trigger, whether or not ``trigger_on_powerline`` is set. It realigns the rest of the shot with the mains
 phase, and the wait monitor records its duration like any other wait.
+
+.. fragment
 
 .. code-block:: python
 

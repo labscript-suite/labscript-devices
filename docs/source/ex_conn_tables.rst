@@ -3,6 +3,8 @@ Example Connection Tables
 
 An example connection table for the experiment described in [1]_. This connection table makes extensive use of `user_devices`, by name of `naqslab_devices`.
 
+.. fragment
+
 .. code-block:: python
 
 	from labscript import *

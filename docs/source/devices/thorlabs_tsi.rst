@@ -53,6 +53,8 @@ Usage
 Like the :doc:`TriggerableCamera <triggerablecamera>` device, the camera is configured with a dictionary of attributes. The
 serial number is the decimal number printed on the camera and shown by ThorCam.
 
+.. fragment
+
 .. code-block:: python
 
    from labscript import *

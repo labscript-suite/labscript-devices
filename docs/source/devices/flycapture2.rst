@@ -1,9 +1,12 @@
 FlyCapture2 Cameras
 ===================
 
-This device allows control of FLIR (formerly Point Grey) scientific cameras via the `FlyCapture2 SDK <https://www.flir.com/products/flycapture-sdk/>`_ with the now deprecated PyCapture2 wrapper.
+This device allows control of FLIR (formerly Point Grey) scientific cameras via the `FlyCapture2 SDK <https://www.flir.com/products/flycapture-sdk/>`_ with the PyCapture2 wrapper.
 In order to use this device, both the SDK and the python wrapper must be installed.
-Note that PyCapture2 only supports up to Python 3.6.
+
+.. warning::
+   PyCapture2 is available only for Python 3.6 and earlier.
+   The labscript suite requires Python 3.11 or later, so BLACS cannot control a camera with this device.
 
 The new FLIR SDK is supported using the :doc:`SpinnakerCamera labscript device <spinnaker>`.
 
@@ -15,10 +18,9 @@ The new FLIR SDK is supported using the :doc:`SpinnakerCamera labscript device <
 Installation
 ~~~~~~~~~~~~
 
-First ensure that the FlyCapture2 SDK is installed. 
+First ensure that the FlyCapture2 SDK is installed.
 
-The python wrapper is available via FLIR and is only released for Python up to 3.6.
-It must be installed separately, pointed to the correct conda environment during install.
+The python wrapper, PyCapture2, is available from FLIR.
 
 
 For GigE cameras, ensure that the network interface card (NIC) on the computer with the BLACS controlling the camera has enabled Jumbo Frames.
@@ -42,16 +44,19 @@ The control of the Trigger Mode and Image Mode properties is handled separately,
 
 Below is a generic configuration for a Point Grey Blackfly PGE-23S6M-C device.
 
+.. fragment
+
 .. code-block:: python
 
    from labscript import *
-   
+
    from labscript_devices.FlyCapture2Camera.labscript_devices import FlyCapture2Camera
 
-   FlyCapture2Camera('gigeCamera',parent_device=parent,connection=conn,
-               serial_number=1234567, # set to the camera serial number
-               minimum_recovery_time=36e-6, # the minimum exposure time depends on the camera model & configuration
-               camera_attributs={
+   FlyCapture2Camera('gigeCamera', parent_device=digital_out_device, connection='port0/line0',
+               serial_number=1234567, # the camera's serial number
+               trigger_duration=1e-3,
+               minimum_recovery_time=36e-6, # depends on the camera model and configuration
+               camera_attributes={
                                  'GAMMA':{
                                           'onOff':False,
                                           'absControl':True,
@@ -87,11 +92,11 @@ Below is a generic configuration for a Point Grey Blackfly PGE-23S6M-C device.
                                           'offsetY':0,
                                           'pixelFormat':'MONO16'}
                },
-               manual_camera_attributes={'TriggerMode':{'onOff':False}})
+               manual_mode_camera_attributes={'TriggerMode':{'onOff':False}})
 
    start()
 
-   gigeCamera.expose(t=0.5,'exposure1')
+   gigeCamera.expose(t=0.5, name='exposure1')
 
 
    stop(1)

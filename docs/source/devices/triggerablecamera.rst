@@ -1,7 +1,7 @@
 Triggerable Cameras
 ===================
 
-Every camera device is a subclass of :obj:`TriggerableCamera
+Each camera device in the Cameras section of the device list is a subclass of :obj:`TriggerableCamera
 <labscript_devices.common.triggerable_camera.labscript_devices.TriggerableCamera>`, which is
 triggered by a digital output and saves its images to the shot file. Its BLACS tab displays
 the images, and in manual mode acquires single frames (Snap) or acquires continuously, shows
@@ -23,6 +23,10 @@ pages of the camera devices list any differences. The camera is configured with 
 of attributes, ``camera_attributes``, the names and values of which are those of the camera's
 programming interface. The Attributes button of the BLACS tab shows the camera's current
 attributes as a dictionary that can be copied into the connection table.
+In this example and in those of the camera pages, ``digital_out_device`` is a device with
+digital outputs, such as an NI DAQ, that is defined earlier in the connection table.
+
+.. fragment
 
 .. code-block:: python
 
@@ -37,7 +41,9 @@ attributes as a dictionary that can be copied into the connection table.
        serial_number=0xDEADBEEF,
        orientation='side',
        trigger_duration=1e-3,
-       camera_attributes={...},
+       camera_attributes={
+           # Attribute names and values, as shown by the Attributes button of the BLACS tab
+       },
    )
 
    start()

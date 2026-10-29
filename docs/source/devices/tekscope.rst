@@ -12,8 +12,9 @@ A device for controlling Tektronix oscilloscopes using the standard VISA interfa
 Installation
 ~~~~~~~~~~~~
 
-This wrapper requires PyVISA and a compatible VISA installation. Free versions are
-provided by NI and Keysight (NI preferred if already using NI DAQs).
+This device uses PyVISA, which is a dependency of labscript-devices and is installed with
+it, and needs a VISA library. Free VISA libraries are provided by NI and Keysight (NI
+preferred if already using NI DAQs).
 
 Detailed Documentation
 ~~~~~~~~~~~~~~~~~~~~~~

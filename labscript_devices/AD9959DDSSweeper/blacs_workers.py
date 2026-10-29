@@ -314,7 +314,7 @@ class AD9959DDSSweeperWorker(Worker):
         First, data is loaded from the shot files.
         Then, static channels are set using the :meth:`set_output` function.
         Next, dynamic data is loaded.
-            If the sequence has run before, the smart cache is used to minimize new updates.
+        If the sequence has run before, the smart cache is used to minimize new updates.
         Finally, buffered execution is started.
 
         Args:

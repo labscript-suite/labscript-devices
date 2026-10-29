@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /NI_DAQmx/models/generate_classes.py                              #
+# /NI_DAQmx/models/generate_subclasses.py                           #
 #                                                                   #
 # Copyright 2018, Christopher Billington                            #
 #                                                                   #

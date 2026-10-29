@@ -39,7 +39,8 @@ Cameras
 
 The camera devices provide interfaces for using various scientific cameras to acquire hardware-timed images during an experiment.
 They are organized by the programming API the underlies the communication to the device.
-Every camera device is a subclass of the TriggerableCamera class, which provides the core functionality.
+Each camera device on this list is a subclass of the TriggerableCamera class, which provides the core functionality.
+The older `Camera` and `PythonCamera` devices (``labscript_devices.Camera`` and ``labscript_devices.PythonCamera``), which communicate with a separate camera server program, are not subclasses of TriggerableCamera and have no page here.
 
 .. toctree::
    :maxdepth: 2
