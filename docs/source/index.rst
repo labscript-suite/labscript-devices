@@ -1,8 +1,3 @@
-.. labscript-devices documentation master file, created by
-   sphinx-quickstart on Thu Jun 18 17:05:42 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 labscript-devices |version|
 ===========================
 
@@ -36,6 +31,3 @@ In particular, this code provides the interface between **labscript** high-level
    Source Code <https://github.com/labscript-suite/labscript-devices>
    PyPI <https://pypi.org/project/labscript-devices/>
    Anaconda Cloud <https://anaconda.org/labscript-suite/labscript-devices>
-   BitBucket Archive <http://bitbucket-archive.labscriptsuite.org/#!/labscript_suite/labscript_devices>
-
-.. todolist::
