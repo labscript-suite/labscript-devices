@@ -441,16 +441,18 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
     def shutdown(self):
         if self.task is not None:
-            self.stop_task()
+            self.stop_task(discard=True)
 
-    def read(self, task_handle, event_type, num_samples, callback_data=None):
-        """Called as a callback by DAQmx while task is running. Also called by us to get
-        remaining data just prior to stopping the task. Since the callback runs
-        in a separate thread, we need to serialise access to instance variables"""
+    def read(self, task, num_samples):
+        """Called from the DAQmx callback of the given task while it is running. Also
+        called by us to get remaining data just prior to stopping the task. Since the
+        callback runs in a separate thread, we need to serialise access to instance
+        variables"""
         samples_read = int32()
         with self.tasklock:
-            if self.task is None or task_handle != self.task.taskHandle.value:
-                # Task stopped already.
+            if task is not self.task:
+                # Task stopped already. DAQmx reuses task handles, so we compare the
+                # task objects rather than the handles.
                 return 0
             self.task.ReadAnalogF64(
                 num_samples,
@@ -525,8 +527,13 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if self.buffered_mode:
             self.task.CfgDigEdgeStartTrig(self.clock_terminal, DAQmx_Val_Rising)
 
+        task = self.task
+
+        def callback(task_handle, event_type, num_samples, callback_data):
+            return self.read(task, num_samples)
+
         # This must not be garbage collected until the task is:
-        self.task.callback_ptr = DAQmxEveryNSamplesEventCallbackPtr(self.read)
+        self.task.callback_ptr = DAQmxEveryNSamplesEventCallbackPtr(callback)
 
         self.task.RegisterEveryNSamplesEvent(
             DAQmx_Val_Acquired_Into_Buffer, num_samples, 0, self.task.callback_ptr, 100
@@ -534,17 +541,42 @@ class NI_DAQmxAcquisitionWorker(Worker):
 
         self.task.StartTask()
 
-    def stop_task(self):
+    def stop_task(self, discard=False):
+        """Stop and clear the task. The samples of the buffered task that are available
+        when this is called are read first, and an overflow of its buffer is raised,
+        unless discard is True. The samples of the manual-mode task are discarded."""
         with self.tasklock:
             if self.task is None:
                 raise RuntimeError('Task not running')
-            # Read remaining data:
-            self.read(self.task.taskHandle.value, None, -1)
-            # Stop the task:
-            self.task.StopTask()
-            self.task.ClearTask()
-            self.task = None
-            self.read_array = None
+            try:
+                if self.buffered_mode and not discard:
+                    # Read the samples available now, at most one read_array per call.
+                    # The task continues to acquire until it is stopped, so we do not
+                    # read the samples acquired after this point:
+                    num_samples = self.read_array.shape[0]
+                    available = uInt32()
+                    self.task.GetReadAvailSampPerChan(available)
+                    remaining = available.value
+                    while remaining:
+                        n = min(num_samples, remaining)
+                        self.read(self.task, n)
+                        remaining -= n
+                    # Once the buffer has overflowed, DAQmx reports no samples
+                    # available, and a read of zero samples raises the overflow error:
+                    self.task.ReadAnalogF64(
+                        0,
+                        0,
+                        DAQmx_Val_GroupByScanNumber,
+                        self.read_array,
+                        self.read_array.size,
+                        int32(),
+                        None,
+                    )
+            finally:
+                self.task.StopTask()
+                self.task.ClearTask()
+                self.task = None
+                self.read_array = None
 
     def transition_to_buffered(self, device_name, h5file, initial_values, fresh):
         self.logger.debug('transition_to_buffered')
@@ -583,7 +615,7 @@ class NI_DAQmxAcquisitionWorker(Worker):
         if not self.buffered_mode:
             return True
         if self.buffered_chans is not None:
-            self.stop_task()
+            self.stop_task(discard=abort)
         self.buffered_mode = False
         self.logger.info('transitioning to manual mode, task stopped')
         self.start_task(self.manual_mode_chans, self.manual_mode_rate)

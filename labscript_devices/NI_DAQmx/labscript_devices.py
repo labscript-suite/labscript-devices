@@ -107,9 +107,11 @@ class NI_DAQmx(IntermediateDevice):
         AI_timebase_terminal=None,
         AI_timebase_rate=None,
         AO_range=None,
+        AO_bank_size=None,
         max_AI_multi_chan_rate=None,
         max_AI_single_chan_rate=None,
         max_AO_sample_rate=None,
+        max_AO_bank_sample_rate=None,
         max_DO_sample_rate=None,
         min_semiperiod_measurement=None,
         num_AI=0,
@@ -166,12 +168,18 @@ class NI_DAQmx(IntermediateDevice):
                 Only specify if using an external clock source.
             AO_range (iterable, optional): A `[Vmin, Vmax]` pair that sets the analog
                 output voltage range for all analog outputs.
+            AO_bank_size (int, optional): Number of analog outputs in each bank, on
+                devices that have a lower maximum sample rate when more than one
+                analog output in a bank is used.
             max_AI_multi_chan_rate (float, optional): Max supported analog input 
                 sampling rate when using multiple channels.
             max_AI_single_chan_rate (float, optional): Max supported analog input
                 sampling rate when only using a single channel.
             max_AO_sample_rate (float, optional): Max supported analog output
                 sample rate.
+            max_AO_bank_sample_rate (float, optional): Max supported analog output
+                sample rate when more than one analog output in a bank of
+                `AO_bank_size` outputs is used.
             max_DO_sample_rate (float, optional): Max supported digital output
                 sample rate.
             min_sermiperiod_measurement (float, optional): Minimum measurable time
@@ -223,9 +231,11 @@ class NI_DAQmx(IntermediateDevice):
 
         self.acquisition_rate = acquisition_rate
         self.AO_range = AO_range
+        self.AO_bank_size = AO_bank_size
         self.max_AI_multi_chan_rate = max_AI_multi_chan_rate
         self.max_AI_single_chan_rate = max_AI_single_chan_rate
         self.max_AO_sample_rate = max_AO_sample_rate
+        self.max_AO_bank_sample_rate = max_AO_bank_sample_rate
         self.max_DO_sample_rate = max_DO_sample_rate
         self.min_semiperiod_measurement = min_semiperiod_measurement
         self.num_AI = num_AI
@@ -350,6 +360,8 @@ class NI_DAQmx(IntermediateDevice):
                 msg = """Cannot add output with connection string '%s' to device with
                 num_AO=%d"""
                 raise ValueError(dedent(msg) % (device.connection, self.num_AO))
+            if isinstance(device, AnalogOut):
+                self._check_AO_bank_rate(device)
         elif isinstance(device, (DigitalOut, StaticDigitalOut)):
             port, line = split_conn_DO(device.connection)
             port_str = 'port%d' % port
@@ -384,6 +396,39 @@ class NI_DAQmx(IntermediateDevice):
                 raise ValueError(dedent(msg) % self.name)
 
         IntermediateDevice.add_device(self, device)
+
+    def _check_AO_bank_rate(self, device):
+        """Check that the clock limit is no higher than the maximum sample rate of a
+        bank of analog outputs, if the new analog output is in the same bank as an
+        existing one."""
+        if self.AO_bank_size is None:
+            return
+        if self.clock_limit <= self.max_AO_bank_sample_rate:
+            return
+        bank = split_conn_AO(device.connection) // self.AO_bank_size
+        for other in self.child_devices:
+            if not isinstance(other, AnalogOut):
+                continue
+            if split_conn_AO(other.connection) // self.AO_bank_size == bank:
+                first = bank * self.AO_bank_size
+                last = first + self.AO_bank_size - 1
+                msg = """{0} {1}: analog outputs {2} and {3} are in the same bank,
+                    ao{4} to ao{5}. With more than one analog output in a bank, the
+                    maximum sample rate is {6} Hz, which is lower than the clock limit
+                    of {7} Hz. Use at most one analog output in each bank, or pass
+                    max_AO_sample_rate={6}."""
+                raise LabscriptError(
+                    dedent(msg).format(
+                        self.description,
+                        self.name,
+                        other.connection,
+                        device.connection,
+                        first,
+                        last,
+                        self.max_AO_bank_sample_rate,
+                        self.clock_limit,
+                    )
+                )
 
     def _check_even_children(self, analogs, digitals):
         """Check that there are an even number of children of each type."""

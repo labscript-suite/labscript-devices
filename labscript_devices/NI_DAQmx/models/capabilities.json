@@ -633,12 +633,14 @@
         "AI_range": null,
         "AI_range_Diff": null,
         "AI_start_delay": null,
+        "AO_bank_size": 4,
         "AO_range": [
             -10.0,
             10.0
         ],
         "max_AI_multi_chan_rate": null,
         "max_AI_single_chan_rate": null,
+        "max_AO_bank_sample_rate": 400000.0,
         "max_AO_sample_rate": 1000000.0,
         "max_DO_sample_rate": 10000000.0,
         "min_semiperiod_measurement": 1e-07,
@@ -1109,12 +1111,14 @@
         "AI_range": null,
         "AI_range_Diff": null,
         "AI_start_delay": null,
+        "AO_bank_size": 4,
         "AO_range": [
             -10.0,
             10.0
         ],
         "max_AI_multi_chan_rate": null,
         "max_AI_single_chan_rate": null,
+        "max_AO_bank_sample_rate": 400000.0,
         "max_AO_sample_rate": 1000000.0,
         "max_DO_sample_rate": 10000000.0,
         "min_semiperiod_measurement": 1e-07,
