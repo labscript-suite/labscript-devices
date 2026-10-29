@@ -37,7 +37,7 @@ or similar. The class naming is based on the model name by prepending "NI\_" and
 replacing the hyphen with an underscore, i.e. 'PCIe-6363' -> NI_PCIe_6363.
 
 Generating device classes requires the Python code-formatting library 'black', which can
-be installed via pip (Python 3.6+ only). If you don't want to install this library, the
+be installed via pip. If you don't want to install this library, the
 generation code will still work, it just won't be formatted well.
 
 The current list of pre-subclassed devices is:
