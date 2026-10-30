@@ -1,8 +1,8 @@
 Function Runner
 ===============
 
-A labscript device to run custom functions before, after, or during (not yet
-implemented) the experiment in software time.
+A labscript device that runs functions in software time, in BLACS, before the start or after
+the end of a shot.
 
 .. autosummary::
    labscript_devices.FunctionRunner.labscript_devices

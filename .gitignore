@@ -159,4 +159,3 @@ conda_packages/
 docs/html/
 docs/source/_build/
 docs/source/components.rst
-docs/source/devices/_apidoc

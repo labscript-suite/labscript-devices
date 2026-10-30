@@ -33,10 +33,12 @@ Discovery of what parameters are available can be done in three ways:
 
 Below is a generic configuration.
 
+.. fragment
+
 .. code-block:: python
 
    from labscript import *
-   
+
    from labscript_devices.SpinnakerCamera.labscript_devices import SpinnakerCamera
 
    CCT_global_camera_attributes = {
@@ -66,18 +68,18 @@ Below is a generic configuration.
       'AcquisitionControl::ExposureMode': 'TriggerWidth',
    }
 
-   SpinnakerCamera('gigeCamera',parent_device=parent,connection=conn,
-               serial_number=1234567, # set to the camera serial number
-               minimum_recovery_time=36e-6, # the minimum exposure time depends on the camera model & configuration
+   SpinnakerCamera('gigeCamera', parent_device=digital_out_device, connection='port0/line0',
+               serial_number=1234567, # the camera's serial number
+               minimum_recovery_time=36e-6, # depends on the camera model and configuration
                trigger_edge_type='falling',
-               camera_attributs={**CCT_global_camera_attributes,
-                                 **CCT_buffered_mode_attributes},
-               manual_camera_attributes={**CCT_global_camera_attributes,
-                                         **CCT_manual_mode_attributes})
+               camera_attributes={**CCT_global_camera_attributes,
+                                  **CCT_buffered_mode_attributes},
+               manual_mode_camera_attributes={**CCT_global_camera_attributes,
+                                              **CCT_manual_mode_attributes})
 
    start()
 
-   gigeCamera.expose(t=0.5,'exposure1',trigger_duration=0.25)
+   gigeCamera.expose(t=0.5, name='exposure1', trigger_duration=0.25)
 
 
    stop(1)

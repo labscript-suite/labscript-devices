@@ -4,21 +4,17 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Path setup --------------------------------------------------------------
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
+import datetime
 import os
 from pathlib import Path
 from jinja2 import FileSystemLoader, Environment
 import importlib.metadata
+import unittest.mock
 
 # -- Project information (unique to each project) -------------------------------------
 
 project = "labscript-devices"
-copyright = "2020, labscript suite"
+copyright = f"2013–{datetime.date.today().year}, labscript suite contributors"
 author = "labscript suite contributors"
 
 # The full version, including alpha/beta/rc tags
@@ -42,7 +38,6 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
-    "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_rtd_theme",
     "myst_parser",
@@ -50,7 +45,12 @@ extensions = [
 
 autodoc_typehints = 'description'
 autoclass_content = 'both'  # options: 'both', 'class', 'init'
-autodoc_mock_imports = ['PyDAQmx','labscript_utils.h5_lock']
+autodoc_mock_imports = ['PyDAQmx', 'labscript_utils.h5_lock']
+
+# The AlazarTech API module loads the AlazarTech library when it is imported. Import it
+# with a mock library.
+with unittest.mock.patch('ctypes.CDLL'):
+    import labscript_devices.AlazarTechBoard.atsapi
 
 # Prefix each autosectionlabel with the name of the document it is in and a colon
 autosectionlabel_prefix_document = True
@@ -81,21 +81,17 @@ intersphinx_mapping = {
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'qtutils': ('https://qtutils.readthedocs.io/en/stable/', None),
-    'pyqtgraph': (
-        'https://pyqtgraph.readthedocs.io/en/latest/',
-        None,
-    ),  # change to stable once v0.11 is published
+    'pyqtgraph': ('https://pyqtgraph.readthedocs.io/en/latest/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'h5py': ('https://docs.h5py.org/en/stable/', None),
-    'pydaqmx': ('https://pythonhosted.org/PyDAQmx/', None),
+    # An inventory of PyQt5, which has the same class and method names as PySide6 and
+    # PyQt6. pyqt5-modified-objects.inv is made by
+    # https://github.com/MSLNZ/msl-qt/blob/master/docs/create_pyqt_objects.py
+    # (MIT License).
     'qt': (
         'https://riverbankcomputing.com/static/Docs/PyQt5/',
         'pyqt5-modified-objects.inv',
-    )  # from https://github.com/MSLNZ/msl-qt/blob/master/docs/create_pyqt_objects.py
-    # under MIT License
-    # TODO
-    # desktop-app
-    # spinapi/pynivision/etc
+    ),
 }
 
 # list of all labscript suite components that have docs
@@ -172,18 +168,6 @@ if project != "the labscript suite":
 # Make `some code` equivalent to :code:`some code`
 default_role = 'code'
 
-# hide todo notes if on readthedocs and not building the latest
-if os.environ.get('READTHEDOCS') and (
-    os.environ.get('READTHEDOCS_VERSION') != 'latest'
-    or (
-        os.environ.get('READTHEDOCS_PROJECT') == project
-        or os.environ.get('READTHEDOCS_PROJECT') == 'labscriptsuite'
-    )
-):
-    todo_include_todos = False
-else:
-    todo_include_todos = True
-
 # -- Options for PDF output --------------------------------------------------
 
 latex_elements = {
@@ -199,7 +183,7 @@ latex_elements = {
 html_theme = "sphinx_rtd_theme"
 html_title = "labscript suite | {project}".format(
     project=project
-    if project != "labscript-suite"
+    if project != "the labscript suite"
     else "experiment control and automation"
 )
 html_short_title = "labscript suite"
@@ -212,8 +196,6 @@ html_static_path = ['_static']
 # Customize the html_theme
 html_theme_options = {'navigation_depth': 3}
 
-# Use m2r only for mdinclude and recommonmark for everything else
-# https://github.com/readthedocs/recommonmark/issues/191#issuecomment-622369992
 def setup(app):
 
     app.add_css_file('custom.css')
@@ -233,30 +215,9 @@ def setup(app):
             )
         )
 
-    # hook to run apidoc before building
-    app.connect('builder-inited', run_apidoc)
     # hooks to test docstring coverage
     app.connect('autodoc-process-docstring', doc_coverage)
     app.connect('build-finished', doc_report)
-
-
-def run_apidoc(_):
-    """Runs apidoc with our desired parameters to generate the NI_DAQmx models docs.
-    """
-    from sphinx.ext.apidoc import main
-    if os.environ.get('READTHEDOCS'):
-        rel_path = '../..'
-    else:
-        rel_path = '..'
-    daq_models_path = os.path.join(os.path.abspath(rel_path), 
-                                   'labscript_devices')
-    out_path = os.path.join(os.path.dirname(Path(__file__)), 
-                            'devices', '_apidoc', 'models')
-    templates_path = os.path.join(os.path.dirname(Path(__file__)), 
-                                  '_templates', 'models')
-    main(['-TMf', '-s', 'inc',
-          '-t', templates_path,
-          '-o', out_path, daq_models_path])
 
 
 members_to_watch = ['module', 'class', 'function', 'exception', 'method', 'attribute']

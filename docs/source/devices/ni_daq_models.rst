@@ -1,4 +1,15 @@
 Sub-Classed NI DAQ Models
 =========================
 
-.. include:: _apidoc/models/labscript_devices.NI_DAQmx.models.inc
+.. automodule:: labscript_devices.NI_DAQmx.models
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: labscript_devices.NI_DAQmx.models.get_capabilities
+   :members:
+   :undoc-members:
+
+.. automodule:: labscript_devices.NI_DAQmx.models.generate_subclasses
+   :members:
+   :undoc-members:

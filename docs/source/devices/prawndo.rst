@@ -21,10 +21,10 @@ The PrawnDO takes advantage of the specs of the Pico to provide the following:
   - Maximum time between updates (on any output) is 2^32-1 clock cycles (~42.9 s with 100 MHz clock)
   - Updates are internally timed (ie only initial triggering is needed, not for every update)
 
-* 30,000 instructions (where each instruction can be held between 5 and 2^32-1 clock cycles)
+* 30,000 instructions, or 60,000 with a Pico 2 (`pico_board='pico2'`), where each instruction can be held between 5 and 2^32-1 clock cycles
 * Support for external hardware triggers to begin and re-start execution after a wait.
 * Can be referenced to an external LVCMOS clock
-* Internal clock can be set up to 133 MHz (which scales timing specs accordingly)
+* Internal clock can be set up to 133 MHz, or 150 MHz with a Pico 2 (which scales timing specs accordingly)
 
 
 Installation
@@ -170,9 +170,9 @@ the second instruction (`do0.go_low(t)`) must be at least 5 clock cycles after t
 
 .. code-block:: python
 
-    t = 0
-    do0.go_high(t)
     t = 1e-3
+    do0.go_high(t)
+    t = 2e-3
     wait('my_wait', t)
     do0.go_low(t)
 

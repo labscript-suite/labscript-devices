@@ -45,7 +45,7 @@ Below is a basic script using the driver.
         WF_A.setamp(-24) # in dBm
         WF_A.setphase(45) # in deg
 
-        start(0)
+        start()
         stop(1)
 
 This driver supports the DDS Gate feature which can provide dynamic TTL control of the outputs.
@@ -79,6 +79,9 @@ The below script uses external clocking and gating features.
    StaticDDS('WF_A', WF, 'channel 0',
              digital_gate={'device':ni_6343, 'connection':'port0/line0'})
 
+   # NI DAQs need an even number of digital outputs
+   DigitalOut('ni_6343_do1', ni_6343, 'port0/line1')
+
    if __name__ == '__main__':
 
       WF.enable_output(0) # enables channel A (0)
@@ -87,7 +90,7 @@ The below script uses external clocking and gating features.
       WF_A.setphase(45) # in deg
 
       t = 0
-      start(t)
+      start()
 
       # enable rf via digital gate for 1 ms at 10 ms
       t = 10e-3

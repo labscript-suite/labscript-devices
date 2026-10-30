@@ -6,8 +6,8 @@ from .utils import serialise_function
 
 
 class FunctionRunner(Device):
-    """A labscript device to run custom functions before, after, or during (not yet
-    implemented) the experiment in software time"""
+    """A labscript device that runs functions in software time, in BLACS, before the
+    start or after the end of a shot."""
 
     def __init__(self, name, **kwargs):
         Device.__init__(self, name=name, parent_device=None, connection=None, **kwargs)
@@ -15,16 +15,15 @@ class FunctionRunner(Device):
         self.BLACS_connection = name
 
     def add_function(self, t, function, *args, **kwargs):
-        """Add a function to be run at time t. If t='start', then the function will run
-        prior to the shot beginning, and if t='stop', it will run after the experiment
-        has completed. Tip: use `start_order` and `stop_order` keyword arguments when
-        instantiating this device to control the relative order that its 'start' and
-        'stop' functions run compared to the transition_to_manual and
-        transition_to_buffered functions of other devices. Multiple functions added to
-        run at the same time will be run in the order added. Running functions mid-shot
-        in software time is yet to be implemented.
+        """Add a function to be run at time t, which must be 'start' or 'stop'. If
+        t='start', then the function will run prior to the shot beginning, and if
+        t='stop', it will run after the experiment has completed. Tip: use `start_order`
+        and `stop_order` keyword arguments when instantiating this device to control the
+        relative order that its 'start' and 'stop' functions run compared to the
+        transition_to_manual and transition_to_buffered functions of other devices.
+        Multiple functions added to run at the same time will be run in the order added.
 
-        The function must have a call signature like the following:
+        The function must have a call signature like the following::
 
             def func(shot_context, t, ...):
                 ...
@@ -40,23 +39,23 @@ class FunctionRunner(Device):
         state stored in shot_context, the functions must be self-contained, containing
         any imports that they need.
 
-        This object has a number of attributes:
+        The ShotContext instance has the attributes:
 
-        - self.globals: the shot globals
-        - self.h5_file: the filepath to the shot's HDF5 file
-        - self.device_name: the name of this FunctionRunner
+        - globals: the shot globals
+        - h5_file: the filepath to the shot's HDF5 file
+        - device_name: the name of this FunctionRunner
 
         If you want to save raw data to the HDF5 file at the end of a shot, the
         recommended place to do it is within the group 'data/<device_name>', for
-        example:
+        example::
 
-            with h5py.File(self.h5_file, 'r+') as f:
-                data_group = f['data'].create_group(self.device_name)
+            with h5py.File(shot_context.h5_file, 'r+') as f:
+                data_group = f['data'].create_group(shot_context.device_name)
                 # save datasets/attributes within this group
 
         Or, if you are doing analysis and want to save results that will be accessible
         to lyse analysis routines in the usual way, you can instantiate a lyse.Run
-        object and call Run.save_result() etc:
+        object and call Run.save_result() etc::
 
             import lyse
             run = lyse.Run(shot_context.h5_file)
@@ -67,9 +66,9 @@ class FunctionRunner(Device):
         FunctionRunner.
 
         The use case for which this device was implemented was to update runmanager's
-        globals immediately after a shot, based on measurement data, such that
-        just-in-time compiled shots imme. This is done by calling the runmanager remote API
-        from within a function to be run at the end of a shot, like so:
+        globals immediately after a shot, based on measurement data, so that shots that
+        are compiled afterwards use the new values. This is done by calling the runmanager
+        remote API from within a function to be run at the end of a shot, like so::
 
             import runmanager.remote
             runmanager.remote.set_globals({'x': 7})

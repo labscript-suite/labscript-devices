@@ -41,6 +41,8 @@ For hardware triggering, the camera is configured with ``TriggerMode``, ``Trigge
 ``TriggerActivation``. With ``manual_mode_camera_attributes``, the camera can run without a
 trigger in manual mode:
 
+.. fragment
+
 .. code-block:: python
 
    from labscript import *

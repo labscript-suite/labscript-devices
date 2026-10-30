@@ -21,6 +21,8 @@ image. The function returns the image as an array of the same shape, in counts. 
 ``camera_attributes`` give the size of the images, and the pixel format, which sets the
 saturation level.
 
+.. fragment
+
 .. code-block:: python
 
    import numpy as np

@@ -5,7 +5,7 @@ The **labscript_devices** module contains the low-level hardware interfacing cod
 
 Each "device" is made up of four classes that handle the various tasks.
 
-* `labscript_device` (derives from :obj:`Device <labscript:labscript.labscript.Device>`)
+* `labscript_device` (derives from :obj:`Device <labscript:labscript.base.Device>`)
 
    - Defines the interface between the **labscript** API and generates hardware instructions that can be saved to the shot h5 file.
 

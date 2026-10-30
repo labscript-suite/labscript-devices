@@ -20,6 +20,7 @@ The PrawnBlaster takes advantage of the specs of the Pico to provide the followi
     - Half-period resolution of 10 ns
 
 * 30,000 instructions (each with up to 2^32 repetitions) distributed evenly among the configured pseudoclocks; 30,000, 15,000, 10,000, and 7,500 for 1, 2, 3, 4 pseudoclocks respectively.
+  With a Pico 2 (`pico_board='pico2'`), 60,000 instructions, distributed in the same way.
 * Support for external hardware triggers (external trigger common to all pseudoclocks)
 
   - Up to 100 retriggers (labscript-suite waits) per pseudoclock
@@ -27,7 +28,7 @@ The PrawnBlaster takes advantage of the specs of the Pico to provide the followi
   - Each wait is internally monitored for its duration (resolution of +/-10 ns)
 
 * Can be referenced to an external LVCMOS clock
-* Internal clock can be set up to 133 MHz (timing specs scale accordingly)
+* Internal clock can be set up to 133 MHz, or 150 MHz with a Pico 2 (timing specs scale accordingly)
 
 Installation
 ~~~~~~~~~~~~
@@ -77,7 +78,7 @@ An example connection table that uses the PrawnBlaster:
 
    if __name__ == '__main__':
 
-      start(0)
+      start()
 
       stop(1)
 
@@ -88,8 +89,8 @@ While the PrawnBlaster and PrawnDO boards can be used as is,
 it is often a good idea to add unity-gain channel buffers to the inputs and outputs.
 Using buffers and line drivers from a LVCMOS family with 5V/TTL tolerant inputs can provide
 compatibility with TTL inputs and drive higher capacitance loads (such a long BNC cables) more reliably.
-Examples that implement these buffers can be found `here <https://github.com/TU-Darmstadt-APQ/Prawnblaster_Breakout>`_
-and `here <https://github.com/QTC-UMD/PrawnBlaster_Breakout_Connectorized>`_.
+Examples that implement these buffers can be found `here <https://github.com/TU-Darmstadt-APQ/Prawnblaster_Breakout>`__
+and `here <https://github.com/QTC-UMD/PrawnBlaster_Breakout_Connectorized>`__.
 
 
 Detailed Documentation

@@ -144,6 +144,7 @@ class AD9959DDSSweeper(IntermediateDevice):
 
         Validity checks include channel name and static/dynamic status.
         Dynamic channels must be specified before static channels.
+
         Args:
             device(): Device to attach. Must be a DDS or a StaticDDS.
                 Allowed connections are a string of the form `channel X`.

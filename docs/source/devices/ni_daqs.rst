@@ -4,14 +4,15 @@ NI DAQs
 Overview
 ~~~~~~~~
 
-This labscript device is a master device that can control a wide range of NI Multi-function data acquistion devices.
+This labscript device controls a wide range of NI multifunction data acquisition devices.
+It is an intermediate device, which is clocked by a clock line of a pseudoclock device.
 
 Installation
 ~~~~~~~~~~~~
 
 This labscript device requires an installation of the NI-DAQmx module, available for free from `NI <https://www.ni.com/en-us/support/downloads/drivers/download.ni-daqmx.html>`_.
 
-The python bindings are provided by the PyDAQmx package, available through pip.
+The python bindings are provided by the PyDAQmx package, which is a dependency of labscript-devices and is installed with it.
 
 
 Adding a Device
@@ -31,13 +32,13 @@ will be made in the `models` subfolder, and they can then be imported into labsc
 
 .. code-block:: python
 
-	from labscript_devices.NI_DAQmx.labscript_devices import NI_PCIe_6363
+	from labscript_devices.NI_DAQmx.models import NI_PCIe_6363
 
 or similar. The class naming is based on the model name by prepending "NI\_" and
 replacing the hyphen with an underscore, i.e. 'PCIe-6363' -> NI_PCIe_6363.
 
 Generating device classes requires the Python code-formatting library 'black', which can
-be installed via pip (Python 3.6+ only). If you don't want to install this library, the
+be installed via pip. If you don't want to install this library, the
 generation code will still work, it just won't be formatted well.
 
 The current list of pre-subclassed devices is:
@@ -52,11 +53,11 @@ Usage
 ~~~~~
 
 NI Multifunction DAQs generally provide hardware channels for 
-:class:`StaticAnalogOut <labscript:labscript.labscript.StaticAnalogOut>`,
-:class:`StaticDigitalOut <labscript:labscript.labscript.StaticDigitalOut>`,
-:class:`AnalogOut <labscript:labscript.labscript.AnalogOut>`,
-:class:`DigitalOut <labscript:labscript.labscript.DigitalOut>`,
-and :class:`AnalogIn <labscript:labscript.labscript.AnalogIn>` labscript quantities for use in experiments.
+:class:`StaticAnalogOut <labscript:labscript.outputs.StaticAnalogOut>`,
+:class:`StaticDigitalOut <labscript:labscript.outputs.StaticDigitalOut>`,
+:class:`AnalogOut <labscript:labscript.outputs.AnalogOut>`,
+:class:`DigitalOut <labscript:labscript.outputs.DigitalOut>`,
+and :class:`AnalogIn <labscript:labscript.inputs.AnalogIn>` labscript quantities for use in experiments.
 Exact numbers of channels, performance, and configuration depend on the model of DAQ used.
 
 .. code-block:: python
@@ -77,12 +78,16 @@ Exact numbers of channels, performance, and configuration depend on the model of
 	AnalogIn('daq_ai1',daq,'ai1')
 
 	AnalogOut('daq_ao0',daq,'ao0')
-	AnalogIn('daq_ai1',daq,'ai1')
+	AnalogOut('daq_ao1',daq,'ao1')
+
+	start()
+
+	stop(1)
 
 WaitMonitors
 ------------
 
-NI DAQs are also used within labscript to provide a :class:`WaitMonitor <labscript:labscript.labscript.waitmonitor>`.
+NI DAQs are also used within labscript to provide a :class:`WaitMonitor <labscript:labscript.labscript.WaitMonitor>`.
 When configured, the `WaitMonitor` allows for arbitrary-length pauses in experiment execution, waiting for some trigger to restart.
 The monitor provides a measurement of the duration of the wait for use in interpreting the resulting data from the experiment.
 
@@ -118,13 +123,13 @@ For sharing the clock input signal to other cards, the `clock_mirror_terminal` a
 .. code-block:: python
 
 	NI_PXI_6733(name='dev_1',
-				...,
+				parent_device=dummy_clock.clockline,
 				clock_terminal='/Dev1/PFI0',
 				clock_mirror_terminal='/Dev1/PXI_Trig0',
 				MAX_name='Dev1')
 
 	NI_PXI_6733(name='dev_2',
-				...,
+				parent_device=dummy_clock.clockline,
 				clock_terminal='/Dev2/PXI_Trig0',
 				MAX_name='Dev2')
 
@@ -139,18 +144,18 @@ For example, to share the clock in the previous with an additional PXIe-6535 dig
 .. code-block:: python
 
 	NI_PXI_6733(name='dev_1',
-				...,
+				parent_device=dummy_clock.clockline,
 				clock_terminal='/Dev1/PFI0',
 				clock_mirror_terminal='/Dev1/PXI_Trig0',
 				MAX_name='Dev1')
 
 	NI_PXI_6733(name='dev_2',
-				...,
+				parent_device=dummy_clock.clockline,
 				clock_terminal='/Dev2/PXI_Trig0',
 				MAX_name='Dev2')
 
 	NI_PXIe_6535(name='dev_3',
-				...,
+				parent_device=dummy_clock.clockline,
 				clock_terminal='/Dev3/PXI_Trig7',
 				MAX_name='Dev3',
 				connected_terminals=[('/Dev3/PXI_Trig0', '/Dev3/PXI_Trig7')])
