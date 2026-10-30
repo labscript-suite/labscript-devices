@@ -44,9 +44,9 @@ dependencies = [
     "PyDAQmx",
     "PyVISA",
     "pyserial",
-    "qtutils>=4.4.0",
+    "qtutils>=4.4.1",
     "spinapi",
-    "zprocess>=2.18.0",
+    "zprocess>=3.0.1",
 ]
 dynamic = ["version"]
 
