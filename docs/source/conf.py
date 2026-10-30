@@ -11,6 +11,8 @@ from jinja2 import FileSystemLoader, Environment
 import importlib.metadata
 import unittest.mock
 
+from sphinx.ext.autodoc.mock import _MockModule
+
 # -- Project information (unique to each project) -------------------------------------
 
 project = "labscript-devices"
@@ -46,6 +48,21 @@ extensions = [
 autodoc_typehints = 'description'
 autoclass_content = 'both'  # options: 'both', 'class', 'init'
 autodoc_mock_imports = ['PyDAQmx', 'labscript_utils.h5_lock']
+
+# After PySide6 is imported, it calls inspect.getsource() on each module that is imported.
+# The mock modules return a new mock object for any attribute, including __wrapped__,
+# so inspect.unwrap() raises ValueError for them and the import fails. We make the mock
+# modules raise AttributeError for __wrapped__.
+_mock_module_getattr = _MockModule.__getattr__
+
+
+def _mock_module_getattr_no_wrapped(self, name):
+    if name == '__wrapped__':
+        raise AttributeError(name)
+    return _mock_module_getattr(self, name)
+
+
+_MockModule.__getattr__ = _mock_module_getattr_no_wrapped
 
 # The AlazarTech API module loads the AlazarTech library when it is imported. Import it
 # with a mock library.
