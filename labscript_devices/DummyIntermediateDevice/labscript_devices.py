@@ -29,6 +29,8 @@ class DummyIntermediateDevice(IntermediateDevice):
     def generate_code(self, hdf5_file):
         IntermediateDevice.generate_code(self, hdf5_file)
         group = self.init_device_group(hdf5_file)
+        if not self.child_devices:
+            return
 
         clockline = self.parent_device
         pseudoclock = clockline.parent_device
