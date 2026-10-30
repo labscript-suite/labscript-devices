@@ -194,7 +194,8 @@ class NarwhalPulseGeneratorTab(DeviceTab):
         return widget
 
     def _button(self, icon, tooltip, slot, checkable=False):
-        button = QtWidgets.QPushButton()
+        button = QtWidgets.QToolButton()
+        button.setAutoRaise(True)
         button.setIcon(Icon(icon))
         button.setToolTip(tooltip)
         button.setCheckable(checkable)

@@ -30,7 +30,7 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="ref_button">
+      <widget class="QToolButton" name="ref_button">
        <property name="text">
         <string>Reference out</string>
        </property>
@@ -39,6 +39,12 @@
        </property>
        <property name="checked">
         <bool>false</bool>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextBesideIcon</enum>
+       </property>
+       <property name="autoRaise">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -56,11 +62,17 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="blanking_button">
+      <widget class="QToolButton" name="blanking_button">
        <property name="text">
         <string>Blanking</string>
        </property>
        <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextBesideIcon</enum>
+       </property>
+       <property name="autoRaise">
         <bool>true</bool>
        </property>
       </widget>
@@ -79,11 +91,17 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="lock_recovery_button">
+      <widget class="QToolButton" name="lock_recovery_button">
        <property name="text">
         <string>Lock recovery</string>
        </property>
        <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextBesideIcon</enum>
+       </property>
+       <property name="autoRaise">
         <bool>true</bool>
        </property>
       </widget>
