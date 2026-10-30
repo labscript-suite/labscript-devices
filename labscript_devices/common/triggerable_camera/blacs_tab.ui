@@ -31,7 +31,7 @@
      <item>
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
-        <widget class="QPushButton" name="pushButton_attributes">
+        <widget class="QToolButton" name="pushButton_attributes">
          <property name="toolTip">
           <string>View IMAQdx attributes</string>
          </property>
@@ -42,10 +42,16 @@
           <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
            <normaloff>:/qtutils/fugue/table-export.png</normaloff>:/qtutils/fugue/table-export.png</iconset>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButtonAutoLevels">
+        <widget class="QToolButton" name="pushButtonAutoLevels">
          <property name="toolTip">
           <string>Auto scale image levels and histogram range</string>
          </property>
@@ -59,10 +65,16 @@
          <property name="checkable">
           <bool>true</bool>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_set_bg">
+        <widget class="QToolButton" name="pushButton_set_bg">
          <property name="toolTip">
           <string>Set the current image as the background, which is subtracted from displayed images. This affects the display only, not the images saved to shot files.</string>
          </property>
@@ -73,10 +85,16 @@
           <iconset>
            <normaloff>:/qtutils/fugue/image--plus.png</normaloff>:/qtutils/fugue/image--plus.png</iconset>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_clear_bg">
+        <widget class="QToolButton" name="pushButton_clear_bg">
          <property name="toolTip">
           <string>Clear the background image</string>
          </property>
@@ -87,10 +105,16 @@
           <iconset>
            <normaloff>:/qtutils/fugue/image--minus.png</normaloff>:/qtutils/fugue/image--minus.png</iconset>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_snap">
+        <widget class="QToolButton" name="pushButton_snap">
          <property name="toolTip">
           <string>Take a single image</string>
          </property>
@@ -101,10 +125,16 @@
           <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
            <normaloff>:/qtutils/fugue/control-stop.png</normaloff>:/qtutils/fugue/control-stop.png</iconset>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_continuous">
+        <widget class="QToolButton" name="pushButton_continuous">
          <property name="toolTip">
           <string>Acquire images continuously</string>
          </property>
@@ -115,10 +145,16 @@
           <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
            <normaloff>:/qtutils/fugue/control.png</normaloff>:/qtutils/fugue/control.png</iconset>
          </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_stop">
+        <widget class="QToolButton" name="pushButton_stop">
          <property name="toolTip">
           <string>Stop acquiring images</string>
          </property>
@@ -128,6 +164,12 @@
          <property name="icon">
           <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
            <normaloff>:/qtutils/fugue/control-stop-square.png</normaloff>:/qtutils/fugue/control-stop-square.png</iconset>
+         </property>
+         <property name="toolButtonStyle">
+          <enum>Qt::ToolButtonTextBesideIcon</enum>
+         </property>
+         <property name="autoRaise">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -172,6 +214,9 @@
            <property name="icon">
             <iconset resource="../../../clones/qtutils/qtutils/icons/icons.qrc">
              <normaloff>:/qtutils/fugue/arrow-turn-180-left.png</normaloff>:/qtutils/fugue/arrow-turn-180-left.png</iconset>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>

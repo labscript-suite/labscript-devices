@@ -44,7 +44,10 @@ class CiceroOpalKellyXEM3001Tab(DeviceTab):
         self.supports_smart_programming(False) 
         
         # Add button to force reflash
-        self.flash_fpga_button = QPushButton('Flash FPGA firmware (this should be handled automatically by BLACS, if the device is not working correctly, try this button!)')
+        self.flash_fpga_button = QToolButton()
+        self.flash_fpga_button.setText('Flash FPGA firmware')
+        self.flash_fpga_button.setToolTip('BLACS flashes the firmware automatically. Use this button if the device is not working correctly.')
+        self.flash_fpga_button.setAutoRaise(True)
         self.flash_fpga_button.clicked.connect(self.flash_fpga)
         self.get_tab_layout().insertWidget(self.get_tab_layout().count()-1, self.flash_fpga_button)
         

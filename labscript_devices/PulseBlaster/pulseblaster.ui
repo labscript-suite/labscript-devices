@@ -123,23 +123,32 @@
           </spacer>
          </item>
          <item>
-          <widget class="QPushButton" name="start_button">
+          <widget class="QToolButton" name="start_button">
            <property name="text">
             <string/>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QPushButton" name="stop_button">
+          <widget class="QToolButton" name="stop_button">
            <property name="text">
             <string/>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QPushButton" name="reset_button">
+          <widget class="QToolButton" name="reset_button">
            <property name="text">
             <string/>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
            </property>
           </widget>
          </item>

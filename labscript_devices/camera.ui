@@ -117,12 +117,15 @@
               </spacer>
              </item>
              <item>
-              <widget class="QPushButton" name="check_connectivity_pushButton">
+              <widget class="QToolButton" name="check_connectivity_pushButton">
                <property name="toolTip">
                 <string>Check connectivity</string>
                </property>
                <property name="text">
                 <string/>
+               </property>
+               <property name="autoRaise">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
