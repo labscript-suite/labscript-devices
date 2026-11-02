@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Form</class>
+ <widget class="QWidget" name="Form">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>814</width>
+    <height>556</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_2">
+   <item row="0" column="0">
+    <layout class="QGridLayout" name="gridLayout">
+     <property name="sizeConstraint">
+      <enum>QLayout::SetDefaultConstraint</enum>
+     </property>
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_setup_pages">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>7</pointsize>
+         <kerning>true</kerning>
+        </font>
+       </property>
+       <property name="text">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;Setup tabs&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="label_active_setup">
+       <property name="font">
+        <font>
+         <pointsize>9</pointsize>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>Active setup : </string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QTabWidget" name="tabWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="s0">
+        <attribute name="title">
+         <string>s0</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s1">
+        <attribute name="title">
+         <string>s1</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s2">
+        <attribute name="title">
+         <string>s2</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s3">
+        <attribute name="title">
+         <string>s3</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s4">
+        <attribute name="title">
+         <string>s4</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s5">
+        <attribute name="title">
+         <string>s5</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s6">
+        <attribute name="title">
+         <string>s6</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s7">
+        <attribute name="title">
+         <string>s7</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s8">
+        <attribute name="title">
+         <string>s8</string>
+        </attribute>
+       </widget>
+       <widget class="QWidget" name="s9">
+        <attribute name="title">
+         <string>s9</string>
+        </attribute>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
