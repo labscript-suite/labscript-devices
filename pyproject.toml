@@ -33,10 +33,10 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "blacs>=3.0.0",
-    "runmanager>=3.0.0",
-    "labscript>=3.0.0",
-    "labscript_utils>=3.0.0",
+    "blacs>=3.3.0rc1",
+    "runmanager>=3.4.0rc1",
+    "labscript>=3.5.0rc1",
+    "labscript_utils>=3.5.0rc1",
     "filelock>=3.12",
     "numpy>=1.15.1",
     "pillow",
