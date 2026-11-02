@@ -1,0 +1,26 @@
+{
+  "BS_341A_spec": {
+    "static_AO": 0,
+    "num_AO": 8,
+    "baud_rate": 9600,
+    "supports_custom_voltages_per_channel": true,
+    "AO_ranges": [
+      {"channel": 1, "voltage_range": [-24.0, 24.0]},
+      {"channel": 2, "voltage_range": [-34.565, 34.565]},
+      {"channel": 3, "voltage_range": [-34.565, 34.565]},
+      {"channel": 4, "voltage_range": [-34.565, 34.565]},
+      {"channel": 5, "voltage_range": [-34.565, 34.565]},
+      {"channel": 6, "voltage_range": [-34.565, 34.565]},
+      {"channel": 7, "voltage_range": [-34.565, 34.565]},
+      {"channel": 8, "voltage_range": [-34.565, 34.565]}
+    ],
+    "default_voltage_range": [-24, 24]
+  },
+  "BS_341A": {
+    "static_AO": 0,
+    "num_AO": 8,
+    "baud_rate": 9600,
+    "supports_custom_voltages_per_channel": false,
+    "default_voltage_range": [-34, 34]
+  }
+}
